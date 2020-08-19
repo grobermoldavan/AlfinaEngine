@@ -7,21 +7,21 @@
 
 #include "utilities/flags.h"
 
-#define AL_LOG_OVERRIDE_OUTPUT(file)		al::engine::Logger::override_output(file);
-#define AL_LOG_CLEAR_OUTPUT_OVERRIDE()		al::engine::Logger::clear_output_override();
+#define AL_LOG_OVERRIDE_OUTPUT(file)			al::engine::Logger::override_output(file);
+#define AL_LOG_CLEAR_OUTPUT_OVERRIDE()			al::engine::Logger::clear_output_override();
 
-#define AL_LOG_NO_DISCARD(type, msg)		al::engine::Logger::log(type, __FILE__, __FUNCTION__, __LINE__, msg);
-#define AL_LOG_SHORT_NO_DISCARD(type, msg)	al::engine::Logger::log(type, nullptr, nullptr, 0, msg);
+#define AL_LOG_NO_DISCARD(type, ...)			al::engine::Logger::log(type, __FILE__, __FUNCTION__, __LINE__, __VA_ARGS__);
+#define AL_LOG_SHORT_NO_DISCARD(type, ...)		al::engine::Logger::log(type, nullptr, nullptr, 0, __VA_ARGS__);
 
-#define AL_LOG_DELIMITER					" : "
-#define AL_LOG_LINE_END						std::endl
+#define AL_LOG_DELIMITER						" : "
+#define AL_LOG_LINE_END							std::endl
 
 #if defined(AL_DEBUG)
-#	define AL_LOG(type, msg)				al::engine::Logger::log(type, __FILE__, __FUNCTION__, __LINE__, msg);
-#	define AL_LOG_SHORT(type, msg)			al::engine::Logger::log(type, nullptr, nullptr, 0, msg);
+#	define AL_LOG(type, ...)					al::engine::Logger::log(type, __FILE__, __FUNCTION__, __LINE__, __VA_ARGS__);
+#	define AL_LOG_SHORT(type, ...)				al::engine::Logger::log(type, nullptr, nullptr, 0, __VA_ARGS__);
 #else
-#	define AL_LOG(type, msg)
-#	define AL_LOG_SHORT(type, msg)
+#	define AL_LOG(type, ...)
+#	define AL_LOG_SHORT(type, ...)
 #endif
 
 namespace al::engine
@@ -36,14 +36,46 @@ namespace al::engine
 			ERROR_MSG
 		};
 
-		static void log(Type type, const char* file, const char* func, const int line, const char* msg)
+		template<typename... Args>
+		static void log(Type type, const char* file, const char* func, const int line, Args... args)
 		{
+			#define OUT_MSG_INFO(file, func, line)	if (file)	std::cout << file << AL_LOG_DELIMITER;								\
+													if (func)	std::cout << func << AL_LOG_DELIMITER << line << AL_LOG_DELIMITER;
+
+			#define ASS_HACK_EXPAND_ARGS_PRINT		using expander = int[];															\
+													(void)expander{ 0, (void(std::cout << std::forward<Args>(args)), 0)... };
+
 			switch (type)
 			{
-			case Type::MESSAGE		: log_message	(file, func, line, msg); break;
-			case Type::WARNING		: log_warning	(file, func, line, msg); break;
-			case Type::ERROR_MSG	: log_error		(file, func, line, msg); break;
+				case Type::MESSAGE:
+				{
+					prepare_log_message();
+					OUT_MSG_INFO(file, func, line)
+					ASS_HACK_EXPAND_ARGS_PRINT
+					std::cout << std::endl;
+					break;
+				}
+				case Type::WARNING:
+				{
+					prepare_log_warning();
+					OUT_MSG_INFO(file, func, line)
+					ASS_HACK_EXPAND_ARGS_PRINT
+					std::cout << std::endl;
+					break;
+				}
+				case Type::ERROR_MSG:
+				{
+					prepare_log_error();
+					OUT_MSG_INFO(file, func, line)
+					ASS_HACK_EXPAND_ARGS_PRINT
+					std::cout << std::endl;
+					std::quick_exit(0);
+					break;
+				}
 			}
+
+			#undef OUT_MSG_INFO
+			#undef ASS_HACK_EXPAND_ARGS_PRINT
 		}
 
 		static void override_output(const char* file)
@@ -71,12 +103,17 @@ namespace al::engine
 		static std::ofstream	outStream;
 		static std::streambuf*	stdCoutBuf;
 
-		static void init();
-		static void terminate();
+		static void al::engine::Logger::init()
+		{
+			std::at_quick_exit(terminate);
+			std::atexit(terminate);
+		}
 
-		static void log_message	(const char* file, const char* func, const int line, const char* msg);
-		static void log_warning	(const char* file, const char* func, const int line, const char* msg);
-		static void log_error	(const char* file, const char* func, const int line, const char* msg);
+		// must be implemented in platform side
+		static void terminate			();
+		static void prepare_log_message	();
+		static void prepare_log_warning	();
+		static void prepare_log_error	();
 	};
 }
 
