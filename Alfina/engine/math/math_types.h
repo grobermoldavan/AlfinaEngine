@@ -129,6 +129,10 @@ namespace al
 	using float3 = mult<float, 3>;
 	using float4 = mult<float, 4>;
 
+	using int32_2 = mult<int32_t, 2>;
+	using int32_3 = mult<int32_t, 3>;
+	using int32_4 = mult<int32_t, 4>;
+
 	using int64_2 = mult<int64_t, 2>;
 	using int64_3 = mult<int64_t, 3>;
 	using int64_4 = mult<int64_t, 4>;
@@ -162,6 +166,11 @@ namespace al
 		matrix2d(inT... args) 
 			: components { static_cast<T>(args)... }
 		{ }
+
+		inline const T* data_ptr() const
+		{
+			return &components[0];
+		}
 
 		inline T& get(size_t row, size_t column) const
 		{
