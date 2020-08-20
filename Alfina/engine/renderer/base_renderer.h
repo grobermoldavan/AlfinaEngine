@@ -168,10 +168,10 @@ namespace al::engine
 	class Renderer
 	{
 	public:
-		virtual void make_current()                                                                      = 0;
-		virtual void clear_screen(al::float3 color)                                                      = 0;
+		virtual void make_current()																		= 0;
+		virtual void clear_screen(const al::float3& color)												= 0;
 		//virtual void Render     (const Shader& shader, const VertexArray& va, const al::float4x4& trf)  = 0;
-		virtual void commit      ()                                                                      = 0;
+		virtual void commit      ()																		= 0;
 	};
 
 	class ApplicationWindow;

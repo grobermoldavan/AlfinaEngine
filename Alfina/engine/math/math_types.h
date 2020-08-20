@@ -33,8 +33,9 @@ namespace al
 	// ========================================
 
 	template<typename T, size_t num>
-	struct mult
+	class mult
 	{
+	public:
 		mult() 
 			: components{ }
 		{ }
@@ -50,11 +51,6 @@ namespace al
 
 		mult(const mult<T, num>& other) 
 			: components{ other.components } 
-		{ }
-
-		template<class... inT>
-		mult(inT... args) 
-			: components { static_cast<T>(args)... }
 		{ }
 
 		inline T&       get         (size_t element) const  { AL_ASSERT(element < num); return const_cast<T&>(components[element]); }
@@ -125,17 +121,62 @@ namespace al
 		return os;
 	}
 
-	using float2 = mult<float, 2>;
-	using float3 = mult<float, 3>;
-	using float4 = mult<float, 4>;
+	template<typename T>
+	class mult2 : public mult<T, 2>
+	{
+	public:
+		using mult<T, 2>::mult;
 
-	using int32_2 = mult<int32_t, 2>;
-	using int32_3 = mult<int32_t, 3>;
-	using int32_4 = mult<int32_t, 4>;
+		mult2(T v1, T v2)
+			: mult<T, 2>{ {v1, v2} }
+		{ }
 
-	using int64_2 = mult<int64_t, 2>;
-	using int64_3 = mult<int64_t, 3>;
-	using int64_4 = mult<int64_t, 4>;
+		mult2(const mult<T, 2>& other)
+			: mult<T, 2>{ other }
+		{ }
+	};
+
+	template<typename T>
+	class mult3 : public mult<T, 3>
+	{
+	public:
+		using mult<T, 3>::mult;
+
+		mult3(T v1, T v2, T v3)
+			: mult<T, 3>{ { v1, v2, v3 } }
+		{ }
+
+		mult3(const mult<T, 3>& other)
+			: mult<T, 3>{ other }
+		{ }
+	};
+
+	template<typename T>
+	class mult4 : public mult<T, 4>
+	{
+	public:
+		using mult<T, 4>::mult;
+
+		mult4(T v1, T v2, T v3, T v4)
+			: mult<T, 4>{ { v1, v2, v3, v4 } }
+		{ }
+
+		mult4(const mult<T, 4>& other)
+			: mult<T, 4>{ other }
+		{ }
+	};
+
+	using float2 = mult2<float>;
+	using float3 = mult3<float>;
+	using float4 = mult4<float>;
+
+	using int32_2 = mult2<int32_t>;
+	using int32_3 = mult3<int32_t>;
+	using int32_4 = mult4<int32_t>;
+
+	using int64_2 = mult2<int64_t>;
+	using int64_3 = mult3<int64_t>;
+	using int64_4 = mult4<int64_t>;
 
 	// ========================================
 	// Matrix
@@ -269,7 +310,7 @@ namespace al
 		template<typename T, size_t rows, size_t columns>
 		friend std::ostream& operator << (std::ostream& os, const matrix2d<T, rows, columns>& mat);
 
-	private:
+	protected:
 		union
 		{
 			std::array<T, columns * rows>               components;

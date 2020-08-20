@@ -473,7 +473,7 @@ namespace al::engine
 		::wglMakeCurrent(hdc, win32window->hglrc);
 	}
 
-	void Win32glRenderer::clear_screen(al::float3 color)
+	void Win32glRenderer::clear_screen(const al::float3& color)
 	{
 		using namespace al::elements;
 		::glClearColor(color[R], color[G], color[B], 1.0f);
