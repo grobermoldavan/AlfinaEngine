@@ -22,6 +22,14 @@
 #	error Supported platform is not defined
 #endif
 
+#include "platform\base_file_sys.h"
+#if defined(AL_PLATFORM_WIN32)
+#	include "platform\win32\windows_file_sys.h"
+#else
+#	error Supported platform is not defined
+#endif
+
+
 #include "renderer\base_renderer.h"
 #if defined(AL_PLATFORM_WIN32)
 #	include "renderer\win32\windows_opengl_renderer.h"
