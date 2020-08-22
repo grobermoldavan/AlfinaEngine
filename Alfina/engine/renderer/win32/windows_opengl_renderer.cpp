@@ -480,6 +480,13 @@ namespace al::engine
 		::glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	}
 
+	void Win32glRenderer::draw(const Shader* shader, const VertexArray* va)
+	{
+		va->bind();
+		shader->bind();
+		::glDrawElements(GL_TRIANGLES, va->get_index_buffer()->get_count(), GL_UNSIGNED_INT, nullptr);
+	}
+
 	void Win32glRenderer::commit()
 	{
 		::SwapBuffers(hdc);

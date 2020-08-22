@@ -43,9 +43,6 @@ int main()
 	va->set_vertex_buffer(vb);
 	va->set_index_buffer(ib);
 
-	// draw vertex array
-	va->bind();
-
 	al::engine::FileHandle vertexShader;
 	al::engine::FileSys::read_file("Shaders\\vertex.vert", &vertexShader);
 
@@ -63,15 +60,10 @@ int main()
 		tint[2] = tint[2] + 0.01f; if (tint[2] > 1.0f) tint[2] -= 1.0f;
 
 		window->renderer->make_current();
+
 		window->renderer->clear_screen({ 0.1f, 0.1f, 0.1f });
-
-		va->bind();
-		shader->bind();
-
 		shader->set_float4("tint", tint);
-
-		// @TODO : abstract this away
-		::glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_INT, nullptr);
+		window->renderer->draw(shader, va);
 
 		window->renderer->commit();
 	}
