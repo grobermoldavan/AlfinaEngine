@@ -50,7 +50,7 @@ namespace al::engine
 		HMODULE moduleHandle = ::GetModuleHandle(NULL);
 		AL_ASSERT_MSG_NO_DISCARD(moduleHandle, "Win32 :: Unable to get module handle")
 
-		const char *WIN_NAME = win32window->properties.name.is_specified() ? win32window->properties.name : "Alfina Engine Window";
+		const char *WIN_NAME = win32window->properties.name.is_specified() ? win32window->properties.name : "Alfina Engine";
 
 		WNDCLASS wc = {};
 
@@ -59,24 +59,31 @@ namespace al::engine
 		wc.lpszClassName	= WIN_NAME;
 		wc.hCursor			= ::LoadCursor(NULL, IDC_ARROW);
 
-		bool isClassRegistered = ::RegisterClass(&wc);
+		const bool isClassRegistered = ::RegisterClass(&wc);
 		AL_ASSERT_MSG_NO_DISCARD(isClassRegistered, "Win32 :: Unable to register window class")
 
-		HWND hwnd = ::CreateWindowEx(
-			0,                              		// Optional window styles.
-			WIN_NAME,               				// Window class
-			WIN_NAME,    							// Window text
-			WS_OVERLAPPEDWINDOW ^ WS_THICKFRAME, 	// Window style
+		const bool isFullscreen = win32window->properties.screenMode == WindowProperties::ScreenMode::FULL_SCREEN;
 
-			CW_USEDEFAULT, 							// Position X
-			CW_USEDEFAULT, 							// Position Y
+		constexpr DWORD windowedStyle = 
+			WS_OVERLAPPED	|			// Window has title and borders
+			WS_SYSMENU		|			// Add sys menu (close button)
+			WS_MINIMIZEBOX	;			// Add minimize button
+
+		constexpr DWORD fullscreenStyle = WS_POPUP;
+
+		HWND hwnd = ::CreateWindowEx(
+			0,                              																// Optional window styles.
+			WIN_NAME,               																		// Window class
+			WIN_NAME,    																					// Window text
+			isFullscreen ? fullscreenStyle : windowedStyle,													// Window styles
+			CW_USEDEFAULT, 																					// Position X
+			CW_USEDEFAULT, 																					// Position Y
 			win32window->properties.width.is_specified() ? win32window->properties.width : CW_USEDEFAULT,   // Size X
 			win32window->properties.height.is_specified() ? win32window->properties.height : CW_USEDEFAULT, // Size Y
-
-			NULL,       							// Parent window    
-			NULL,       							// Menu
-			moduleHandle,  							// Instance handle
-			NULL        							// Additional application data
+			NULL,       																					// Parent window    
+			NULL,       																					// Menu
+			moduleHandle,  																					// Instance handle
+			NULL        																					// Additional application data
 		);
 
 		AL_ASSERT_MSG_NO_DISCARD(hwnd, "Win32 :: Unable to create window via CreateWindowEx")
@@ -84,7 +91,7 @@ namespace al::engine
 		win32window->hwnd = hwnd;
 		SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG)win32window);
 
-		::ShowWindow(hwnd, SW_SHOW);
+		::ShowWindow(hwnd, isFullscreen ? SW_MAXIMIZE : SW_SHOW);
 		::UpdateWindow(hwnd);
 
 		creation_promise.set_value();

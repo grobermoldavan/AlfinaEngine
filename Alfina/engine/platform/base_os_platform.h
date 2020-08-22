@@ -22,7 +22,7 @@ namespace al::engine
 		Dispensable<uint32_t> 	resolutionHeight;
 		Dispensable<uint32_t> 	width;
 		Dispensable<uint32_t> 	height;
-		ScreenMode				isFullScreen;
+		ScreenMode				screenMode;
 		
 		Dispensable<char*> 		name;
 	};

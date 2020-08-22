@@ -7,10 +7,10 @@ int main()
 	al::engine::ApplicationWindow* window;
 	al::engine::WindowProperties properties
 	{
-		al::nonSpecifiedValue,
-		al::nonSpecifiedValue,
-		al::nonSpecifiedValue,
-		al::nonSpecifiedValue,
+		al::nonSpecifiedValue,	// resolution x
+		al::nonSpecifiedValue,	// resolution y
+		640,					// size x
+		480,					// size y
 		al::engine::WindowProperties::ScreenMode::WINDOWED,
 		"Application window"
 	};
@@ -20,7 +20,7 @@ int main()
 	float arr[] =
 	{
 		-1.0f, -1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f,
-		1.0f, -1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f,
+		 1.0f, -1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f,
 		-1.0f,  1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f
 	};
 
