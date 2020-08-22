@@ -52,8 +52,11 @@ int main()
 	al::engine::Shader* shader;
 	al::engine::create_shader(&shader, (const char*)vertexShader.get_data(), (const char*)fragmentShader.get_data());
 
-	while (!window->input.generalInput.get_flag(al::engine::ApplicationWindowInput::GeneralInputFlags::CLOSE_BUTTON_PRESSED))
+	while (true)
 	{
+		if (window->input.generalInput.get_flag(al::engine::ApplicationWindowInput::GeneralInputFlags::CLOSE_BUTTON_PRESSED)) break;
+		if (window->input.mouse.buttons.get_flag(al::engine::ApplicationWindowInput::MouseInputFlags::RMB_PRESSED)) break;
+
 		static al::float4 tint{ 1.0f, 1.0f, 1.0f, 1.0f };
 		tint[0] = tint[0] + 0.01f; if (tint[0] > 1.0f) tint[0] -= 1.0f;
 		tint[1] = tint[1] + 0.01f; if (tint[1] > 1.0f) tint[1] -= 1.0f;

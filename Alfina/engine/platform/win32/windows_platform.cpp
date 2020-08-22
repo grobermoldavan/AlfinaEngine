@@ -4,7 +4,11 @@
 #	include "windows_platform.h"
 #endif
 
+#include <map>
 #include <thread>
+
+#include "windows_utilities.h"
+#include "windows_input.h"
 
 #include "engine/engine_utilities/asserts.h"
 
@@ -15,6 +19,18 @@ namespace al::engine
 									WPARAM	wParam,
 									LPARAM	lParam)
 	{
+		Win32ApplicationWindow* win32window = (Win32ApplicationWindow*) GetWindowLongPtr(hWnd, GWLP_USERDATA);
+		
+		if (process_mouse_input(win32window, message, wParam, lParam))
+		{
+			return 0;
+		}
+		
+		if (process_keyboard_input(win32window, message, wParam, lParam))
+		{
+			return 0;
+		}
+
 		switch (message)
 		{
 		case WM_DESTROY:
@@ -22,7 +38,6 @@ namespace al::engine
 			return 0;
 		case WM_CLOSE:
 			AL_LOG_SHORT(Logger::Type::MESSAGE, "WM_CLOSE")
-			Win32ApplicationWindow* win32window = hWndToWindowMap[hWnd];
 			win32window->input.generalInput.set_flag(ApplicationWindowInput::GeneralInputFlags::CLOSE_BUTTON_PRESSED);
 			return 0;
 		}
@@ -67,7 +82,7 @@ namespace al::engine
 		AL_ASSERT_MSG_NO_DISCARD(hwnd, "Win32 :: Unable to create window via CreateWindowEx")
 
 		win32window->hwnd = hwnd;
-		hWndToWindowMap.insert(std::make_pair(hwnd, win32window));
+		SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG)win32window);
 
 		::ShowWindow(hwnd, SW_SHOW);
 		::UpdateWindow(hwnd);
@@ -88,8 +103,6 @@ namespace al::engine
 				::PostQuitMessage(0);
 			}
 		}
-
-		hWndToWindowMap.erase(hwnd);
 	}
 
 	ErrorInfo create_application_window(const WindowProperties& properties, ApplicationWindow** window)

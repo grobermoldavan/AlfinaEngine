@@ -27,6 +27,8 @@ namespace al::engine
 		Dispensable<char*> 		name;
 	};
 
+	// This struct gets changed by OS.
+	// For user this is read-only.
 	struct ApplicationWindowInput
 	{
 		enum GeneralInputFlags
@@ -34,9 +36,24 @@ namespace al::engine
 			CLOSE_BUTTON_PRESSED
 		};
 
+		enum MouseInputFlags
+		{
+			LMB_PRESSED,
+			RMB_PRESSED,
+			MMB_PRESSED
+		};
+
 		Flags32 generalInput;
+		
+		struct {
+			Flags32 buttons;
+			int32_t x;
+			int32_t y;
+			int32_t wheel;
+		} mouse { };
 	};
 
+	// @TODO : remove this from the base class
 	struct ApplicationWindowState
 	{
 		enum StateFlags
