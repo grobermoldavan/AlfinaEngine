@@ -55,7 +55,7 @@ int main()
 	while (true)
 	{
 		if (window->input.generalInput.get_flag(al::engine::ApplicationWindowInput::GeneralInputFlags::CLOSE_BUTTON_PRESSED)) break;
-		if (window->input.mouse.buttons.get_flag(al::engine::ApplicationWindowInput::MouseInputFlags::RMB_PRESSED)) break;
+		if (window->input.keyboard.buttons.get_flag(al::engine::ApplicationWindowInput::KeyboardInputFlags::ESCAPE)) break;
 
 		static al::float4 tint{ 1.0f, 1.0f, 1.0f, 1.0f };
 		tint[0] = tint[0] + 0.01f; if (tint[0] > 1.0f) tint[0] -= 1.0f;
