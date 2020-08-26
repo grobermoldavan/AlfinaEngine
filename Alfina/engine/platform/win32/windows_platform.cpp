@@ -4,8 +4,8 @@
 #	include "windows_platform.h"
 #endif
 
-#include <map>
 #include <thread>
+#include <cstring>
 
 #include "windows_utilities.h"
 #include "windows_input.h"
@@ -151,6 +151,14 @@ namespace al::engine
 
 		delete win32window;
 
+		return{ al::engine::ErrorInfo::Code::ALL_FINE };
+	}
+
+	ErrorInfo get_window_inputs(const ApplicationWindow* window, ApplicationWindowInput* inputBuffer)
+	{
+		const Win32ApplicationWindow* win32window = static_cast<const Win32ApplicationWindow*>(window);
+		std::lock_guard<std::mutex> lock(win32window->inputReadMutex);
+		std::memcpy(inputBuffer, &win32window->input, sizeof(ApplicationWindowInput));
 		return{ al::engine::ErrorInfo::Code::ALL_FINE };
 	}
 }

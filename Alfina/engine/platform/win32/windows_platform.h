@@ -15,6 +15,7 @@ namespace al::engine
 	void				window_update				(Win32ApplicationWindow* win32window, std::promise<void> creation_promise);
 	ErrorInfo			create_application_window	(const WindowProperties& properties, ApplicationWindow** window);
 	ErrorInfo			destroy_application_window	(ApplicationWindow* window);
+	ErrorInfo			get_window_inputs			(const ApplicationWindow*, ApplicationWindowInput*);
 }
 
 #if defined(AL_UNITY_BUILD)

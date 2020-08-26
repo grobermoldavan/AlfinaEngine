@@ -1,5 +1,8 @@
 #include "project.h"
 
+#include <chrono>
+#include <type_traits>
+
 int main()
 {
 	AL_LOG(al::engine::Logger::WARNING, "Test warning ", 1, 2.0f, 3.1234, al::float2{ 2, 3 })
@@ -52,10 +55,33 @@ int main()
 	al::engine::Shader* shader;
 	al::engine::create_shader(&shader, (const char*)vertexShader.get_data(), (const char*)fragmentShader.get_data());
 
+	al::engine::ApplicationWindowInput inputBuffer { };
+
+	class TestTimer
+	{
+	public:
+		TestTimer()
+			: start { std::chrono::high_resolution_clock::now() }
+		{ }
+
+		~TestTimer()
+		{
+			auto now = std::chrono::high_resolution_clock::now();
+			AL_LOG_SHORT(al::engine::Logger::MESSAGE, "Frame time : ", std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count(), " ms")
+		}
+
+	private:
+		std::result_of<decltype(&std::chrono::high_resolution_clock::now)()>::type start;
+	};
+
 	while (true)
 	{
-		if (window->input.generalInput.get_flag(al::engine::ApplicationWindowInput::GeneralInputFlags::CLOSE_BUTTON_PRESSED)) break;
-		if (window->input.keyboard.buttons.get_flag(al::engine::ApplicationWindowInput::KeyboardInputFlags::ESCAPE)) break;
+		TestTimer timer;
+
+		al::engine::get_window_inputs(window, &inputBuffer);
+
+		if (inputBuffer.generalInput.get_flag(al::engine::ApplicationWindowInput::GeneralInputFlags::CLOSE_BUTTON_PRESSED)) break;
+		if (inputBuffer.keyboard.buttons.get_flag(al::engine::ApplicationWindowInput::KeyboardInputFlags::ESCAPE)) break;
 
 		static al::float4 tint{ 1.0f, 1.0f, 1.0f, 1.0f };
 		tint[0] = tint[0] + 0.01f; if (tint[0] > 1.0f) tint[0] -= 1.0f;

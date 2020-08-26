@@ -88,15 +88,15 @@ namespace al::engine
 	struct ApplicationWindow
 	{
 		WindowProperties		properties;
+		Renderer* 				renderer;
 		ApplicationWindowInput 	input;
 		ApplicationWindowState  state;
-		Renderer* 				renderer;
 	};
 	
 	extern ErrorInfo	create_application_window	(const WindowProperties&, ApplicationWindow**);
 	extern ErrorInfo	destroy_application_window	(ApplicationWindow*);
 
-	class Renderer;
+	extern ErrorInfo	get_window_inputs			(const ApplicationWindow*, ApplicationWindowInput*);
 
 	extern ErrorInfo	create_renderer				(Renderer**, ApplicationWindow*);
 	extern ErrorInfo	destroy_renderer			(Renderer*);

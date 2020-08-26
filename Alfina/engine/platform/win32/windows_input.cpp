@@ -369,12 +369,14 @@ namespace al::engine
 		{
 			case WM_KEYDOWN:
 			{
+				std::lock_guard<std::mutex> lock(window->inputReadMutex);
 				window->input.keyboard.buttons.set_flag(VK_CODE_TO_KEYBOARD_FLAGS[wParam]);
 				AL_LOG_SHORT(Logger::Type::MESSAGE, dbgToString[VK_CODE_TO_KEYBOARD_FLAGS[wParam]], " ", VK_CODE_TO_KEYBOARD_FLAGS[wParam], " ", wParam);
 				break;
 			}
 			case WM_KEYUP:
 			{
+				std::lock_guard<std::mutex> lock(window->inputReadMutex);
 				window->input.keyboard.buttons.clear_flag(VK_CODE_TO_KEYBOARD_FLAGS[wParam]);
 				break;
 			}
