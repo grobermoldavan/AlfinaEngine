@@ -88,11 +88,19 @@ int main()
 		tint[1] = tint[1] + 0.01f; if (tint[1] > 1.0f) tint[1] -= 1.0f;
 		tint[2] = tint[2] + 0.01f; if (tint[2] > 1.0f) tint[2] -= 1.0f;
 
+		static float rot = 0;
+		rot += 0.1f;
+		al::engine::Transform trf{
+			{ 0, 0, 0 },
+			{ 0, 0, rot },
+			{ 1, 1, 1 }
+		};
+
 		window->renderer->make_current();
 
 		window->renderer->clear_screen({ 0.1f, 0.1f, 0.1f });
 		shader->set_float4("tint", tint);
-		window->renderer->draw(shader, va);
+		window->renderer->draw(shader, va, trf.get_matrix());
 
 		window->renderer->commit();
 	}

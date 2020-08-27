@@ -104,6 +104,24 @@ namespace al
 			return result;
 		}
 
+		template<typename U, class = typename std::enable_if<std::is_arithmetic<U>::value>::type>
+		mult<T, num> mul(const U& value) const
+		{
+			using namespace elements;
+			return
+			{ {
+				get(X) * value,
+				get(Y) * value,
+				get(Z) * value
+			} };
+		}
+
+		template<typename U, class = typename std::enable_if<std::is_arithmetic<U>::value>::type>
+		mult<T, num> operator * (const U& value) const
+		{
+			return mul(value);
+		}
+		
 		template<typename T, size_t num>
 		friend std::ostream& operator << (std::ostream& os, const mult<T, num>& vec);
 
@@ -127,6 +145,10 @@ namespace al
 	public:
 		using mult<T, 2>::mult;
 
+		mult2()
+			: mult<T, 2>{ }
+		{ }
+
 		mult2(T v1, T v2)
 			: mult<T, 2>{ {v1, v2} }
 		{ }
@@ -142,6 +164,10 @@ namespace al
 	public:
 		using mult<T, 3>::mult;
 
+		mult3()
+			: mult<T, 3>{ }
+		{ }
+
 		mult3(T v1, T v2, T v3)
 			: mult<T, 3>{ { v1, v2, v3 } }
 		{ }
@@ -156,6 +182,10 @@ namespace al
 	{
 	public:
 		using mult<T, 4>::mult;
+
+		mult4()
+			: mult<T, 4>{ }
+		{ }
 
 		mult4(T v1, T v2, T v3, T v4)
 			: mult<T, 4>{ { v1, v2, v3, v4 } }
@@ -241,7 +271,7 @@ namespace al
 			return result;
 		}
 
-		template<typename U>
+		template<typename U, class = typename std::enable_if<std::is_arithmetic<U>::value>::type>
 		matrix2d<T, rows, columns> mul(const U& value) const
 		{
 			matrix2d<T, rows, columns> result;
@@ -278,7 +308,7 @@ namespace al
 			return mul(other);
 		}
 
-		template<typename U>
+		template<typename U, class = typename std::enable_if<std::is_arithmetic<U>::value>::type>
 		matrix2d<T, rows, columns> operator * (const U& value) const
 		{
 			return mul(value);

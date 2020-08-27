@@ -480,10 +480,11 @@ namespace al::engine
 		::glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	}
 
-	void Win32glRenderer::draw(const Shader* shader, const VertexArray* va)
+	void Win32glRenderer::draw(const Shader* shader, const VertexArray* va, al::float4x4 trf)
 	{
 		va->bind();
 		shader->bind();
+		shader->set_mat4(MODEL_MATRIX_NAME, trf);
 		::glDrawElements(GL_TRIANGLES, va->get_index_buffer()->get_count(), GL_UNSIGNED_INT, nullptr);
 	}
 

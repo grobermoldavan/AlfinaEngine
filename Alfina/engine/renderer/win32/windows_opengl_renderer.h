@@ -121,10 +121,10 @@ namespace al::engine
 		Win32glRenderer(Win32ApplicationWindow* _win32window);
 		~Win32glRenderer();
 
-		virtual void make_current	()												override;
-		virtual void clear_screen	(const al::float3& color)						override;
-		virtual void draw			(const Shader* shader, const VertexArray* va)	override;
-		virtual void commit			()												override;
+		virtual void make_current	()																override;
+		virtual void clear_screen	(const al::float3& color)										override;
+		virtual void draw			(const Shader* shader, const VertexArray* va, al::float4x4 trf)	override;
+		virtual void commit			()																override;
 
 	private:
 		Win32ApplicationWindow* win32window;

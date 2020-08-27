@@ -7,33 +7,6 @@
 
 namespace al
 {
-	namespace common_private
-	{
-		template<typename T>
-		constexpr void floating_point_assert(T number)
-		{
-			static_assert(std::is_same<T, double>::value || std::is_same<T, float>::value);
-		}
-		
-		template<typename T>
-		constexpr void floating_point_assert()
-		{
-			static_assert(std::is_same<T, double>::value || std::is_same<T, float>::value);
-		}
-		
-		template<typename T>
-		constexpr void not_floating_point_assert(T number)
-		{
-			static_assert(!std::is_same<T, double>::value && !std::is_same<T, float>::value);
-		}
-		
-		template<typename T>
-		constexpr void not_floating_point_assert()
-		{
-			static_assert(!std::is_same<T, double>::value && !std::is_same<T, float>::value);
-		}
-	}
-	
 	namespace crc_private
 	{
 		// this table is pre-calculated version of this code :
@@ -130,7 +103,7 @@ namespace al
 	{
 		return (value1 > value2 ? value1 - value2 : value2 - value1) < precision;
 	}
-	
+
 	template<typename T>
 	constexpr T pow(T num, uint64_t power)
 	{
@@ -152,11 +125,9 @@ namespace al
 		}
 	}
 	
-	template<typename T>
+	template<typename T, class = typename std::enable_if<std::is_floating_point<T>::value>::type>
 	constexpr T sqrt(T value)
 	{
-		common_private::floating_point_assert<T>();
-		
 		T zero = static_cast<T>(0);
 		if ((value > zero || is_equal(value, zero)) && value < std::numeric_limits<T>::infinity())
 		{
@@ -168,28 +139,36 @@ namespace al
 		}
 	}
 	
-	template<typename T>
+	template<typename T, class = typename std::enable_if<!std::is_floating_point<T>::value>::type>
 	constexpr T kilobytes(T num) 
 	{
-		common_private::not_floating_point_assert(num);
-		
 		return num * static_cast<T>(1024);
 	}
 	
-	template<typename T>
+	template<typename T, class = typename std::enable_if<!std::is_floating_point<T>::value>::type>
 	constexpr T megabytes(T num) 
-	{
-		common_private::not_floating_point_assert(num);
-		
+	{	
 		return kilobytes(num) * static_cast<T>(1024);
 	}
 	
-	template<typename T>
+	template<typename T, class = typename std::enable_if<!std::is_floating_point<T>::value>::type>
 	constexpr T gigabytes(T num) 
 	{
-		common_private::not_floating_point_assert(num);
-		
 		return megabytes(num) * static_cast<T>(1024);
+	}
+
+	template<typename T, class = typename std::enable_if<std::is_floating_point<T>::value>::type>
+	constexpr T to_radians(T degrees)
+	{
+		// @TODO : replace this with std::numbers::pi
+		return degrees * static_cast<T>(3.14159265358979) / static_cast<T>(180);
+	}
+
+	template<typename T, class = typename std::enable_if<std::is_floating_point<T>::value>::type>
+	constexpr T to_degrees(T radians)
+	{
+		// @TODO : replace this with std::numbers::pi
+		return radians * static_cast<T>(180) / static_cast<T>(3.14159265358979);
 	}
 }
 
