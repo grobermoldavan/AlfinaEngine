@@ -94,7 +94,7 @@ namespace al::engine
 	// Shader
 	// ======================================
 
-	GLenum Win32glShader::SHADER_TYPE_TO_GL_ENUM[] = 
+	GLenum Win32glShader::SHADER_TYPE_TO_GL_ENUM[] =
 	{
 		GL_VERTEX_SHADER,
 		GL_FRAGMENT_SHADER
@@ -102,8 +102,8 @@ namespace al::engine
 
 	Win32glShader::Win32glShader(const char* vertexShaderSrc, const char* fragmentShaderSrc)
 	{
-		sources[ShaderType::VERTEX]		= vertexShaderSrc;
-		sources[ShaderType::FRAGMENT]	= fragmentShaderSrc;
+		sources[ShaderType::VERTEX] = vertexShaderSrc;
+		sources[ShaderType::FRAGMENT] = fragmentShaderSrc;
 		Compile();
 	}
 
@@ -167,7 +167,7 @@ namespace al::engine
 		AL_LOG_NO_DISCARD(Logger::Type::ERROR_MSG, &infoLog[0])
 	}
 
-	void Win32glShader::HandleProgramCompileError(GLuint programId, al::Dispensable<GLenum> (&shaderIds)[ShaderType::__size])
+	void Win32glShader::HandleProgramCompileError(GLuint programId, al::Dispensable<GLenum>(&shaderIds)[ShaderType::__size])
 	{
 		GLint infoLength = 0;
 		::glGetProgramiv(programId, GL_INFO_LOG_LENGTH, &infoLength);
@@ -275,7 +275,7 @@ namespace al::engine
 	// ======================================
 
 	Win32glVertexBuffer::Win32glVertexBuffer(float* vertices, uint32_t size)
-		: layout{ }
+		: layout{}
 	{
 		::glCreateBuffers(1, &rendererId);
 		::glBindBuffer(GL_ARRAY_BUFFER, rendererId);
@@ -318,8 +318,8 @@ namespace al::engine
 
 	Win32glVertexArray::Win32glVertexArray()
 		: vertexBufferIndex{ 0 }
-		, vb { nullptr }
-		, ib { nullptr }
+		, vb{ nullptr }
+		, ib{ nullptr }
 	{
 		::glCreateVertexArrays(1, &rendererId);
 	}
@@ -417,7 +417,8 @@ namespace al::engine
 	// ======================================
 
 	Win32glRenderer::Win32glRenderer(Win32ApplicationWindow* _win32window)
-		: win32window{ _win32window }
+		: win32window			{ _win32window }
+		, viewProjectionMatrix	{ IDENTITY4 }
 	{
 		hdc = ::GetDC(win32window->hwnd);
 		AL_ASSERT_MSG_NO_DISCARD(hdc, "Win32 :: OpenGL :: Unable to retrieve device context")
@@ -471,20 +472,31 @@ namespace al::engine
 	void Win32glRenderer::make_current()
 	{
 		::wglMakeCurrent(hdc, win32window->hglrc);
+		::glEnable(GL_DEPTH_TEST);
+		::glDepthFunc(GL_LESS);
 	}
 
-	void Win32glRenderer::clear_screen(const al::float3& color)
+	void Win32glRenderer::set_view_projection(const float4x4& vp)
+	{
+		viewProjectionMatrix = vp;
+	}
+
+	void Win32glRenderer::clear_screen(const float3& color)
 	{
 		using namespace al::elements;
 		::glClearColor(color[R], color[G], color[B], 1.0f);
 		::glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	}
 
-	void Win32glRenderer::draw(const Shader* shader, const VertexArray* va, al::float4x4 trf)
+	void Win32glRenderer::draw(const Shader* shader, const VertexArray* va, const float4x4& trf)
 	{
 		va->bind();
 		shader->bind();
-		shader->set_mat4(MODEL_MATRIX_NAME, trf);
+
+		// OpenGL stores matrices in column-major order, so we need to transpose our matrix
+		shader->set_mat4(MODEL_MATRIX_NAME, trf.transpose());
+		shader->set_mat4(VP_MATRIX_NAME, viewProjectionMatrix.transpose());
+
 		::glDrawElements(GL_TRIANGLES, va->get_index_buffer()->get_count(), GL_UNSIGNED_INT, nullptr);
 	}
 

@@ -22,9 +22,14 @@ int main()
 	// setup vertex buffer
 	float arr[] =
 	{
-		-1.0f, -1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f,
-		 1.0f, -1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f,
-		-1.0f,  1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f
+		-1.0f, -1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 1.0f,
+		 1.0f, -1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 1.0f,
+		 1.0f,  1.0f, -1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+		-1.0f,  1.0f, -1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+		-1.0f, -1.0f,  1.0f, 1.0f, 0.0f, 0.0f, 1.0f,
+		 1.0f, -1.0f,  1.0f, 1.0f, 0.0f, 0.0f, 1.0f,
+		 1.0f,  1.0f,  1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+		-1.0f,  1.0f,  1.0f, 1.0f, 1.0f, 1.0f, 1.0f
 	};
 
 	al::engine::VertexBuffer* vb;
@@ -36,7 +41,16 @@ int main()
 	});
 
 	// setup index buffer
-	uint32_t ids[] = { 0, 1, 2 };
+	uint32_t ids[] = 
+	{
+		0, 1, 3, 3, 1, 2,
+		1, 5, 2, 2, 5, 6,
+		5, 4, 6, 6, 4, 7,
+		4, 0, 7, 7, 0, 3,
+		3, 2, 7, 7, 2, 6,
+		4, 5, 0, 0, 5, 1
+	};
+
 	al::engine::IndexBuffer* ib;
 	al::engine::create_index_buffer(&ib, ids, sizeof(ids));
 
@@ -74,6 +88,15 @@ int main()
 		std::result_of<decltype(&std::chrono::high_resolution_clock::now)()>::type start;
 	};
 
+	class al::engine::PerspectiveRenderCamera camera
+	{
+		{ },
+		{ 4, 3 },
+		0.1f,
+		100.0f,
+		60
+	};
+
 	while (true)
 	{
 		TestTimer timer;
@@ -92,11 +115,19 @@ int main()
 		rot += 0.1f;
 		al::engine::Transform trf{
 			{ 0, 0, 0 },
-			{ 0, 0, rot },
-			{ 1, 1, 1 }
+			{ 0, 0, 0 },
+			{ 0.5f, 0.5f, 0.5f }
 		};
 
+		float sine = std::sin(al::to_radians(rot));
+		float cosine = std::cos(al::to_radians(rot));
+		float radius = 4.0f;
+
 		window->renderer->make_current();
+		camera.set_position({ sine * radius, std::sin(rot), cosine * radius });
+		camera.look_at({ 0, 0, 0 }, { 0, 1, 0 });
+
+		window->renderer->set_view_projection(camera.get_projection() * camera.get_view());
 
 		window->renderer->clear_screen({ 0.1f, 0.1f, 0.1f });
 		shader->set_float4("tint", tint);

@@ -10,6 +10,12 @@
 
 namespace al::engine
 {
+	Transform::Transform()
+		: translationMat{ IDENTITY4 }
+		, rotationMat	{ IDENTITY4 }
+		, scaleMat		{ IDENTITY4 }
+	{ }
+
 	Transform::Transform(const float3& position, const float3& euler, const float3& scale)
 	{
 		set_position(position);
@@ -17,17 +23,17 @@ namespace al::engine
 		set_scale(scale);
 	}
 
-	float4x4 Transform::get_matrix()
+	float4x4 Transform::get_matrix() const
 	{
 		return translationMat * rotationMat * scaleMat;
 	}
 
-	float3 Transform::get_position()
+	float3 Transform::get_position() const
 	{
 		return{ translationMat[0][3], translationMat[1][3], translationMat[2][3] };
 	}
 
-	float3 Transform::get_rotation()
+	float3 Transform::get_rotation() const
 	{
 		float3 result;
 
@@ -51,7 +57,7 @@ namespace al::engine
 		};
 	}
 
-	float3 Transform::get_scale()
+	float3 Transform::get_scale() const
 	{
 		return{ scaleMat[0][0], scaleMat[1][1], scaleMat[2][2] };
 	}
@@ -128,5 +134,20 @@ namespace al::engine
 			0       , 0       , scale[2], 0,
 			0       , 0       , 0       , 1
 		};
+	}
+
+	void Transform::set_position(const float4x4& position)
+	{
+		translationMat = position;
+	}
+
+	void Transform::set_rotation(const float4x4& rotation)
+	{
+		rotationMat = rotation;
+	}
+
+	void Transform::set_scale(const float4x4& scale)
+	{
+		scaleMat = scale;
 	}
 }

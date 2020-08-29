@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "shader_constants.h"
+#include "render_camera.h"
 
 #include "engine/engine_utilities/error_info.h"
 #include "engine/math/math.h"
@@ -170,10 +171,11 @@ namespace al::engine
 	class Renderer
 	{
 	public:
-		virtual void make_current	()																= 0;
-		virtual void clear_screen	(const al::float3& color)										= 0;
-		virtual void draw			(const Shader* shader, const VertexArray* va, al::float4x4 trf)	= 0;
-		virtual void commit			()																= 0;
+		virtual void make_current		()																	= 0;
+		virtual void set_view_projection(const float4x4& vp)												= 0;
+		virtual void clear_screen		(const float3& color)												= 0;
+		virtual void draw				(const Shader* shader, const VertexArray* va, const float4x4& trf)	= 0;
+		virtual void commit				()																	= 0;
 	};
 
 	class ApplicationWindow;

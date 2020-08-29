@@ -8,17 +8,22 @@ namespace al::engine
 	class Transform
 	{
 	public:
+		Transform();
 		Transform(const float3& position, const float3& euler, const float3& scale);
 
-		float4x4	get_matrix();
+		float4x4	get_matrix() const;
 
-		float3		get_position();
-		float3		get_rotation();
-		float3		get_scale();
+		float3		get_position() const;
+		float3		get_rotation() const;
+		float3		get_scale	() const;
 
 		void		set_position(const float3& position);
 		void		set_rotation(const float3& euler);
-		void		set_scale(const float3& scale);
+		void		set_scale	(const float3& scale);
+
+		void		set_position(const float4x4& position);
+		void		set_rotation(const float4x4& rotation);
+		void		set_scale	(const float4x4& scale);
 
 	private:
 		float4x4 translationMat;

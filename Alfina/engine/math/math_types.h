@@ -2,6 +2,7 @@
 #define __ALFINA_MATH_TYPES_H__
 
 #include <cstdint>
+#include <cmath>
 #include <utility>
 #include <array>
 
@@ -75,11 +76,11 @@ namespace al
 			static_assert(num == 3, "cross-product is defined only for 3-component vectors");
 			using namespace elements;
 			return 
-			{
+			{ {
 				get(Y) * other.get(Z) - get(Z) * other.get(Y),
 				get(Z) * other.get(X) - get(X) * other.get(Z),
 				get(X) * other.get(Y) - get(Y) * other.get(X)
-			};
+			} };
 		}
 
 		mult<T, num> cross(const std::array<T, num>& other) const
@@ -87,11 +88,11 @@ namespace al
 			static_assert(num == 3, "cross-product is defined only for 3-component vectors");
 			using namespace elements;
 			return 
-			{
+			{ {
 				get(Y) * other[Z] - get(Z) * other[Y],
 				get(Z) * other[X] - get(X) * other[Z],
 				get(X) * other[Y] - get(Y) * other[X]
-			};
+			} };
 		}
 
 		template<size_t ... indexes>
@@ -102,6 +103,31 @@ namespace al
 			for (size_t it = 0; it < sizeof ... (indexes); ++it)
 				result[it] = components[indexesArray[it]];
 			return result;
+		}
+
+		template<typename U = float, class = typename std::enable_if<std::is_floating_point<U>::value>::type>
+		U length() const
+		{
+			U result{ 0 };
+			for (size_t it = 0; it < num; ++it)
+				result += static_cast<U>(get(it)) * static_cast<U>(get(it));
+			return std::sqrt(result);
+		}
+
+		template<typename U = float, class = typename std::enable_if<std::is_floating_point<U>::value>::type>
+		mult<U, num> normalized() const
+		{
+			mult<U, num> result;
+			for (size_t it = 0; it < num; ++it)
+				result[it] = static_cast<U>(get(it));
+			return result / length();
+		}
+
+		void normalize() const
+		{
+			auto len = length();
+			for (size_t it = 0; it < num; ++it)
+				get(it) = static_cast<T>(static_cast<decltype(it)>(get(it)) / len);
 		}
 
 		template<typename U, class = typename std::enable_if<std::is_arithmetic<U>::value>::type>
@@ -117,11 +143,57 @@ namespace al
 		}
 
 		template<typename U, class = typename std::enable_if<std::is_arithmetic<U>::value>::type>
-		mult<T, num> operator * (const U& value) const
+		mult<T, num> div(const U& value) const
 		{
-			return mul(value);
+			using namespace elements;
+			return
+			{ {
+				get(X) / value,
+				get(Y) / value,
+				get(Z) / value
+			} };
+		}
+
+		template<typename U, class = typename std::enable_if<std::is_arithmetic<U>::value>::type>
+		mult<T, num> operator / (const U& value) const
+		{
+			return div(value);
+		}
+
+		mult<T, num> add(const mult<T, num>& other) const
+		{
+			mult<T, num> result;
+
+			for (size_t it = 0; it < num; ++it)
+			{
+				result[it] = get(it) + other.get(it);
+			}
+
+			return result;
+		}
+
+		mult<T, num> operator + (const mult<T, num>& other) const
+		{
+			return add(other);
 		}
 		
+		mult<T, num> sub(const mult<T, num>& other) const
+		{
+			mult<T, num> result;
+
+			for (size_t it = 0; it < num; ++it)
+			{
+				result[it] = get(it) - other.get(it);
+			}
+
+			return result;
+		}
+
+		mult<T, num> operator - (const mult<T, num>& other) const
+		{
+			return sub(other);
+		}
+
 		template<typename T, size_t num>
 		friend std::ostream& operator << (std::ostream& os, const mult<T, num>& vec);
 
@@ -312,6 +384,11 @@ namespace al
 		matrix2d<T, rows, columns> operator * (const U& value) const
 		{
 			return mul(value);
+		}
+
+		mult<T, rows> operator * (const mult<T, columns>& vector) const
+		{
+			return mul(vector);
 		}
 
 		virtual T det() const
@@ -543,6 +620,27 @@ namespace al
 	using int64_2x2 = matrix2x2<int64_t>;
 	using int64_3x3 = matrix3x3<int64_t>;
 	using int64_4x4 = matrix4x4<int64_t>;
+
+	const float2x2 IDENTITY2
+	{
+		1, 0,
+		0, 1
+	};
+
+	const float3x3 IDENTITY3
+	{
+		1, 0, 0,
+		0, 1, 0,
+		0, 0, 1
+	};
+
+	const float4x4 IDENTITY4
+	{
+		1, 0, 0, 0,
+		0, 1, 0, 0,
+		0, 0, 1, 0,
+		0, 0, 0, 1
+	};
 }
 
 #endif
