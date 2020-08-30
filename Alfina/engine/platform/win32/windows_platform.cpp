@@ -94,6 +94,16 @@ namespace al::engine
 		::ShowWindow(hwnd, isFullscreen ? SW_MAXIMIZE : SW_SHOW);
 		::UpdateWindow(hwnd);
 
+		{ // Set window size info
+			RECT rect;
+			const bool isRectInfoRetrieved = ::GetWindowRect(hwnd, &rect);
+			AL_ASSERT_MSG_NO_DISCARD(isRectInfoRetrieved, "Win32 :: Unable to retrieve window size")
+			const uint32_t width = rect.right - rect.left;
+			const uint32_t height = rect.bottom - rect.top;
+			win32window->properties.width = width;
+			win32window->properties.height = height;
+		}
+
 		creation_promise.set_value();
 
 		MSG msg = {};

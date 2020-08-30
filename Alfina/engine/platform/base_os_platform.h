@@ -17,9 +17,7 @@ namespace al::engine
 			FULL_SCREEN,
 			WINDOWED
 		};
-		
-		Dispensable<uint32_t> 	resolutionWidth;
-		Dispensable<uint32_t> 	resolutionHeight;
+
 		Dispensable<uint32_t> 	width;
 		Dispensable<uint32_t> 	height;
 		ScreenMode				screenMode;

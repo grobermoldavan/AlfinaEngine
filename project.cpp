@@ -6,18 +6,18 @@
 int main()
 {
 	AL_LOG(al::engine::Logger::WARNING, "Test warning ", 1, 2.0f, 3.1234, al::float2{ 2, 3 })
-
+	
 	al::engine::ApplicationWindow* window;
 	al::engine::WindowProperties properties
 	{
-		al::nonSpecifiedValue,	// resolution x
-		al::nonSpecifiedValue,	// resolution y
-		640,					// size x
-		480,					// size y
-		al::engine::WindowProperties::ScreenMode::WINDOWED,
+		al::nonSpecifiedValue,		// size x
+		al::nonSpecifiedValue,		// size y
+		al::engine::WindowProperties::ScreenMode::FULL_SCREEN,
 		"Application window"
 	};
 	al::engine::create_application_window(properties, &window);
+
+	AL_LOG(al::engine::Logger::WARNING, window->properties.width, " ", window->properties.height)
 
 	// setup vertex buffer
 	float arr[] =
@@ -91,7 +91,7 @@ int main()
 	class al::engine::PerspectiveRenderCamera camera
 	{
 		{ },
-		{ 4, 3 },
+		{ window->properties.width, window->properties.height },
 		0.1f,
 		100.0f,
 		60
