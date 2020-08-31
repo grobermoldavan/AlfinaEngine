@@ -22,7 +22,7 @@ namespace al::engine
 
 	ErrorInfo destroy_shader(const Shader* shader)
 	{
-		delete shader;
+		if (shader) delete shader;
 		return{ ErrorInfo::Code::ALL_FINE };
 	}
 
@@ -38,7 +38,7 @@ namespace al::engine
 
 	ErrorInfo destroy_vertex_buffer(const VertexBuffer* vb)
 	{
-		delete vb;
+		if (vb) delete vb;
 		return{ ErrorInfo::Code::ALL_FINE };
 	}
 
@@ -54,7 +54,7 @@ namespace al::engine
 
 	ErrorInfo destroy_index_buffer(const IndexBuffer* ib)
 	{
-		delete ib;
+		if (ib) delete ib;
 		return{ ErrorInfo::Code::ALL_FINE };
 	}
 
@@ -70,7 +70,7 @@ namespace al::engine
 
 	ErrorInfo destroy_vertex_array(const VertexArray* va)
 	{
-		delete va;
+		if (va) delete va;
 		return{ ErrorInfo::Code::ALL_FINE };
 	}
 
@@ -86,7 +86,7 @@ namespace al::engine
 
 	ErrorInfo destroy_renderer(Renderer* renderer)
 	{
-		delete renderer;
+		if (renderer) delete renderer;
 		return{ ErrorInfo::Code::ALL_FINE };
 	}
 
@@ -496,7 +496,6 @@ namespace al::engine
 		// OpenGL stores matrices in column-major order, so we need to transpose our matrix
 		shader->set_mat4(MODEL_MATRIX_NAME, trf.transpose());
 		shader->set_mat4(VP_MATRIX_NAME, viewProjectionMatrix.transpose());
-
 		::glDrawElements(GL_TRIANGLES, va->get_index_buffer()->get_count(), GL_UNSIGNED_INT, nullptr);
 	}
 

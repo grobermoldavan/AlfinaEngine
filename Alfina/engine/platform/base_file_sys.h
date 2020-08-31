@@ -31,8 +31,8 @@ namespace al::engine
 			FileSys::free_file_handle(this);
 		}
 
-		const uint8_t*	get_data() { AL_ASSERT(data); return data; }
-		const size_t	get_size() { AL_ASSERT(data); return fileSize; }
+		const uint8_t*	get_data() const { AL_ASSERT(data); return data; }
+		const size_t	get_size() const { AL_ASSERT(data); return fileSize; }
 
 	private:
 		uint8_t*	data;

@@ -14,7 +14,7 @@ namespace al::engine
         
         Code error_code;
         
-        operator bool () { return error_code != Code::ALL_FINE; }
+        operator bool () { return error_code == Code::ALL_FINE; }
     };
 }
 
