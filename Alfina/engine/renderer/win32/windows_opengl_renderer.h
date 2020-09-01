@@ -61,7 +61,7 @@ namespace al::engine
 	class Win32glVertexBuffer : public VertexBuffer
 	{
 	public:
-		Win32glVertexBuffer(float* vertices, uint32_t size);
+		Win32glVertexBuffer(const void* data, uint32_t size);
 		~Win32glVertexBuffer();
 
 		virtual			void			bind		()								const	override { ::glBindBuffer(GL_ARRAY_BUFFER, rendererId); }

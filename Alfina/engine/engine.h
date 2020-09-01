@@ -5,6 +5,7 @@
 
 #include "engine_utilities\asserts.h"
 #include "engine_utilities\error_info.h"
+#include "engine_utilities\string\string_utilities.h"
 
 #include "engine_utilities\logging\logging.h"
 #if defined(AL_PLATFORM_WIN32)

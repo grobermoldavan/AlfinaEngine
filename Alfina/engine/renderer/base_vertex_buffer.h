@@ -98,7 +98,7 @@ namespace al::engine
 		virtual const   BufferLayout&   get_layout()                                const	= 0;
 	};
 
-	extern ErrorInfo create_vertex_buffer	(VertexBuffer**, float*, uint32_t);
+	extern ErrorInfo create_vertex_buffer	(VertexBuffer**, const void*, uint32_t);
 	extern ErrorInfo destroy_vertex_buffer	(const VertexBuffer*);
 }
 

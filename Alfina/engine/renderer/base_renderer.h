@@ -3,17 +3,13 @@
 
 #include <cstdint>
 #include <cstddef>
-#include <string>
-
-// @TODO : maybe use pmr::vector instead of default vector?
-//#include <memory_resource>
-#include <vector>
 
 #include "engine/engine_utilities/error_info.h"
 #include "engine/math/math.h"
 
 #include "shader_constants.h"
 #include "utilities/render_camera.h"
+#include "utilities/geometry.h"
 
 #include "base_shader.h"
 #include "base_vertex_buffer.h"

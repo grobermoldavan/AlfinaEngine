@@ -30,7 +30,7 @@ namespace al::engine
 	// Vertex buffer creation and destruction
 	// ======================================
 
-	ErrorInfo create_vertex_buffer(VertexBuffer** vb, float* vertices, uint32_t size)
+	ErrorInfo create_vertex_buffer(VertexBuffer** vb, const void* vertices, uint32_t size)
 	{
 		*vb = static_cast<VertexBuffer*>(new Win32glVertexBuffer(vertices, size));
 		return{ ErrorInfo::Code::ALL_FINE };
@@ -274,12 +274,12 @@ namespace al::engine
 	// Vertex buffer
 	// ======================================
 
-	Win32glVertexBuffer::Win32glVertexBuffer(float* vertices, uint32_t size)
+	Win32glVertexBuffer::Win32glVertexBuffer(const void* data, uint32_t size)
 		: layout{}
 	{
 		::glCreateBuffers(1, &rendererId);
 		::glBindBuffer(GL_ARRAY_BUFFER, rendererId);
-		::glBufferData(GL_ARRAY_BUFFER, size, vertices, GL_STATIC_DRAW);
+		::glBufferData(GL_ARRAY_BUFFER, size, data, GL_STATIC_DRAW);
 	}
 
 	Win32glVertexBuffer::~Win32glVertexBuffer()
