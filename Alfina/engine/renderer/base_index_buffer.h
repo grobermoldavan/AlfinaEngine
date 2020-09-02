@@ -1,5 +1,5 @@
-#ifndef __ALFINA_INDEX_BUFFER_H__
-#define __ALFINA_INDEX_BUFFER_H__
+#ifndef __ALFINA_BASE_INDEX_BUFFER_H__
+#define __ALFINA_BASE_INDEX_BUFFER_H__
 
 #include <cstdint>
 
