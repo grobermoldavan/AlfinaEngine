@@ -70,17 +70,6 @@ namespace al::engine
 		Flags32 generalInput;
 	};
 
-	// @TODO : remove this from the base class
-	struct ApplicationWindowState
-	{
-		enum StateFlags
-		{
-			WINDOW_CLOSED
-		};
-
-		Flags32 flags;
-	};
-
 	class Renderer;
 
 	struct ApplicationWindow
@@ -88,7 +77,6 @@ namespace al::engine
 		WindowProperties		properties;
 		Renderer* 				renderer;
 		ApplicationWindowInput 	input;
-		ApplicationWindowState  state;
 	};
 	
 	extern ErrorInfo	create_application_window	(const WindowProperties&, ApplicationWindow**);

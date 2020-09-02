@@ -115,7 +115,7 @@ namespace al::engine
 				::DispatchMessage(&msg);
 			}
 
-			if (win32window->state.flags.get_flag(ApplicationWindowState::StateFlags::WINDOW_CLOSED))
+			if (win32window->state.flags.get_flag(Win32WindowState::StateFlags::WINDOW_CLOSED))
 			{
 				::PostQuitMessage(0);
 			}
@@ -152,7 +152,7 @@ namespace al::engine
 
 		AL_LOG_SHORT(Logger::Type::MESSAGE, "Joining window thread")
 
-		win32window->state.flags.set_flag(ApplicationWindowState::StateFlags::WINDOW_CLOSED);
+		win32window->state.flags.set_flag(Win32WindowState::StateFlags::WINDOW_CLOSED);
 		win32window->windowThread.join();
 
 		AL_LOG_SHORT(Logger::Type::MESSAGE, "Window thread joined")
