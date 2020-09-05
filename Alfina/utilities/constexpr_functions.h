@@ -157,18 +157,25 @@ namespace al
 		return megabytes(num) * static_cast<T>(1024);
 	}
 
+	// @TODO : replace this with std::numbers::pi
+	template<typename T, class = typename std::enable_if<std::is_floating_point<T>::value>::type>
+	constexpr T pi()
+	{
+		return static_cast<T>(3.14159265358979);
+	}
+
 	template<typename T, class = typename std::enable_if<std::is_floating_point<T>::value>::type>
 	constexpr T to_radians(T degrees)
 	{
 		// @TODO : replace this with std::numbers::pi
-		return degrees * static_cast<T>(3.14159265358979) / static_cast<T>(180);
+		return degrees * pi<T>() / static_cast<T>(180);
 	}
 
 	template<typename T, class = typename std::enable_if<std::is_floating_point<T>::value>::type>
 	constexpr T to_degrees(T radians)
 	{
 		// @TODO : replace this with std::numbers::pi
-		return radians * static_cast<T>(180) / static_cast<T>(3.14159265358979);
+		return radians * static_cast<T>(180) / pi<T>();
 	}
 }
 

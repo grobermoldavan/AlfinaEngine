@@ -17,13 +17,17 @@ namespace al::engine
 		float3		get_rotation() const;
 		float3		get_scale	() const;
 
+		float3		get_forward	() const;
+		float3		get_right	() const;
+		float3		get_up		() const;
+
 		void		set_position(const float3& position);
 		void		set_rotation(const float3& euler);
 		void		set_scale	(const float3& scale);
 
-		void		set_position(const float4x4& position);
-		void		set_rotation(const float4x4& rotation);
-		void		set_scale	(const float4x4& scale);
+		void		set_position_mat(const float4x4& position);
+		void		set_rotation_mat(const float4x4& rotation);
+		void		set_scale_mat	(const float4x4& scale);
 
 	private:
 		float4x4 translationMat;

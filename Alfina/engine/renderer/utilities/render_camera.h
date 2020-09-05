@@ -19,10 +19,11 @@ namespace al::engine
 			float		_fovDeg
 		);
 
+		Transform& get_transform();
+
 		float4x4 get_projection() const;
 		float4x4 get_view() const;
 
-		void set_position(const float3& position);
 		void look_at(const float3& target, const float3& up);
 
 	private:

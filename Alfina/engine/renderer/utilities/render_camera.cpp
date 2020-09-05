@@ -33,6 +33,11 @@ namespace al::engine
 		, fovDeg		{ _fovDeg }
 	{ }
 
+	Transform& PerspectiveRenderCamera::get_transform()
+	{
+		return transform;
+	}
+
 	float4x4 PerspectiveRenderCamera::get_projection() const
 	{
 		float4x4 result;
@@ -78,11 +83,6 @@ namespace al::engine
 		return transform.get_matrix().invert();
 	}
 
-	void PerspectiveRenderCamera::set_position(const float3& position)
-	{
-		transform.set_position(position);
-	}
-
 	void PerspectiveRenderCamera::look_at(const float3& target, const float3& up)
 	{
 		float3 forward		= (target - transform.get_position()).normalized();
@@ -103,6 +103,6 @@ namespace al::engine
 		rotation[2][1] = correctedUp[2];
 		rotation[2][2] = forward[2];
 
-		transform.set_rotation(rotation);
+		transform.set_rotation_mat(rotation);
 	}
 }

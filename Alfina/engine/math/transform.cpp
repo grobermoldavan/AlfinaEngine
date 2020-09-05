@@ -37,16 +37,23 @@ namespace al::engine
 	{
 		float3 result;
 
-		result[0] = std::asin(-1.0f * rotationMat[1][2]);
-		if (!is_equal(std::cos(result[0]), 0.0f))
+		if (is_equal(rotationMat[1][0], 1.0f))
 		{
-			result[1] = std::atan2(rotationMat[0][2], rotationMat[1][2]);
-			result[2] = std::atan2(rotationMat[1][0], rotationMat[1][1]);
+			result[0] = 0.0f;
+			result[1] = std::atan2(rotationMat[0][2], rotationMat[2][2]);
+			result[2] = pi<float>() / 2.0f;
+		}
+		else if (is_equal(rotationMat[1][0], -1.0f))
+		{
+			result[0] = 0.0f;
+			result[1] = std::atan2(rotationMat[0][2], rotationMat[2][2]);
+			result[2] = -1.0f * pi<float>() / 2.0f;
 		}
 		else
 		{
-			result[1] = 0.0f;
-			result[2] = std::atan2(rotationMat[0][1], rotationMat[0][0]);
+			result[0] = std::atan2(-1.0f * rotationMat[1][2], rotationMat[1][1]);
+			result[1] = std::atan2(-1.0f * rotationMat[2][0], rotationMat[0][0]);
+			result[2] = std::asin(rotationMat[1][0]);
 		}
 
 		return
@@ -60,6 +67,21 @@ namespace al::engine
 	float3 Transform::get_scale() const
 	{
 		return{ scaleMat[0][0], scaleMat[1][1], scaleMat[2][2] };
+	}
+
+	float3 Transform::get_forward() const
+	{
+		return{ rotationMat[0][2], rotationMat[1][2], rotationMat[2][2] };
+	}
+
+	float3 Transform::get_right() const
+	{
+		return{ rotationMat[0][0], rotationMat[1][0], rotationMat[2][0] };
+	}
+
+	float3 Transform::get_up() const
+	{
+		return{ rotationMat[0][1], rotationMat[1][1], rotationMat[2][1] };
 	}
 
 	void Transform::set_position(const float3& position)
@@ -136,17 +158,17 @@ namespace al::engine
 		};
 	}
 
-	void Transform::set_position(const float4x4& position)
+	void Transform::set_position_mat(const float4x4& position)
 	{
 		translationMat = position;
 	}
 
-	void Transform::set_rotation(const float4x4& rotation)
+	void Transform::set_rotation_mat(const float4x4& rotation)
 	{
 		rotationMat = rotation;
 	}
 
-	void Transform::set_scale(const float4x4& scale)
+	void Transform::set_scale_mat(const float4x4& scale)
 	{
 		scaleMat = scale;
 	}

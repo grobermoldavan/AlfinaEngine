@@ -143,6 +143,12 @@ namespace al
 		}
 
 		template<typename U, class = typename std::enable_if<std::is_arithmetic<U>::value>::type>
+		mult<T, num> operator * (const U& value) const
+		{
+			return mul(value);
+		}
+
+		template<typename U, class = typename std::enable_if<std::is_arithmetic<U>::value>::type>
 		mult<T, num> div(const U& value) const
 		{
 			using namespace elements;

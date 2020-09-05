@@ -3,5 +3,6 @@
 
 #include "math_types.h"
 #include "transform.h"
+#include "quaternion.h"
 
 #endif

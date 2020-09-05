@@ -13,6 +13,8 @@ int main()
 	input events (simple camera controller)
 	materials
 
+	libraries
+
 	sounds
 	ecs
 	*/
@@ -24,7 +26,7 @@ int main()
 	{
 		al::nonSpecifiedValue,		// size x
 		al::nonSpecifiedValue,		// size y
-		al::engine::WindowProperties::ScreenMode::FULL_SCREEN,
+		al::engine::WindowProperties::ScreenMode::WINDOWED,
 		"Application window"
 	};
 	al::engine::create_application_window(properties, &window);
@@ -59,50 +61,89 @@ int main()
 
 	al::engine::PerspectiveRenderCamera camera
 	{
-		{ },
+		{ 
+			{ 0, 10, -20 },	//position 
+			{ 0, 0, 0},		//rotation
+			{ 1, 1, 1}		//scale
+		},
 		{ window->properties.width, window->properties.height },
 		0.1f,
 		10000.0f,
-		60
+		90
 	};
 
 	al::engine::Geometry geometry;
 	al::engine::load_geometry_obj(&geometry, "Assets\\deer.obj");
 
+	int mousePos[2] = { 0, 0 };
+
 	while (true)
 	{
-		TestTimer timer;
+		//TestTimer timer;
 
-		al::engine::get_window_inputs(window, &inputBuffer);
+		{ // process input
+			al::engine::get_window_inputs(window, &inputBuffer);
 
-		if (inputBuffer.generalInput.get_flag(al::engine::ApplicationWindowInput::GeneralInputFlags::CLOSE_BUTTON_PRESSED)) break;
-		if (inputBuffer.keyboard.buttons.get_flag(al::engine::ApplicationWindowInput::KeyboardInputFlags::ESCAPE)) break;
+			// closing window
+			if (inputBuffer.generalInput.get_flag(al::engine::ApplicationWindowInput::GeneralInputFlags::CLOSE_BUTTON_PRESSED)) break;
+			if (inputBuffer.keyboard.buttons.get_flag(al::engine::ApplicationWindowInput::KeyboardInputFlags::ESCAPE)) break;
 
-		static al::float4 tint{ 1.0f, 1.0f, 1.0f, 1.0f };
-		//tint[0] = tint[0] + 0.01f; if (tint[0] > 1.0f) tint[0] -= 1.0f;
-		//tint[1] = tint[1] + 0.01f; if (tint[1] > 1.0f) tint[1] -= 1.0f;
-		//tint[2] = tint[2] + 0.01f; if (tint[2] > 1.0f) tint[2] -= 1.0f;
+			// camera movement
+			al::engine::Transform& cameraTransform = camera.get_transform();
+			al::float3 cameraPosition = cameraTransform.get_position();
 
-		static float rot = 0;
-		rot += 0.1f;
+			if (inputBuffer.keyboard.buttons.get_flag(al::engine::ApplicationWindowInput::KeyboardInputFlags::W))
+			{
+				cameraPosition = cameraPosition.add(cameraTransform.get_forward());
+			}
+			if (inputBuffer.keyboard.buttons.get_flag(al::engine::ApplicationWindowInput::KeyboardInputFlags::S))
+			{
+				cameraPosition = cameraPosition.add(cameraTransform.get_forward() * -1.0f);
+			}
+			if (inputBuffer.keyboard.buttons.get_flag(al::engine::ApplicationWindowInput::KeyboardInputFlags::A))
+			{
+				cameraPosition = cameraPosition.add(cameraTransform.get_right() * -1.0f);
+			}
+			if (inputBuffer.keyboard.buttons.get_flag(al::engine::ApplicationWindowInput::KeyboardInputFlags::D))
+			{
+				cameraPosition = cameraPosition.add(cameraTransform.get_right());
+			}
+
+			cameraTransform.set_position(cameraPosition);
+
+			// camera rotation
+			if (inputBuffer.mouse.buttons.get_flag(al::engine::ApplicationWindowInput::MouseInputFlags::RMB_PRESSED))
+			{
+				al::float3 angles = cameraTransform.get_rotation();
+
+				int mouseDelta[2] = 
+				{
+					inputBuffer.mouse.x - mousePos[0],
+					inputBuffer.mouse.y - mousePos[1]
+				};
+
+				angles[0] += (float)mouseDelta[1] * 0.1f; if (angles[0] > 90.0f || al::is_equal(angles[0], 90.0f)) angles[0] = 90.0f; else if (angles[0] < -90.0f || al::is_equal(angles[0], -90.0f)) angles[0] = -90.0f;
+				angles[1] += (float)mouseDelta[0] * 0.1f;
+				angles[2] = 0;
+
+				cameraTransform.set_rotation(angles);
+			}
+
+			mousePos[0] = inputBuffer.mouse.x;
+			mousePos[1] = inputBuffer.mouse.y;
+		}
+
 		al::engine::Transform trf{
 			{ 0, 0, 0 },
 			{ 0, 0, 0 },
 			{ 0.01f, 0.01f, 0.01f }
 		};
 
-		float sine = std::sin(al::to_radians(rot));
-		float cosine = std::cos(al::to_radians(rot));
-		float radius = 20.0f;
-
 		window->renderer->make_current();
-		camera.set_position({ sine * radius, std::sin(rot) + 10, cosine * radius });
-		camera.look_at({ 0, 5, 0 }, { 0, 1, 0 });
-
 		window->renderer->set_view_projection(camera.get_projection() * camera.get_view());
 
 		window->renderer->clear_screen({ 0.1f, 0.1f, 0.1f });
-		shader->set_float4("tint", tint);
+		shader->set_float4("tint", { 1.0f, 1.0f, 1.0f, 1.0f });
 		window->renderer->draw(shader, geometry.va, trf.get_matrix());
 
 		window->renderer->commit();
