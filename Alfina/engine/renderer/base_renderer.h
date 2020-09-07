@@ -25,6 +25,7 @@ namespace al::engine
 		virtual void set_view_projection(const float4x4& vp)												= 0;
 		virtual void clear_screen		(const float3& color)												= 0;
 		virtual void draw				(const Shader* shader, const VertexArray* va, const float4x4& trf)	= 0;
+		virtual void set_vsync			(const bool isEnabled)												= 0;
 		virtual void commit				()																	= 0;
 	};
 

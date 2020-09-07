@@ -77,9 +77,11 @@ int main()
 
 	int mousePos[2] = { 0, 0 };
 
+	window->renderer->set_vsync(true);
+
 	while (true)
 	{
-		//TestTimer timer;
+		TestTimer timer;
 
 		{ // process input
 			al::engine::get_window_inputs(window, &inputBuffer);

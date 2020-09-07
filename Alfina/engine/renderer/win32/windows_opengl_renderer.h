@@ -29,6 +29,7 @@ namespace al::engine
 		virtual void set_view_projection(const float4x4& vp)												override;
 		virtual void clear_screen		(const float3& color)												override;
 		virtual void draw				(const Shader* shader, const VertexArray* va, const float4x4& trf)	override;
+		virtual void set_vsync			(const bool isEnabled)												override;
 		virtual void commit				()																	override;
 
 	private:
@@ -36,6 +37,9 @@ namespace al::engine
 		HDC                     hdc;
 
 		float4x4				viewProjectionMatrix;
+
+		typedef BOOL(APIENTRY *PFNWGLSWAPINTERVALPROC)(int);
+		PFNWGLSWAPINTERVALPROC wglSwapIntervalEXT = nullptr;
 	};
 }
 
