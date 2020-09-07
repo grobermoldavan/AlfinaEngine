@@ -77,7 +77,7 @@ int main()
 
 	int mousePos[2] = { 0, 0 };
 
-	window->renderer->set_vsync(true);
+	window->renderer->set_vsync(false);
 
 	while (true)
 	{

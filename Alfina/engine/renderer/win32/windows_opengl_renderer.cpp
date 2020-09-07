@@ -64,9 +64,6 @@ namespace al::engine
 		GLenum glewInitRes = glewInit();
 		AL_ASSERT_MSG_NO_DISCARD(glewInitRes == GLEW_OK, "Win32 :: OpenGL :: Unable to init GLEW")
 
-		wglSwapIntervalEXT = (PFNWGLSWAPINTERVALPROC)wglGetProcAddress("wglSwapIntervalEXT");
-		if (!wglSwapIntervalEXT) AL_LOG_NO_DISCARD(al::engine::Logger::WARNING, "Win32 :: OpenGL :: Unable to find wglSwapIntervalEXT function")
-
 		// @NOTE : vsync enabled by default
 		set_vsync(true);
 	}
@@ -111,14 +108,7 @@ namespace al::engine
 
 	void Win32glRenderer::set_vsync(const bool isEnabled)
 	{
-		if (wglSwapIntervalEXT)
-		{
-			wglSwapIntervalEXT(isEnabled ? 1 : 0);
-		}
-		else
-		{
-			AL_LOG_NO_DISCARD(al::engine::Logger::WARNING, "Win32 :: OpenGL :: Unable to find wglSwapIntervalEXT function")
-		}
+		wglSwapIntervalEXT(isEnabled ? 1 : 0);
 	}
 
 	void Win32glRenderer::commit()

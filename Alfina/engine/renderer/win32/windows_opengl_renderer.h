@@ -5,6 +5,7 @@
 
 #define GLEW_STATIC
 #include <GL/glew.h>
+#include <GL/wglew.h>
 #include <GL/GL.h>
 
 #include "engine/renderer/base_renderer.h"
@@ -37,9 +38,6 @@ namespace al::engine
 		HDC                     hdc;
 
 		float4x4				viewProjectionMatrix;
-
-		typedef BOOL(APIENTRY *PFNWGLSWAPINTERVALPROC)(int);
-		PFNWGLSWAPINTERVALPROC wglSwapIntervalEXT = nullptr;
 	};
 }
 
