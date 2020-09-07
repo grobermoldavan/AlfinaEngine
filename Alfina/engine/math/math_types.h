@@ -33,181 +33,226 @@ namespace al
 	// Vectors
 	// ========================================
 
-	template<typename T, size_t num>
+#define MULT_TYPE_TEMPLATE		template<typename T, size_t num>
+
+#define FLOATING_TEMPLATE		template<typename U = float, class = typename std::enable_if<std::is_floating_point<U>::value>::type>
+#define ARITHMETIC_TEMPLATE		template<typename U = float, class = typename std::enable_if<std::is_arithmetic<U>::value>::type>
+
+// ND - no defaults
+#define FLOATING_TEMPLATE_ND	template<typename U, class>
+#define ARITHMETIC_TEMPLATE_ND	template<typename U, class>
+
+	MULT_TYPE_TEMPLATE
 	class mult
 	{
 	public:
-		mult() 
-			: components{ }
-		{ }
+		mult();
+		mult(T value);
+		mult(const std::array<T, num>& array);
+		mult(const mult<T, num>& other);
 
-		mult(T value)
-		{ 
-			components.fill(value);
-		}
+							T&				get         (size_t element)					const;
+							T&				operator [] (size_t element)					const;
+							size_t			size        ()									const;
 
-		mult(const std::array<T, num>& array) 
-			: components{ array } 
-		{ }
+							T				dot			(const mult<T, num>& other)			const;
+							T				dot			(const std::array<T, num>& other)	const;
 
-		mult(const mult<T, num>& other) 
-			: components{ other.components } 
-		{ }
+							mult<T, num>	cross		(const mult<T, num>& other)			const;
+							mult<T, num>	cross		(const std::array<T, num>& other)	const;
 
-		inline T&       get         (size_t element) const  { AL_ASSERT(element < num); return const_cast<T&>(components[element]); }
-		inline T&       operator [] (size_t element) const  { AL_ASSERT(element < num); return const_cast<T&>(components[element]); }
-		inline size_t   size        ()               const  { return num; }
+		FLOATING_TEMPLATE	U				length		()									const;
+		FLOATING_TEMPLATE	mult<U, num>	normalized	()									const;
+							void			normalize	()									const;
 
-		T dot(const mult<T, num>& other) const
-		{ 
-			return dot(other.components); 
-		}
+		ARITHMETIC_TEMPLATE mult<T, num>	mul			(const U& value)					const;
+		ARITHMETIC_TEMPLATE mult<T, num>	operator *	(const U& value)					const;
+		ARITHMETIC_TEMPLATE mult<T, num>	div			(const U& value)					const;
+		ARITHMETIC_TEMPLATE mult<T, num>	operator /	(const U& value)					const;
 
-		T dot(const std::array<T, num>& other) const
-		{ 
-			T result = {};
-			for (size_t it = 0; it < num; ++it)
-				result += components[it] * other[it];
-			return result; 
-		}
-
-		mult<T, num> cross(const mult<T, num>& other) const
-		{ 
-			static_assert(num == 3, "cross-product is defined only for 3-component vectors");
-			using namespace elements;
-			return 
-			{ {
-				get(Y) * other.get(Z) - get(Z) * other.get(Y),
-				get(Z) * other.get(X) - get(X) * other.get(Z),
-				get(X) * other.get(Y) - get(Y) * other.get(X)
-			} };
-		}
-
-		mult<T, num> cross(const std::array<T, num>& other) const
-		{
-			static_assert(num == 3, "cross-product is defined only for 3-component vectors");
-			using namespace elements;
-			return 
-			{ {
-				get(Y) * other[Z] - get(Z) * other[Y],
-				get(Z) * other[X] - get(X) * other[Z],
-				get(X) * other[Y] - get(Y) * other[X]
-			} };
-		}
+							mult<T, num>	add			(const mult<T, num>& other)			const;
+							mult<T, num>	operator +	(const mult<T, num>& other)			const;
+							mult<T, num>	sub			(const mult<T, num>& other)			const;
+							mult<T, num>	operator -	(const mult<T, num>& other)			const;
 
 		template<size_t ... indexes>
-		mult<T, sizeof ... (indexes)> slice() const
-		{
-			size_t indexesArray[] = { indexes... };
-			auto result = mult<T, sizeof ... (indexes)>();
-			for (size_t it = 0; it < sizeof ... (indexes); ++it)
-				result[it] = components[indexesArray[it]];
-			return result;
-		}
+		mult<T, sizeof ... (indexes)> slice() const;
 
-		template<typename U = float, class = typename std::enable_if<std::is_floating_point<U>::value>::type>
-		U length() const
-		{
-			U result{ 0 };
-			for (size_t it = 0; it < num; ++it)
-				result += static_cast<U>(get(it)) * static_cast<U>(get(it));
-			return std::sqrt(result);
-		}
-
-		template<typename U = float, class = typename std::enable_if<std::is_floating_point<U>::value>::type>
-		mult<U, num> normalized() const
-		{
-			mult<U, num> result;
-			for (size_t it = 0; it < num; ++it)
-				result[it] = static_cast<U>(get(it));
-			return result / length();
-		}
-
-		void normalize() const
-		{
-			auto len = length();
-			for (size_t it = 0; it < num; ++it)
-				get(it) = static_cast<T>(static_cast<decltype(it)>(get(it)) / len);
-		}
-
-		template<typename U, class = typename std::enable_if<std::is_arithmetic<U>::value>::type>
-		mult<T, num> mul(const U& value) const
-		{
-			using namespace elements;
-			return
-			{ {
-				get(X) * value,
-				get(Y) * value,
-				get(Z) * value
-			} };
-		}
-
-		template<typename U, class = typename std::enable_if<std::is_arithmetic<U>::value>::type>
-		mult<T, num> operator * (const U& value) const
-		{
-			return mul(value);
-		}
-
-		template<typename U, class = typename std::enable_if<std::is_arithmetic<U>::value>::type>
-		mult<T, num> div(const U& value) const
-		{
-			using namespace elements;
-			return
-			{ {
-				get(X) / value,
-				get(Y) / value,
-				get(Z) / value
-			} };
-		}
-
-		template<typename U, class = typename std::enable_if<std::is_arithmetic<U>::value>::type>
-		mult<T, num> operator / (const U& value) const
-		{
-			return div(value);
-		}
-
-		mult<T, num> add(const mult<T, num>& other) const
-		{
-			mult<T, num> result;
-
-			for (size_t it = 0; it < num; ++it)
-			{
-				result[it] = get(it) + other.get(it);
-			}
-
-			return result;
-		}
-
-		mult<T, num> operator + (const mult<T, num>& other) const
-		{
-			return add(other);
-		}
-		
-		mult<T, num> sub(const mult<T, num>& other) const
-		{
-			mult<T, num> result;
-
-			for (size_t it = 0; it < num; ++it)
-			{
-				result[it] = get(it) - other.get(it);
-			}
-
-			return result;
-		}
-
-		mult<T, num> operator - (const mult<T, num>& other) const
-		{
-			return sub(other);
-		}
-
-		template<typename T, size_t num>
+		MULT_TYPE_TEMPLATE
 		friend std::ostream& operator << (std::ostream& os, const mult<T, num>& vec);
 
 	protected:
 		std::array<T, num> components;
 	};
 
-	template<typename T, size_t num>
+	MULT_TYPE_TEMPLATE mult<T, num>::mult()									: components{} { }
+	MULT_TYPE_TEMPLATE mult<T, num>::mult(T value)							{ components.fill(value); }
+	MULT_TYPE_TEMPLATE mult<T, num>::mult(const std::array<T, num>& array)	: components{ array } { }
+	MULT_TYPE_TEMPLATE mult<T, num>::mult(const mult<T, num>& other)		: components{ other.components } { }
+
+	MULT_TYPE_TEMPLATE inline T&       mult<T, num>::get			(size_t element) const { AL_ASSERT(element < num); return const_cast<T&>(components[element]); }
+	MULT_TYPE_TEMPLATE inline T&       mult<T, num>::operator []	(size_t element) const { AL_ASSERT(element < num); return const_cast<T&>(components[element]); }
+	MULT_TYPE_TEMPLATE inline size_t   mult<T, num>::size			()               const { return num; }
+
+	MULT_TYPE_TEMPLATE
+	T mult<T, num>::dot(const mult<T, num>& other) const
+	{
+		return dot(other.components);
+	}
+
+	MULT_TYPE_TEMPLATE
+	T mult<T, num>::dot(const std::array<T, num>& other) const
+	{
+		T result = {};
+		for (size_t it = 0; it < num; ++it)
+			result += components[it] * other[it];
+		return result;
+	}
+
+	MULT_TYPE_TEMPLATE
+	mult<T, num> mult<T, num>::cross(const mult<T, num>& other) const
+	{
+		static_assert(num == 3, "cross-product is defined only for 3-component vectors");
+		using namespace elements;
+		return
+		{ {
+			get(Y) * other.get(Z) - get(Z) * other.get(Y),
+			get(Z) * other.get(X) - get(X) * other.get(Z),
+			get(X) * other.get(Y) - get(Y) * other.get(X)
+		} };
+	}
+
+	MULT_TYPE_TEMPLATE
+	mult<T, num> mult<T, num>::cross(const std::array<T, num>& other) const
+	{
+		static_assert(num == 3, "cross-product is defined only for 3-component vectors");
+		using namespace elements;
+		return
+		{ {
+			get(Y) * other[Z] - get(Z) * other[Y],
+			get(Z) * other[X] - get(X) * other[Z],
+			get(X) * other[Y] - get(Y) * other[X]
+		} };
+	}
+
+	MULT_TYPE_TEMPLATE
+	template<size_t ... indexes>
+	mult<T, sizeof ... (indexes)> mult<T, num>::slice() const
+	{
+		size_t indexesArray[] = { indexes... };
+		auto result = mult<T, sizeof ... (indexes)>();
+		for (size_t it = 0; it < sizeof ... (indexes); ++it)
+			result[it] = components[indexesArray[it]];
+		return result;
+	}
+
+	MULT_TYPE_TEMPLATE
+	FLOATING_TEMPLATE_ND
+	U mult<T, num>::length() const
+	{
+		U result{ 0 };
+		for (size_t it = 0; it < num; ++it)
+			result += static_cast<U>(get(it)) * static_cast<U>(get(it));
+		return std::sqrt(result);
+	}
+
+	MULT_TYPE_TEMPLATE
+	FLOATING_TEMPLATE_ND
+	mult<U, num> mult<T, num>::normalized() const
+	{
+		mult<U, num> result;
+		for (size_t it = 0; it < num; ++it)
+			result[it] = static_cast<U>(get(it));
+		return result / length();
+	}
+
+	MULT_TYPE_TEMPLATE
+	void mult<T, num>::normalize() const
+	{
+		auto len = length();
+		for (size_t it = 0; it < num; ++it)
+			get(it) = static_cast<T>(static_cast<decltype(it)>(get(it)) / len);
+	}
+
+	MULT_TYPE_TEMPLATE
+	ARITHMETIC_TEMPLATE_ND
+	mult<T, num> mult<T, num>::mul(const U& value) const
+	{
+		using namespace elements;
+		return
+		{ {
+			get(X) * value,
+			get(Y) * value,
+			get(Z) * value
+		} };
+	}
+
+	MULT_TYPE_TEMPLATE
+	ARITHMETIC_TEMPLATE_ND
+	mult<T, num> mult<T, num>::operator * (const U& value) const
+	{
+		return mul(value);
+	}
+
+	MULT_TYPE_TEMPLATE
+	ARITHMETIC_TEMPLATE_ND
+	mult<T, num> mult<T, num>::div(const U& value) const
+	{
+		using namespace elements;
+		return
+		{ {
+			get(X) / value,
+			get(Y) / value,
+			get(Z) / value
+		} };
+	}
+
+	MULT_TYPE_TEMPLATE
+	ARITHMETIC_TEMPLATE_ND
+	mult<T, num> mult<T, num>::operator / (const U& value) const
+	{
+		return div(value);
+	}
+
+	MULT_TYPE_TEMPLATE
+	mult<T, num> mult<T, num>::add(const mult<T, num>& other) const
+	{
+		mult<T, num> result;
+
+		for (size_t it = 0; it < num; ++it)
+		{
+			result[it] = get(it) + other.get(it);
+		}
+
+		return result;
+	}
+
+	MULT_TYPE_TEMPLATE
+	mult<T, num> mult<T, num>::operator + (const mult<T, num>& other) const
+	{
+		return add(other);
+	}
+
+	MULT_TYPE_TEMPLATE
+	mult<T, num> mult<T, num>::sub(const mult<T, num>& other) const
+	{
+		mult<T, num> result;
+
+		for (size_t it = 0; it < num; ++it)
+		{
+			result[it] = get(it) - other.get(it);
+		}
+
+		return result;
+	}
+
+	MULT_TYPE_TEMPLATE
+	mult<T, num> mult<T, num>::operator - (const mult<T, num>& other) const
+	{
+		return sub(other);
+	}
+
+	MULT_TYPE_TEMPLATE
 	std::ostream& operator << (std::ostream& os, const mult<T, num>& vec)
 	{
 		os << "[ ";
@@ -274,6 +319,8 @@ namespace al
 		{ }
 	};
 
+#undef MULT_TYPE_TEMPLATE
+
 	using float2 = mult2<float>;
 	using float3 = mult3<float>;
 	using float4 = mult4<float>;
@@ -290,137 +337,35 @@ namespace al
 	// Matrix
 	// ========================================
 
-	template<typename T, size_t rows, size_t columns>
+#define MATRIX_2D_TYPE_TEMPLATE template<typename T, size_t rows, size_t columns>
+
+	MATRIX_2D_TYPE_TEMPLATE
 	class matrix2d
 	{
 	public:
-		matrix2d() 
-			: components{ }
-		{ }
+								matrix2d();
+								matrix2d(T value);
+								matrix2d(std::array<T, rows * columns> array);
+								matrix2d(const matrix2d<T, rows, columns>& other);
+		template<class... inT>	matrix2d(inT... args);
 
-		matrix2d(T value)
-		{ 
-			components.fill(value);
-		}
+										const T*							data_ptr	()													const;
+										T&									get			(size_t row, size_t column)							const;
+										mult<T, columns>&					operator [] (size_t row)										const;
 
-		matrix2d(std::array<T, rows * columns> array)
-			: components { array }
-		{ }
+		template<size_t secondColumns>	matrix2d<T, rows, secondColumns>	mul			(const matrix2d<T, columns, secondColumns>& other)	const;
+		ARITHMETIC_TEMPLATE				matrix2d<T, rows, columns>			mul			(const U& value)									const;
+										mult<T, rows>						mul			(const mult<T, columns>& vector)					const;
 
-		matrix2d(const matrix2d<T, rows, columns>& other)
-			: components { other.components }
-		{ }
+		template<size_t secondColumns>	matrix2d<T, rows, secondColumns>	operator *	(const matrix2d<T, columns, secondColumns>& other)	const;
+		ARITHMETIC_TEMPLATE				matrix2d<T, rows, columns>			operator *	(const U& value)									const;
+										mult<T, rows>						operator *	(const mult<T, columns>& vector)					const;
 
-		template<class... inT>
-		matrix2d(inT... args) 
-			: components { static_cast<T>(args)... }
-		{ }
+		virtual							T									det			()													const { AL_NO_IMPLEMENTATION_ASSERT return {}; }
+		virtual							matrix2d<T, rows, columns>			invert		()													const { AL_NO_IMPLEMENTATION_ASSERT return {}; }
+										matrix2d<T, columns, rows>			transpose	()													const;
 
-		inline const T* data_ptr() const
-		{
-			return &components[0];
-		}
-
-		inline T& get(size_t row, size_t column) const
-		{
-			AL_ASSERT(row < rows)
-			AL_ASSERT(column < columns)
-			return const_cast<T&>(components[row * columns + column]);
-		}
-
-		inline mult<T, columns>& operator [] (size_t row) const
-		{ 
-			AL_ASSERT(row < rows) 
-			return const_cast<mult<T, columns>&>(vec[row]); 
-		}
-
-		template<size_t secondColumns>
-		matrix2d<T, rows, secondColumns> mul(const matrix2d<T, columns, secondColumns>& other) const
-		{
-			matrix2d<T, rows, secondColumns> result;
-
-			for (size_t rowsIt = 0; rowsIt < rows; ++rowsIt)
-				for (size_t columnsIt = 0; columnsIt < secondColumns; ++columnsIt)
-					for (size_t dotIt = 0; dotIt < columns; ++dotIt)
-					{
-						result.get(rowsIt, columnsIt) += get(rowsIt, dotIt) * other.get(dotIt, columnsIt);
-					}
-
-			return result;
-		}
-
-		template<typename U, class = typename std::enable_if<std::is_arithmetic<U>::value>::type>
-		matrix2d<T, rows, columns> mul(const U& value) const
-		{
-			matrix2d<T, rows, columns> result;
-
-			for (size_t rowsIt = 0; rowsIt < rows; ++rowsIt)
-				for (size_t columnsIt = 0; columnsIt < columns; ++columnsIt)
-				{
-					result.get(rowsIt, columnsIt) = get(rowsIt, columnsIt) * value;
-				}
-
-			return result;
-		}
-
-		mult<T, rows> mul(const mult<T, columns>& vector) const
-		{
-			mult<T, rows> result;
-
-			for (size_t rowsIt = 0; rowsIt < rows; ++rowsIt)
-			{
-				T value = static_cast<T>(0);
-				for (size_t columnsIt = 0; columnsIt < columns; ++columnsIt)
-				{
-					value += get(rowsIt, columnsIt) * vector[columnsIt];
-				}
-				result[rowsIt] = value;
-			}
-
-			return result;
-		}
-
-		template<size_t secondColumns>
-		matrix2d<T, rows, secondColumns> operator * (const matrix2d<T, columns, secondColumns>& other) const
-		{
-			return mul(other);
-		}
-
-		template<typename U, class = typename std::enable_if<std::is_arithmetic<U>::value>::type>
-		matrix2d<T, rows, columns> operator * (const U& value) const
-		{
-			return mul(value);
-		}
-
-		mult<T, rows> operator * (const mult<T, columns>& vector) const
-		{
-			return mul(vector);
-		}
-
-		virtual T det() const
-		{
-			AL_NO_IMPLEMENTATION_ASSERT
-			return {};
-		}
-
-		virtual matrix2d<T, rows, columns> invert() const
-		{
-			AL_NO_IMPLEMENTATION_ASSERT
-			return {};
-		}
-
-		matrix2d<T, columns, rows> transpose() const
-		{
-			matrix2d<T, columns, rows> result;
-			for (size_t rowsIt = 0; rowsIt < rows; ++rowsIt)
-				for (size_t columnsIt = 0; columnsIt < columns; ++columnsIt)
-				{
-					result[columnsIt][rowsIt] = get(rowsIt, columnsIt);
-				}
-			return result;
-		}
-
-		template<typename T, size_t rows, size_t columns>
+		MATRIX_2D_TYPE_TEMPLATE
 		friend std::ostream& operator << (std::ostream& os, const matrix2d<T, rows, columns>& mat);
 
 	protected:
@@ -432,7 +377,136 @@ namespace al
 		};
 	};
 
-	template<typename T, size_t rows, size_t columns>
+	MATRIX_2D_TYPE_TEMPLATE
+	matrix2d<T, rows, columns>::matrix2d()
+		: components{}
+	{ }
+
+	MATRIX_2D_TYPE_TEMPLATE
+	matrix2d<T, rows, columns>::matrix2d(T value)
+	{
+		components.fill(value);
+	}
+
+	MATRIX_2D_TYPE_TEMPLATE
+	matrix2d<T, rows, columns>::matrix2d(std::array<T, rows * columns> array)
+		: components{ array }
+	{ }
+
+	MATRIX_2D_TYPE_TEMPLATE
+	matrix2d<T, rows, columns>::matrix2d(const matrix2d<T, rows, columns>& other)
+		: components{ other.components }
+	{ }
+
+	MATRIX_2D_TYPE_TEMPLATE
+	template<class... inT>
+	matrix2d<T, rows, columns>::matrix2d(inT... args)
+		: components{ static_cast<T>(args)... }
+	{ }
+
+	MATRIX_2D_TYPE_TEMPLATE
+	inline const T* matrix2d<T, rows, columns>::data_ptr() const
+	{
+		return &components[0];
+	}
+
+	MATRIX_2D_TYPE_TEMPLATE
+	inline T& matrix2d<T, rows, columns>::get(size_t row, size_t column) const
+	{
+		AL_ASSERT(row < rows)
+		AL_ASSERT(column < columns)
+		return const_cast<T&>(components[row * columns + column]);
+	}
+
+	MATRIX_2D_TYPE_TEMPLATE
+	inline mult<T, columns>& matrix2d<T, rows, columns>::operator [] (size_t row) const
+	{
+		AL_ASSERT(row < rows)
+			return const_cast<mult<T, columns>&>(vec[row]);
+	}
+
+	MATRIX_2D_TYPE_TEMPLATE
+	template<size_t secondColumns>
+	matrix2d<T, rows, secondColumns> matrix2d<T, rows, columns>::mul(const matrix2d<T, columns, secondColumns>& other) const
+	{
+		matrix2d<T, rows, secondColumns> result;
+
+		for (size_t rowsIt = 0; rowsIt < rows; ++rowsIt)
+			for (size_t columnsIt = 0; columnsIt < secondColumns; ++columnsIt)
+				for (size_t dotIt = 0; dotIt < columns; ++dotIt)
+				{
+					result.get(rowsIt, columnsIt) += get(rowsIt, dotIt) * other.get(dotIt, columnsIt);
+				}
+
+		return result;
+	}
+
+	MATRIX_2D_TYPE_TEMPLATE
+	ARITHMETIC_TEMPLATE_ND
+	matrix2d<T, rows, columns> matrix2d<T, rows, columns>::mul(const U& value) const
+	{
+		matrix2d<T, rows, columns> result;
+
+		for (size_t rowsIt = 0; rowsIt < rows; ++rowsIt)
+			for (size_t columnsIt = 0; columnsIt < columns; ++columnsIt)
+			{
+				result.get(rowsIt, columnsIt) = get(rowsIt, columnsIt) * value;
+			}
+
+		return result;
+	}
+
+	MATRIX_2D_TYPE_TEMPLATE
+	mult<T, rows> matrix2d<T, rows, columns>::mul(const mult<T, columns>& vector) const
+	{
+		mult<T, rows> result;
+
+		for (size_t rowsIt = 0; rowsIt < rows; ++rowsIt)
+		{
+			T value = static_cast<T>(0);
+			for (size_t columnsIt = 0; columnsIt < columns; ++columnsIt)
+			{
+				value += get(rowsIt, columnsIt) * vector[columnsIt];
+			}
+			result[rowsIt] = value;
+		}
+
+		return result;
+	}
+
+	MATRIX_2D_TYPE_TEMPLATE
+	template<size_t secondColumns>
+	matrix2d<T, rows, secondColumns> matrix2d<T, rows, columns>::operator * (const matrix2d<T, columns, secondColumns>& other) const
+	{
+		return mul(other);
+	}
+
+	MATRIX_2D_TYPE_TEMPLATE
+	ARITHMETIC_TEMPLATE_ND
+	matrix2d<T, rows, columns> matrix2d<T, rows, columns>::operator * (const U& value) const
+	{
+		return mul(value);
+	}
+
+	MATRIX_2D_TYPE_TEMPLATE
+	mult<T, rows> matrix2d<T, rows, columns>::operator * (const mult<T, columns>& vector) const
+	{
+		return mul(vector);
+	}
+
+	MATRIX_2D_TYPE_TEMPLATE
+	matrix2d<T, columns, rows> matrix2d<T, rows, columns>::transpose() const
+	{
+		matrix2d<T, columns, rows> result;
+		for (size_t rowsIt = 0; rowsIt < rows; ++rowsIt)
+			for (size_t columnsIt = 0; columnsIt < columns; ++columnsIt)
+			{
+				result[columnsIt][rowsIt] = get(rowsIt, columnsIt);
+			}
+		return result;
+	}
+
+	MATRIX_2D_TYPE_TEMPLATE
 	std::ostream& operator << (std::ostream& os, const matrix2d<T, rows, columns>& mat)
 	{
 		for (size_t rowsIt = 0; rowsIt < rows; ++rowsIt)
@@ -618,6 +692,14 @@ namespace al
 			};
 		}
 	};
+
+#undef FLOATING_TEMPLATE
+#undef ARITHMETIC_TEMPLATE
+
+#undef FLOATING_TEMPLATE_ND
+#undef ARITHMETIC_TEMPLATE_ND
+
+#undef MATRIX_2D_TYPE_TEMPLATE
 
 	using float2x2 = matrix2x2<float>;
 	using float3x3 = matrix3x3<float>;
