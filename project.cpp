@@ -5,7 +5,17 @@
 
 int main()
 {
+	// need to restructure stuff
+
 	/*
+	audio
+	job sys
+	rendering thread
+	rendering comands
+	reflection mb
+
+
+
 	geometry
 	animation
 	text rendering
@@ -72,12 +82,11 @@ int main()
 		90
 	};
 
-	al::engine::Geometry geometry;
-	al::engine::load_geometry_obj(&geometry, "Assets\\deer.obj");
+	al::engine::Geometry geometry(al::engine::Geometry::SourceType::OBJ, "Assets\\deer.obj");
 
 	int mousePos[2] = { 0, 0 };
 
-	window->renderer->set_vsync(false);
+	window->renderer->set_vsync(true);
 
 	while (true)
 	{

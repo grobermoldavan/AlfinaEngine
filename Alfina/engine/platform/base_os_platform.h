@@ -71,11 +71,13 @@ namespace al::engine
 	};
 
 	class Renderer;
+	class SoundSystem;
 
 	struct ApplicationWindow
 	{
 		WindowProperties		properties;
 		Renderer* 				renderer;
+		SoundSystem*			soundSystem;
 		ApplicationWindowInput 	input;
 	};
 	
@@ -86,6 +88,9 @@ namespace al::engine
 
 	extern ErrorInfo	create_renderer				(Renderer**, ApplicationWindow*);
 	extern ErrorInfo	destroy_renderer			(Renderer*);
+
+	extern ErrorInfo	create_sound_system			(SoundSystem**, ApplicationWindow*);
+	extern ErrorInfo	destroy_sound_system		(const SoundSystem*);
 }
 
 #endif

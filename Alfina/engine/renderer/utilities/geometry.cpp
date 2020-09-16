@@ -21,6 +21,26 @@ namespace al::engine
 		, va{ nullptr }
 	{ }
 
+	Geometry::Geometry(SourceType type, const char* path)
+		: vb{ nullptr }
+		, ib{ nullptr }
+		, va{ nullptr }
+	{
+		switch (type)
+		{
+			case SourceType::OBJ: 
+			{ 
+				load_geometry_obj(this, path); 
+				break; 
+			}
+			default: 
+			{ 
+				AL_LOG(al::engine::Logger::ERROR_MSG, "Unknown geometry source type.") 
+			}
+		}
+	}
+
+
 	Geometry::~Geometry()
 	{
 		destroy_vertex_buffer(vb);
@@ -30,6 +50,10 @@ namespace al::engine
 
 	ErrorInfo load_geometry_obj(Geometry* geometry, const char* fileName)
 	{
+		AL_ASSERT(!geometry->vb);
+		AL_ASSERT(!geometry->ib);
+		AL_ASSERT(!geometry->va);
+
 		FileHandle file;
 		ErrorInfo result = FileSys::read_file(fileName, &file);
 		if (result)

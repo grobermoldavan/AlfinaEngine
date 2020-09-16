@@ -14,7 +14,14 @@ namespace al::engine
 	class Geometry
 	{
 	public:
+		enum SourceType
+		{
+			OBJ,
+			__end
+		};
+
 		Geometry();
+		Geometry(SourceType type, const char* path);
 		~Geometry();
 
 	public:

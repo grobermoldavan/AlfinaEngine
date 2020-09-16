@@ -132,8 +132,9 @@ namespace al::engine
 		win32window->properties = properties;
 		win32window->windowThread = std::thread{ window_update, win32window, std::move(creation_promise) };
 		creation_future.get();
-
+		
 		create_renderer(&win32window->renderer, win32window);
+		create_sound_system(&win32window->soundSystem, win32window);
 
 		*window = static_cast<ApplicationWindow*>(win32window);
 

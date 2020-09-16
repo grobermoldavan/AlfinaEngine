@@ -30,10 +30,16 @@
 #	error Supported platform is not defined
 #endif
 
-
 #include "renderer\base_renderer.h"
 #if defined(AL_PLATFORM_WIN32)
 #	include "renderer\win32\windows_opengl_renderer.h"
+#else
+#	error Supported platform is not defined
+#endif
+
+#include "sound_system\base_sound_system.h"
+#if defined(AL_PLATFORM_WIN32)
+#	include "sound_system\win32\windows_sound_system.h"
 #else
 #	error Supported platform is not defined
 #endif
