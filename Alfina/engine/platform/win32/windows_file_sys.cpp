@@ -7,8 +7,10 @@
 #include <cstdint>
 
 #include "engine/engine_utilities/logging/logging.h"
+#include "engine/allocation/allocation.h"
 
 #include "windows_utilities.h"
+#include "utilities/defer.h"
 
 namespace al::engine
 {
@@ -26,24 +28,28 @@ namespace al::engine
 
 		if (hFile == INVALID_HANDLE_VALUE)
 		{
-			// Maybe change this to a warning?
-			AL_LOG_NO_DISCARD(Logger::Type::ERROR_MSG, "Unable to open file for read. File name is \"", fileName, "\"");
+			AL_LOG_NO_DISCARD(Logger::Type::WARNING, "Unable to open file for read. File name is \"", fileName, "\"");
 			return{ al::engine::ErrorInfo::Code::INCORRECT_INPUT_DATA };
 		}
+
+		defer({
+			BOOL isHandleClosed = ::CloseHandle(hFile);
+			AL_ASSERT_MSG_NO_DISCARD(isHandleClosed, "Unable to close file. File name is \"", fileName, "\"")
+		});
 
 		DWORD fileSize;
 		fileSize = ::GetFileSize(hFile, &fileSize);
 		AL_ASSERT_MSG_NO_DISCARD(fileSize != INVALID_FILE_SIZE, "Unable to get the file size. File name is \"", fileName, "\"")
 
-		handle->data = new uint8_t[fileSize + 1];
+		handle->data = static_cast<uint8_t*>(AL_DEFAULT_ALLOC((fileSize + 1) * sizeof(uint8_t), 0, "FILE_READING"));
+		if (!handle->data)
+		{
+			return{ ErrorInfo::Code::BAD_ALLOC };
+		}
 
 		DWORD bytesRead;
 		BOOL isFileRead = ::ReadFile(hFile, handle->data, fileSize, &bytesRead, NULL);
 		AL_ASSERT_MSG_NO_DISCARD(isFileRead != FALSE, "Unable to read file. File name is \"", fileName, "\" ", get_last_error_str())
-
-		BOOL isHandleClosed;
-		isHandleClosed = ::CloseHandle(hFile);
-		AL_ASSERT_MSG_NO_DISCARD(isHandleClosed, "Unable to close file. File name is \"", fileName, "\"")
 
 		handle->data[fileSize] = 0;
 		handle->fileSize = fileSize;
@@ -53,11 +59,9 @@ namespace al::engine
 
 	ErrorInfo FileSys::free_file_handle(FileHandle* handle)
 	{
-		AL_LOG(Logger::Type::MESSAGE, "Closing file handle");
-
 		if (handle->data)
 		{
-			delete handle->data;
+			AL_DEFAULT_DEALLOC(handle->data, "FILE_READING");
 			handle->data = nullptr;
 		}
 

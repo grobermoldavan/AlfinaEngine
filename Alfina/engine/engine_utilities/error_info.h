@@ -9,7 +9,7 @@ namespace al::engine
         {
             ALL_FINE,
             INCORRECT_INPUT_DATA,
-            OS_WINDOW_CREATE_FAILED
+            BAD_ALLOC
         };
         
         Code error_code;

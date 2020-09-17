@@ -30,7 +30,8 @@ namespace al::engine
 		{
 			case SourceType::OBJ: 
 			{ 
-				load_geometry_obj(this, path); 
+				ErrorInfo errorInfo = load_geometry_obj(this, path); 
+				AL_ASSERT(errorInfo)
 				break; 
 			}
 			default: 
@@ -39,7 +40,6 @@ namespace al::engine
 			}
 		}
 	}
-
 
 	Geometry::~Geometry()
 	{
@@ -55,8 +55,9 @@ namespace al::engine
 		AL_ASSERT(!geometry->va);
 
 		FileHandle file;
-		ErrorInfo result = FileSys::read_file(fileName, &file);
-		if (result)
+		ErrorInfo errorInfo;
+		errorInfo = FileSys::read_file(fileName, &file);
+		if (errorInfo)
 		{
 			// @TODO : move vert struct to header file
 			struct vert
@@ -124,24 +125,42 @@ namespace al::engine
 				}
 			}
 
-			create_vertex_buffer(&geometry->vb, v.data(), v.size() * sizeof(vert));
+			auto errorHandle = [&]()
+			{
+				destroy_vertex_buffer(geometry->vb);
+				destroy_index_buffer(geometry->ib);
+				destroy_vertex_array(geometry->va);
+			};
+
+#define HANDLE_ERROR if (!errorInfo) { errorHandle(); return errorInfo; }
+
+			errorInfo = create_vertex_buffer(&geometry->vb, v.data(), v.size() * sizeof(vert));
+			HANDLE_ERROR
+
 			geometry->vb->set_layout
 			({
-				{ al::engine::ShaderDataType::Float3 },
-				{ al::engine::ShaderDataType::Float3 }
+				{ ShaderDataType::Float3 },
+				{ ShaderDataType::Float3 }
 			});
 			
-			create_index_buffer(&geometry->ib, f.data(), f.size());
+			errorInfo = create_index_buffer(&geometry->ib, f.data(), f.size());
+			HANDLE_ERROR
 
-			create_vertex_array(&geometry->va);
-			geometry->va->set_vertex_buffer(geometry->vb);
+			errorInfo = create_vertex_array(&geometry->va);
+			HANDLE_ERROR
+
+			errorInfo = geometry->va->set_vertex_buffer(geometry->vb);
+			HANDLE_ERROR
+
+#undef HANDLE_ERROR
+
 			geometry->va->set_index_buffer(geometry->ib);
 
-			return{ al::engine::ErrorInfo::Code::ALL_FINE };
+			return{ ErrorInfo::Code::ALL_FINE };
 		}
 		else
 		{
-			return result;
+			return errorInfo;
 		}
 	}
 }

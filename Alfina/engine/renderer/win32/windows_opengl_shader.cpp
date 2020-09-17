@@ -4,17 +4,26 @@
 #	include "windows_opengl_shader.h"
 #endif
 
+#include "engine/allocation/allocation.h"
+
 namespace al::engine
 {
 	ErrorInfo create_shader(Shader** shader, const char* vertexShaderSrc, const char* fragmentShaderSrc)
 	{
-		*shader = static_cast<Shader*>(new Win32glShader(vertexShaderSrc, fragmentShaderSrc));
-		return{ ErrorInfo::Code::ALL_FINE };
+		*shader = static_cast<Shader*>(AL_DEFAULT_CONSTRUCT(Win32glShader, "SHADER", vertexShaderSrc, fragmentShaderSrc));
+		if (*shader)
+		{
+			return{ ErrorInfo::Code::ALL_FINE };
+		}
+		else
+		{
+			return{ ErrorInfo::Code::BAD_ALLOC };
+		}
 	}
 
 	ErrorInfo destroy_shader(const Shader* shader)
 	{
-		if (shader) delete shader;
+		if (shader) AL_DEFAULT_DESTRUCT(const_cast<Shader*>(shader), "SHADER");
 		return{ ErrorInfo::Code::ALL_FINE };
 	}
 

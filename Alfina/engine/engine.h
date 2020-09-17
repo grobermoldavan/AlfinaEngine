@@ -16,6 +16,8 @@
 
 #include "math\math.h"
 
+#include "allocation\allocation.h"
+
 #include "platform\base_os_platform.h"
 #if defined(AL_PLATFORM_WIN32)
 #	include "platform\win32\windows_platform.h"

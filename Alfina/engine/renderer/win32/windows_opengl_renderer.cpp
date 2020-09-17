@@ -5,18 +5,26 @@
 #endif
 
 #include "engine/engine_utilities/asserts.h"
+#include "engine/allocation/allocation.h"
 
 namespace al::engine
 {
 	ErrorInfo create_renderer(Renderer** renderer, ApplicationWindow* window)
 	{
-		*renderer = static_cast<Renderer*>(new Win32glRenderer(static_cast<Win32ApplicationWindow*>(window)));
-		return{ ErrorInfo::Code::ALL_FINE };
+		*renderer = static_cast<Renderer*>(AL_DEFAULT_CONSTRUCT(Win32glRenderer, "RENDERER", static_cast<Win32ApplicationWindow*>(window)));
+		if (*renderer)
+		{
+			return{ ErrorInfo::Code::ALL_FINE };
+		}
+		else
+		{
+			return{ ErrorInfo::Code::BAD_ALLOC };
+		}
 	}
 
 	ErrorInfo destroy_renderer(Renderer* renderer)
 	{
-		if (renderer) delete renderer;
+		if (renderer) AL_DEFAULT_DESTRUCT(renderer, "RENDERER");
 		return{ ErrorInfo::Code::ALL_FINE };
 	}
 

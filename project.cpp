@@ -30,7 +30,11 @@ int main()
 	*/
 
 	AL_LOG(al::engine::Logger::WARNING, "Test warning ", 1, 2.0f, 3.1234, al::float2{ 2, 3 })
-	
+
+	al::engine::ErrorInfo errorInfo;
+
+#define HANDLE_ERROR AL_ASSERT(errorInfo);
+
 	al::engine::ApplicationWindow* window;
 	al::engine::WindowProperties properties
 	{
@@ -39,16 +43,25 @@ int main()
 		al::engine::WindowProperties::ScreenMode::WINDOWED,
 		"Application window"
 	};
-	al::engine::create_application_window(properties, &window);
+	errorInfo = al::engine::create_application_window(properties, &window);
+	HANDLE_ERROR
 
 	al::engine::FileHandle vertexShader;
-	al::engine::FileSys::read_file("Shaders\\vertex.vert", &vertexShader);
+	errorInfo = al::engine::FileSys::read_file("Shaders\\vertex.vert", &vertexShader);
+	HANDLE_ERROR
 
 	al::engine::FileHandle fragmentShader;
-	al::engine::FileSys::read_file("Shaders\\fragment.frag", &fragmentShader);
+	errorInfo = al::engine::FileSys::read_file("Shaders\\fragment.frag", &fragmentShader);
+	HANDLE_ERROR
 
 	al::engine::Shader* shader;
-	al::engine::create_shader(&shader, (const char*)vertexShader.get_data(), (const char*)fragmentShader.get_data());
+	errorInfo = al::engine::create_shader(&shader, (const char*)vertexShader.get_data(), (const char*)fragmentShader.get_data());
+	HANDLE_ERROR
+
+	struct shit
+	{
+		int a;
+	};
 
 	al::engine::ApplicationWindowInput inputBuffer { };
 
@@ -93,7 +106,8 @@ int main()
 		TestTimer timer;
 
 		{ // process input
-			al::engine::get_window_inputs(window, &inputBuffer);
+			errorInfo = al::engine::get_window_inputs(window, &inputBuffer);
+			HANDLE_ERROR
 
 			// closing window
 			if (inputBuffer.generalInput.get_flag(al::engine::ApplicationWindowInput::GeneralInputFlags::CLOSE_BUTTON_PRESSED)) break;
@@ -160,9 +174,13 @@ int main()
 		window->renderer->commit();
 	}
 
-	al::engine::destroy_shader(shader);
+	errorInfo = al::engine::destroy_shader(shader);
+	HANDLE_ERROR
 
-	al::engine::destroy_application_window(window);
+	errorInfo = al::engine::destroy_application_window(window);
+	HANDLE_ERROR
+
+#undef HANDLE_ERROR
 
     return 0;
 }

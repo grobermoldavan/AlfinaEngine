@@ -5,18 +5,26 @@
 #endif
 
 #include "engine/engine_utilities/asserts.h"
+#include "engine/allocation/allocation.h"
 
 namespace al::engine
 {
 	ErrorInfo create_sound_system(SoundSystem** soundSystem, ApplicationWindow* window)
 	{
-		*soundSystem = static_cast<SoundSystem*>(new Win32SoundSystem(static_cast<Win32ApplicationWindow*>(window)));
-		return{ ErrorInfo::Code::ALL_FINE };
+		*soundSystem = static_cast<SoundSystem*>(AL_DEFAULT_CONSTRUCT(Win32SoundSystem, "SOUND_SYS", static_cast<Win32ApplicationWindow*>(window)));
+		if (*soundSystem)
+		{
+			return{ ErrorInfo::Code::ALL_FINE };
+		}
+		else
+		{
+			return{ ErrorInfo::Code::BAD_ALLOC };
+		}
 	}
 
 	ErrorInfo destroy_sound_system(const SoundSystem* soundSystem)
 	{
-		if (soundSystem) delete soundSystem;
+		if (soundSystem) AL_DEFAULT_DESTRUCT(const_cast<SoundSystem*>(soundSystem), "SOUND_SYS");
 		return{ ErrorInfo::Code::ALL_FINE };
 	}
 

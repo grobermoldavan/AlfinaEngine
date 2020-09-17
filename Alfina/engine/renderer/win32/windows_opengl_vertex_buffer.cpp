@@ -4,17 +4,26 @@
 #	include "windows_opengl_vertex_buffer.h"
 #endif
 
+#include "engine/allocation/allocation.h"
+
 namespace al::engine
 {
 	ErrorInfo create_vertex_buffer(VertexBuffer** vb, const void* vertices, uint32_t size)
 	{
-		*vb = static_cast<VertexBuffer*>(new Win32glVertexBuffer(vertices, size));
-		return{ ErrorInfo::Code::ALL_FINE };
+		*vb = static_cast<VertexBuffer*>(AL_DEFAULT_CONSTRUCT(Win32glVertexBuffer, "VERTEX_BUFFER", vertices, size));
+		if (*vb)
+		{
+			return{ ErrorInfo::Code::ALL_FINE };
+		}
+		else
+		{
+			return{ ErrorInfo::Code::BAD_ALLOC };
+		}
 	}
 
 	ErrorInfo destroy_vertex_buffer(const VertexBuffer* vb)
 	{
-		if (vb) delete vb;
+		if (vb) AL_DEFAULT_DESTRUCT(const_cast<VertexBuffer*>(vb), "VERTEX_BUFFER");
 		return{ ErrorInfo::Code::ALL_FINE };
 	}
 

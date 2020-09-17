@@ -11,6 +11,7 @@
 #include "windows_input.h"
 
 #include "engine/engine_utilities/asserts.h"
+#include "engine/allocation/allocation.h"
 
 namespace al::engine
 {
@@ -124,7 +125,11 @@ namespace al::engine
 
 	ErrorInfo create_application_window(const WindowProperties& properties, ApplicationWindow** window)
 	{
-		Win32ApplicationWindow* win32window = new Win32ApplicationWindow();
+		Win32ApplicationWindow* win32window = AL_DEFAULT_CONSTRUCT(Win32ApplicationWindow, "WIN32_APP_WINDOW");
+		if (!win32window)
+		{
+			return{ ErrorInfo::Code::BAD_ALLOC };
+		}
 
 		std::promise<void> creation_promise;
 		std::future<void> creation_future = creation_promise.get_future();
@@ -138,15 +143,14 @@ namespace al::engine
 
 		*window = static_cast<ApplicationWindow*>(win32window);
 
-		return{ al::engine::ErrorInfo::Code::ALL_FINE };
+		return{ ErrorInfo::Code::ALL_FINE };
 	}
 
 	ErrorInfo destroy_application_window(ApplicationWindow* window)
 	{
 		if (!window)
 		{
-			AL_LOG_SHORT(Logger::Type::ERROR_MSG, "No window provided")
-			return{ al::engine::ErrorInfo::Code::INCORRECT_INPUT_DATA };
+			return{ ErrorInfo::Code::INCORRECT_INPUT_DATA };
 		}
 
 		Win32ApplicationWindow* win32window = static_cast<Win32ApplicationWindow*>(window);
@@ -159,14 +163,20 @@ namespace al::engine
 		AL_LOG_SHORT(Logger::Type::MESSAGE, "Window thread joined")
 
 		destroy_renderer(win32window->renderer);
+		destroy_sound_system(win32window->soundSystem);
 
-		delete win32window;
+		AL_DEFAULT_DESTRUCT(win32window, "WIN32_APP_WINDOW");
 
 		return{ al::engine::ErrorInfo::Code::ALL_FINE };
 	}
 
 	ErrorInfo get_window_inputs(const ApplicationWindow* window, ApplicationWindowInput* inputBuffer)
 	{
+		if (!inputBuffer)
+		{
+			return{ ErrorInfo::Code::INCORRECT_INPUT_DATA };
+		}
+
 		const Win32ApplicationWindow* win32window = static_cast<const Win32ApplicationWindow*>(window);
 		std::lock_guard<std::mutex> lock(win32window->inputReadMutex);
 		std::memcpy(inputBuffer, &win32window->input, sizeof(ApplicationWindowInput));

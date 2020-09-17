@@ -4,17 +4,26 @@
 #	include "windows_opengl_index_buffer.h"
 #endif
 
+#include "engine/allocation/allocation.h"
+
 namespace al::engine
 {
 	ErrorInfo create_index_buffer(IndexBuffer** ib, uint32_t* indices, uint32_t count)
 	{
-		*ib = static_cast<IndexBuffer*>(new Win32glIndexBuffer(indices, count));
-		return{ ErrorInfo::Code::ALL_FINE };
+		*ib = static_cast<IndexBuffer*>(AL_DEFAULT_CONSTRUCT(Win32glIndexBuffer, "INDEX_BUF", indices, count));
+		if (*ib)
+		{
+			return{ ErrorInfo::Code::ALL_FINE };
+		}
+		else
+		{
+			return{ ErrorInfo::Code::BAD_ALLOC };
+		}
 	}
 
 	ErrorInfo destroy_index_buffer(const IndexBuffer* ib)
 	{
-		if (ib) delete ib;
+		if (ib) AL_DEFAULT_DESTRUCT(const_cast<IndexBuffer*>(ib), "INDEX_BUF");
 		return{ ErrorInfo::Code::ALL_FINE };
 	}
 

@@ -4,17 +4,26 @@
 #	include "windows_opengl_vertex_array.h"
 #endif
 
+#include "engine/allocation/allocation.h"
+
 namespace al::engine
 {
 	ErrorInfo create_vertex_array(VertexArray** va)
 	{
-		*va = static_cast<VertexArray*>(new Win32glVertexArray());
-		return{ ErrorInfo::Code::ALL_FINE };
+		*va = static_cast<VertexArray*>(AL_DEFAULT_CONSTRUCT(Win32glVertexArray, "VERTEX_ARRAY"));
+		if (*va)
+		{
+			return{ ErrorInfo::Code::ALL_FINE };
+		}
+		else
+		{
+			return{ ErrorInfo::Code::BAD_ALLOC };
+		}
 	}
 
 	ErrorInfo destroy_vertex_array(const VertexArray* va)
 	{
-		if (va) delete va;
+		if (va) AL_DEFAULT_DESTRUCT(const_cast<VertexArray*>(va), "VERTEX_ARRAY");
 		return{ ErrorInfo::Code::ALL_FINE };
 	}
 
