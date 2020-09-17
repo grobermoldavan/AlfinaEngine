@@ -35,7 +35,7 @@ namespace al::engine
 
 	size_t DefaultHeapAllocator::dbgCount = 0;
 
-	static DefaultHeapAllocator default_allocator;
+	DefaultHeapAllocator default_allocator;
 }
 
 #endif
