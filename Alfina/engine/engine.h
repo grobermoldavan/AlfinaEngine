@@ -5,6 +5,7 @@
 
 #include "engine_utilities\asserts.h"
 #include "engine_utilities\error_info.h"
+#include "engine_utilities\timing.h"
 #include "engine_utilities\string\string_utilities.h"
 
 #include "engine_utilities\thread\thread_utilities.h"

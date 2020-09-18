@@ -8,6 +8,8 @@ int main()
 	// need to restructure stuff
 
 	/*
+	csv logging
+
 	audio
 	job sys
 	rendering thread
@@ -60,23 +62,6 @@ int main()
 
 	al::engine::ApplicationWindowInput inputBuffer { };
 
-	class TestTimer
-	{
-	public:
-		TestTimer()
-			: start { std::chrono::high_resolution_clock::now() }
-		{ }
-
-		~TestTimer()
-		{
-			auto now = std::chrono::high_resolution_clock::now();
-			AL_LOG_SHORT(al::engine::Logger::MESSAGE, "Frame time : ", std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count(), " ms")
-		}
-
-	private:
-		std::result_of<decltype(&std::chrono::high_resolution_clock::now)()>::type start;
-	};
-
 	al::engine::PerspectiveRenderCamera camera
 	{
 		{ 
@@ -98,7 +83,7 @@ int main()
 
 	while (true)
 	{
-		TestTimer timer;
+		al::engine::ScopeTimer timer{ [](double time) { AL_LOG_SHORT(al::engine::Logger::MESSAGE, "Frame time : ", time, " ms") } };
 
 		{ // process input
 			errorInfo = al::engine::get_window_inputs(window, &inputBuffer);
