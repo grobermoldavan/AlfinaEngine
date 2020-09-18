@@ -7,6 +7,13 @@
 #include "engine_utilities\error_info.h"
 #include "engine_utilities\string\string_utilities.h"
 
+#include "engine_utilities\thread\thread_utilities.h"
+#if defined(AL_PLATFORM_WIN32)
+#	include "engine_utilities\thread\win32\windows_thread_utilities.h"
+#else
+#	error Supported platform is not defined
+#endif
+
 #include "engine_utilities\logging\logging.h"
 #if defined(AL_PLATFORM_WIN32)
 #	include "engine_utilities\logging\win32\windows_logging.h"

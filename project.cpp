@@ -58,11 +58,6 @@ int main()
 	errorInfo = al::engine::create_shader(&shader, (const char*)vertexShader.get_data(), (const char*)fragmentShader.get_data());
 	HANDLE_ERROR
 
-	struct shit
-	{
-		int a;
-	};
-
 	al::engine::ApplicationWindowInput inputBuffer { };
 
 	class TestTimer
