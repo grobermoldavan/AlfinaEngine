@@ -19,7 +19,8 @@ namespace al::engine
 		case ThreadPriority::ABOVE_NORMAL:	return THREAD_PRIORITY_ABOVE_NORMAL;
 		case ThreadPriority::HIGHEST:		return THREAD_PRIORITY_HIGHEST;
 		}
-		AL_LOG_SHORT(Logger::Type::ERROR_MSG, "Unknown ThreadPriority value : ", static_cast<int>(priority))
+		AL_LOG(Logger::Type::ERROR_MSG, "Unknown ThreadPriority value : ", static_cast<int>(priority))
+		return 0;
 	}
 
 	void set_thread_priority(std::thread& thread, ThreadPriority priority)
