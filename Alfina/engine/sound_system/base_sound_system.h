@@ -9,30 +9,40 @@
 
 namespace al::engine
 {
-	using SoundId = uint32_t;
+	using SoundId = size_t;
 
 	struct SoundParameters
 	{
-		enum Channels
+		enum class Channels
 		{
 			MONO,
 			STEREO,
 			__end
 		};
 
-		Dispensable<uint32_t>	sampleRate;
-		Dispensable<Channels>	channels;
-		Dispensable<uint32_t>	bytesPerSample;
+		enum class BytesPerSample
+		{
+			ONE,
+			TWO,
+			FOUR,
+			__end
+		};
+
+		Dispensable<uint32_t>		sampleRate;
+		Dispensable<Channels>		channels;
+		Dispensable<BytesPerSample>	bytesPerSample;
 	};
 
 	class SoundSystem
 	{
 	public:
-		enum SourceType
+		enum class SourceType
 		{
 			WAV,
 			__end
 		};
+
+		virtual ~SoundSystem() = default;
 
 		virtual void	init		(const SoundParameters& parameters) = 0;
 
@@ -42,8 +52,8 @@ namespace al::engine
 
 	class ApplicationWindow;
 
-	extern ErrorInfo create_sound_system(SoundSystem**, ApplicationWindow*);
-	extern ErrorInfo destroy_sound_system(const SoundSystem*);
+	extern ErrorInfo create_sound_system	(SoundSystem**, ApplicationWindow*);
+	extern ErrorInfo destroy_sound_system	(SoundSystem*);
 }
 
 #endif

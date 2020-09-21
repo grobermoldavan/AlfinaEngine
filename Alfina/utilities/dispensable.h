@@ -30,6 +30,7 @@ namespace al
 		inline                  operator T  ()  const                       { return value; }
 		inline  T*              operator -> ()  const                       { return const_cast<T*>(&value); }
 		inline  bool            is_specified()  const                       { return isSpecified; }
+		inline	const T&		get_value	()	const						{ return value; }
 
 	private:
 		T       value;

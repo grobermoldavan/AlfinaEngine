@@ -21,6 +21,8 @@ namespace al::engine
 	class Renderer
 	{
 	public:
+		virtual ~Renderer() = default;
+
 		virtual void make_current		()																	= 0;
 		virtual void set_view_projection(const float4x4& vp)												= 0;
 		virtual void clear_screen		(const float3& color)												= 0;

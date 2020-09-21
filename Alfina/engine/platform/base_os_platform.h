@@ -90,7 +90,7 @@ namespace al::engine
 	extern ErrorInfo	destroy_renderer			(Renderer*);
 
 	extern ErrorInfo	create_sound_system			(SoundSystem**, ApplicationWindow*);
-	extern ErrorInfo	destroy_sound_system		(const SoundSystem*);
+	extern ErrorInfo	destroy_sound_system		(SoundSystem*);
 }
 
 #endif

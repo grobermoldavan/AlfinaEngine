@@ -1,8 +1,5 @@
 #include "project.h"
 
-#include <chrono>
-#include <type_traits>
-
 int main()
 {
 	// need to restructure stuff
@@ -40,13 +37,22 @@ int main()
 	al::engine::ApplicationWindow* window;
 	al::engine::WindowProperties properties
 	{
-		al::nonSpecifiedValue,		// size x
-		al::nonSpecifiedValue,		// size y
-		al::engine::WindowProperties::ScreenMode::WINDOWED,
-		"Application window"
+		al::nonSpecifiedValue,								// size x
+		al::nonSpecifiedValue,								// size y
+		al::engine::WindowProperties::ScreenMode::WINDOWED,	// screen mode
+		al::nonSpecifiedValue,								// name
 	};
+	al::engine::SoundParameters soundParameters
+	{
+		al::nonSpecifiedValue,	// sample rate
+		al::nonSpecifiedValue,	// num channels
+		al::nonSpecifiedValue	// bytes per sample
+	};
+
 	errorInfo = al::engine::create_application_window(properties, &window);
 	HANDLE_ERROR
+
+	window->soundSystem->init(soundParameters);
 
 	al::engine::FileHandle vertexShader;
 	errorInfo = al::engine::FileSys::read_file("Shaders\\vertex.vert", &vertexShader);
