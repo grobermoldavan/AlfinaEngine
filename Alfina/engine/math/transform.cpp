@@ -5,6 +5,7 @@
 #endif
 
 #include <cmath>
+#include <numbers>
 
 #include "utilities/constexpr_functions.h"
 
@@ -41,13 +42,13 @@ namespace al::engine
 		{
 			result[0] = 0.0f;
 			result[1] = std::atan2(rotationMat[0][2], rotationMat[2][2]);
-			result[2] = pi<float>() / 2.0f;
+			result[2] = std::numbers::pi_v<float> / 2.0f;
 		}
 		else if (is_equal(rotationMat[1][0], -1.0f))
 		{
 			result[0] = 0.0f;
 			result[1] = std::atan2(rotationMat[0][2], rotationMat[2][2]);
-			result[2] = -1.0f * pi<float>() / 2.0f;
+			result[2] = -1.0f * std::numbers::pi_v<float> / 2.0f;
 		}
 		else
 		{

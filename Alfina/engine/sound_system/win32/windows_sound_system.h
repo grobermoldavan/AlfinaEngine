@@ -10,10 +10,15 @@
 #include <cstdint>
 #include <thread>
 #include <future>
+#include <limits>
 
 #include "engine/sound_system/base_sound_system.h"
 
 #include "utilities/flags.h"
+
+#ifdef max
+#	undef max
+#endif
 
 namespace al::engine
 {
@@ -33,10 +38,11 @@ namespace al::engine
 		Win32SoundSystem(Win32ApplicationWindow* _win32window);
 		~Win32SoundSystem();
 
-		virtual void	init		(const SoundParameters& parameters) override;
+		virtual void			init				(const SoundParameters& parameters)			override;
+		virtual SoundParameters	get_valid_parameters()									const	override;
 
-		virtual SoundId load_sound	(SourceType type, const char* path)	override;
-		virtual void	play_sound	(SoundId id)						override;
+		virtual SoundId			load_sound			(SourceType type, const char* path)			override;
+		virtual void			play_sound			(SoundId id)						const	override;
 
 	private:
 		static constexpr const GUID IID_IAudioClient			= { 0x1CB9AD4C, 0xDBFA, 0x4c32, 0xB1, 0x78, 0xC2, 0xF5, 0x68, 0xA7, 0x03, 0xB2 };
@@ -46,7 +52,8 @@ namespace al::engine
 		static constexpr const GUID PcmSubformatGuid			= { STATIC_KSDATAFORMAT_SUBTYPE_PCM };
 
 		Win32ApplicationWindow* win32window;
-		SoundParameters			parameters;
+		SoundParameters			userParameters;		// this parameters are provided by the user
+		SoundParameters			validParameters;	// this is actual parameters that are used by sound system
 		Flags32					win32flags;
 		std::thread				soundSysThread;
 
@@ -55,18 +62,19 @@ namespace al::engine
 		template<typename SampleType, int channels>
 		static void dbg_fill_sound_buffer(BYTE* buffer, uint32_t frames, DWORD samplesPerSec)
 		{
+			constexpr float loudness = 0.25f;
 			static float pos = 0.0f;
 
 			for (uint32_t it = 0; it < frames; ++it)
 			{
 				const float dK = (440.0f * 6.283185307f) / static_cast<float>(samplesPerSec);
-				const float val = std::sin(pos) * 0x7FFFFFFF * 0.1f;
+				const float val = std::sin(pos) * (static_cast<float>(std::numeric_limits<SampleType>::max()) * 0.75f) * loudness;
 				pos += dK;
-
-				if /*constexpr*/ (channels == 1)
+				
+				if constexpr (channels == 1)
 				{
 					SampleType* v = reinterpret_cast<SampleType*>(&buffer[it * sizeof(SampleType)]);
-					*v = static_cast<uint32_t>(val);
+					*v = static_cast<SampleType>(val);
 				}
 				else
 				{

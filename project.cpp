@@ -66,19 +66,21 @@ int main()
 	errorInfo = al::engine::create_shader(&shader, (const char*)vertexShader.get_data(), (const char*)fragmentShader.get_data());
 	HANDLE_ERROR
 
+	al::engine::WavFile("Assets\\sound.wav");
+
 	al::engine::ApplicationWindowInput inputBuffer { };
 
 	al::engine::PerspectiveRenderCamera camera
 	{
 		{ 
 			{ 0, 10, -20 },	//position 
-			{ 0, 0, 0},		//rotation
-			{ 1, 1, 1}		//scale
+			{ 0, 0, 0 },	//rotation
+			{ 1, 1, 1 }		//scale
 		},
-		{ window->properties.width, window->properties.height },
+		static_cast<float>(window->properties.width) / static_cast<float>(window->properties.height),
 		0.1f,
 		10000.0f,
-		90
+		90.0f
 	};
 
 	al::engine::Geometry geometry(al::engine::Geometry::SourceType::OBJ, "Assets\\deer.obj");

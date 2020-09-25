@@ -3,35 +3,12 @@
 
 #include <cstdint>
 
-#include "engine/engine_utilities/error_info.h"
-
-#include "utilities/dispensable.h"
+#include "sound_parameters.h"
+#include "audio_formats/audio_formats.h"
 
 namespace al::engine
 {
 	using SoundId = size_t;
-
-	struct SoundParameters
-	{
-		enum class Channels
-		{
-			MONO,
-			STEREO,
-			__end
-		};
-
-		enum class BytesPerSample
-		{
-			ONE,
-			TWO,
-			FOUR,
-			__end
-		};
-
-		Dispensable<uint32_t>		sampleRate;
-		Dispensable<Channels>		channels;
-		Dispensable<BytesPerSample>	bytesPerSample;
-	};
 
 	class SoundSystem
 	{
@@ -44,10 +21,11 @@ namespace al::engine
 
 		virtual ~SoundSystem() = default;
 
-		virtual void	init		(const SoundParameters& parameters) = 0;
+		virtual void			init				(const SoundParameters& parameters)			= 0;
+		virtual SoundParameters	get_valid_parameters()									const	= 0;
 
-		virtual SoundId load_sound	(SourceType type, const char* path)	= 0;
-		virtual void	play_sound	(SoundId id)						= 0;
+		virtual SoundId			load_sound			(SourceType type, const char* path)			= 0;
+		virtual void			play_sound			(SoundId id)						const	= 0;
 	};
 
 	class ApplicationWindow;

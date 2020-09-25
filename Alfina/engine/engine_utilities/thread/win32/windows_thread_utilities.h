@@ -29,6 +29,13 @@ namespace al::engine
 		BOOL result = ::SetThreadPriority(threadHandle, convert_priority(priority));
 		AL_ASSERT(result)
 	}
+
+	void set_current_thread_priority(ThreadPriority priority)
+	{
+		HANDLE threadHandle = ::GetCurrentThread();
+		BOOL result = ::SetThreadPriority(threadHandle, convert_priority(priority));
+		AL_ASSERT(result)
+	}
 }
 
 #endif

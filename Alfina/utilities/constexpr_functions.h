@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <limits>
 #include <type_traits>
+#include <numbers>
 
 namespace al
 {
@@ -157,25 +158,16 @@ namespace al
 		return megabytes(num) * static_cast<T>(1024);
 	}
 
-	// @TODO : replace this with std::numbers::pi
-	template<typename T, class = typename std::enable_if<std::is_floating_point<T>::value>::type>
-	constexpr T pi()
-	{
-		return static_cast<T>(3.14159265358979);
-	}
-
 	template<typename T, class = typename std::enable_if<std::is_floating_point<T>::value>::type>
 	constexpr T to_radians(T degrees)
 	{
-		// @TODO : replace this with std::numbers::pi
-		return degrees * pi<T>() / static_cast<T>(180);
+		return degrees * std::numbers::pi_v<T> / static_cast<T>(180);
 	}
 
 	template<typename T, class = typename std::enable_if<std::is_floating_point<T>::value>::type>
 	constexpr T to_degrees(T radians)
 	{
-		// @TODO : replace this with std::numbers::pi
-		return radians * static_cast<T>(180) / pi<T>();
+		return radians * static_cast<T>(180) / std::numbers::pi_v<T>;
 	}
 }
 

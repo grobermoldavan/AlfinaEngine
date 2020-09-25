@@ -79,7 +79,7 @@ namespace al::engine
 					ShaderDataTypeToOpenGlBaseType[element.type],
 					element.isNormalized ? GL_TRUE : GL_FALSE,
 					layout.get_stride(),
-					(const void*)element.offset
+					reinterpret_cast<const void*>(element.offset)
 				);
 
 				vertexBufferIndex++;
@@ -99,7 +99,7 @@ namespace al::engine
 						ShaderDataTypeToOpenGlBaseType[element.type],
 						element.isNormalized ? GL_TRUE : GL_FALSE,
 						layout.get_stride(),
-						(const void*)(element.offset + sizeof(float) * count * it)
+						reinterpret_cast<const void*>(element.offset + sizeof(float) * count * it)
 					);
 
 					::glVertexAttribDivisor(vertexBufferIndex, 1);

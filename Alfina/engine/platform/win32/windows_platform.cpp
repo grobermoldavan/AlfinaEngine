@@ -90,7 +90,7 @@ namespace al::engine
 		AL_ASSERT_MSG_NO_DISCARD(hwnd, "Win32 :: Unable to create window via CreateWindowEx")
 
 		win32window->hwnd = hwnd;
-		SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG)win32window);
+		SetWindowLongPtr(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(win32window));
 
 		::ShowWindow(hwnd, isFullscreen ? SW_MAXIMIZE : SW_SHOW);
 		::UpdateWindow(hwnd);

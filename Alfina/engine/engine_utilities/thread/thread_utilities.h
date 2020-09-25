@@ -15,7 +15,8 @@ namespace al::engine
 	};
 
 	// must be implemented in platform side
-	void set_thread_priority(std::thread& thread, ThreadPriority priority);
+	void set_thread_priority		(std::thread& thread, ThreadPriority priority);
+	void set_current_thread_priority(ThreadPriority priority);
 }
 
 #endif

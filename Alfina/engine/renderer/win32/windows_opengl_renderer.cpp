@@ -11,7 +11,7 @@ namespace al::engine
 {
 	ErrorInfo create_renderer(Renderer** renderer, ApplicationWindow* window)
 	{
-		*renderer = static_cast<Renderer*>(AL_DEFAULT_CONSTRUCT(Win32glRenderer, "RENDERER", static_cast<Win32ApplicationWindow*>(window)));
+		*renderer = static_cast<Renderer*>(AL_DEFAULT_CONSTRUCT(Win32glRenderer, "RENDERER", reinterpret_cast<Win32ApplicationWindow*>(window)));
 		if (*renderer)
 		{
 			return{ ErrorInfo::Code::ALL_FINE };

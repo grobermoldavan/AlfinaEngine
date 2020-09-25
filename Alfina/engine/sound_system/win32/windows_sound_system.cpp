@@ -14,7 +14,7 @@ namespace al::engine
 {
 	ErrorInfo create_sound_system(SoundSystem** soundSystem, ApplicationWindow* window)
 	{
-		*soundSystem = static_cast<SoundSystem*>(AL_DEFAULT_CONSTRUCT(Win32SoundSystem, Win32SoundSystem::ALLOCATOR_TAG, static_cast<Win32ApplicationWindow*>(window)));
+		*soundSystem = static_cast<SoundSystem*>(AL_DEFAULT_CONSTRUCT(Win32SoundSystem, Win32SoundSystem::ALLOCATOR_TAG, reinterpret_cast<Win32ApplicationWindow*>(window)));
 		if (*soundSystem)
 		{
 			return{ ErrorInfo::Code::ALL_FINE };
@@ -43,9 +43,9 @@ namespace al::engine
 		soundSysThread.join();
 	}
 
-	void Win32SoundSystem::init(const SoundParameters& _parameters)
+	void Win32SoundSystem::init(const SoundParameters& parameters)
 	{
-		parameters = _parameters;
+		userParameters = parameters;
 
 		std::promise<void> creation_promise;
 		std::future<void> creation_future = creation_promise.get_future();
@@ -57,6 +57,13 @@ namespace al::engine
 		win32flags.set_flag(Win32SoundSystemFlags::IS_INITED);
 	}
 
+	SoundParameters	Win32SoundSystem::get_valid_parameters() const
+	{
+		AL_SOUND_SYS_INIT_ASSERT;
+
+		return{};
+	}
+
 	SoundId Win32SoundSystem::load_sound(SourceType type, const char* path)
 	{
 		AL_SOUND_SYS_INIT_ASSERT;
@@ -64,7 +71,7 @@ namespace al::engine
 		return 0;
 	}
 
-	void Win32SoundSystem::play_sound(SoundId id)
+	void Win32SoundSystem::play_sound(SoundId id) const
 	{
 		AL_SOUND_SYS_INIT_ASSERT;
 
@@ -120,9 +127,9 @@ namespace al::engine
 		// Describe format, that is needed
 		WAVEFORMATEXTENSIBLE wfmt = {};
 		wfmt.Format.wFormatTag		= WAVE_FORMAT_EXTENSIBLE;
-		wfmt.Format.nChannels		= parameters.channels.is_specified()		? spChannelsToWord[static_cast<int>(parameters.channels.get_value())]		: 2;
-		wfmt.Format.nSamplesPerSec	= parameters.sampleRate.is_specified()		? parameters.sampleRate														: 44100;
-		wfmt.Format.wBitsPerSample	= parameters.bytesPerSample.is_specified()	? spBytesToWord[static_cast<int>(parameters.bytesPerSample.get_value())]	: 32;
+		wfmt.Format.nChannels		= userParameters.channels.is_specified()		? spChannelsToWord[static_cast<int>(userParameters.channels.get_value())]		: 2;
+		wfmt.Format.nSamplesPerSec	= userParameters.sampleRate.is_specified()		? userParameters.sampleRate														: 44100;
+		wfmt.Format.wBitsPerSample	= userParameters.bytesPerSample.is_specified()	? spBytesToWord[static_cast<int>(userParameters.bytesPerSample.get_value())]	: 16;
 		wfmt.Format.nBlockAlign		= wfmt.Format.nChannels * wfmt.Format.wBitsPerSample / 8;
 		wfmt.Format.nAvgBytesPerSec = wfmt.Format.nSamplesPerSec * wfmt.Format.nBlockAlign;
 		wfmt.Format.cbSize			= sizeof(WAVEFORMATEXTENSIBLE) - sizeof(WAVEFORMATEX);
@@ -150,6 +157,13 @@ namespace al::engine
 		{
 			// Else assert if result is not S_OK
 			AL_ASSERT_MSG(result == S_OK, "result is : ", result);
+		}
+
+		// Save valid sound parameters
+		{
+			validParameters.bytesPerSample	= SoundParameters::convert_bits_to_bytes_per_sample(static_cast<uint32_t>(wfmt.Format.wBitsPerSample));
+			validParameters.channels		= SoundParameters::convert_channels(static_cast<uint32_t>(wfmt.Format.nChannels));
+			validParameters.sampleRate		= static_cast<uint32_t>(wfmt.Format.nSamplesPerSec);
 		}
 
 		// Get device period
@@ -196,7 +210,7 @@ namespace al::engine
 		while (win32flags.get_flag(Win32SoundSystemFlags::IS_RUNNING))
 		{
 			// Sleep for half the buffer duration
-			Sleep(devicePeriod / 10000 / 2);
+			Sleep(devicePeriod / 10000 / 3);
 			
 			// Get current available frames
 			uint32_t framesAvailable;
@@ -213,15 +227,15 @@ namespace al::engine
 #if 1
 				if (wfmt.Format.nChannels == 1)
 				{
-					if		(wfmt.Format.wBitsPerSample == 8)	dbg_fill_sound_buffer<uint8_t, 1>(data, framesAvailable, wfmt.Format.nSamplesPerSec);
-					else if (wfmt.Format.wBitsPerSample == 16)	dbg_fill_sound_buffer<uint16_t, 1>(data, framesAvailable, wfmt.Format.nSamplesPerSec);
-					else if (wfmt.Format.wBitsPerSample == 32)	dbg_fill_sound_buffer<uint32_t, 1>(data, framesAvailable, wfmt.Format.nSamplesPerSec);
+					if		(wfmt.Format.wBitsPerSample == 8)	dbg_fill_sound_buffer<uint8_t, 1>	(data, framesAvailable, wfmt.Format.nSamplesPerSec);
+					else if (wfmt.Format.wBitsPerSample == 16)	dbg_fill_sound_buffer<uint16_t, 1>	(data, framesAvailable, wfmt.Format.nSamplesPerSec);
+					else if (wfmt.Format.wBitsPerSample == 32)	dbg_fill_sound_buffer<uint32_t, 1>	(data, framesAvailable, wfmt.Format.nSamplesPerSec);
 				}
 				else // channels == 2
 				{
-					if		(wfmt.Format.wBitsPerSample == 8)	dbg_fill_sound_buffer<uint8_t, 2>(data, framesAvailable, wfmt.Format.nSamplesPerSec);
-					else if (wfmt.Format.wBitsPerSample == 16)	dbg_fill_sound_buffer<uint16_t, 2>(data, framesAvailable, wfmt.Format.nSamplesPerSec);
-					else if (wfmt.Format.wBitsPerSample == 32)	dbg_fill_sound_buffer<uint32_t, 2>(data, framesAvailable, wfmt.Format.nSamplesPerSec);
+					if		(wfmt.Format.wBitsPerSample == 8)	dbg_fill_sound_buffer<uint8_t, 2>	(data, framesAvailable, wfmt.Format.nSamplesPerSec);
+					else if (wfmt.Format.wBitsPerSample == 16)	dbg_fill_sound_buffer<uint16_t, 2>	(data, framesAvailable, wfmt.Format.nSamplesPerSec);
+					else if (wfmt.Format.wBitsPerSample == 32)	dbg_fill_sound_buffer<uint32_t, 2>	(data, framesAvailable, wfmt.Format.nSamplesPerSec);
 				}
 #endif
 				// Release buffer

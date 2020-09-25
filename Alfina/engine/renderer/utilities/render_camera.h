@@ -13,7 +13,7 @@ namespace al::engine
 		PerspectiveRenderCamera
 		(
 			Transform	_transform,
-			float2		_aspectRatio,
+			float		_aspectRatio,
 			float		_nearPlane,
 			float		_farPlane,
 			float		_fovDeg

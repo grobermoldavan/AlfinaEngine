@@ -11,7 +11,7 @@ namespace al::engine
 	{
 	public:
 		using Callback = std::function<void(double)>;
-		using TimeType = std::result_of<decltype(&std::chrono::high_resolution_clock::now)()>::type;
+		using TimeType = std::invoke_result<decltype(&std::chrono::high_resolution_clock::now)>::type;
 
 		ScopeTimer(Callback cb)
 			: finishCb	{ std::move(cb) }

@@ -35,8 +35,8 @@ namespace al::engine
 	struct BufferElement
 	{
 		std::string     name;
-		uint32_t        size;
-		uint32_t        offset;
+		size_t			size;
+		size_t			offset;
 		bool            isNormalized;
 		ShaderDataType  type;
 
