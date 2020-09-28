@@ -44,6 +44,8 @@ namespace al::engine
 		virtual SoundId			load_sound			(SourceType type, const char* path)			override;
 		virtual void			play_sound			(SoundId id)						const	override;
 
+		virtual void			dbg_play_single_wav (WavFile* file)								override;
+
 	private:
 		static constexpr const GUID IID_IAudioClient			= { 0x1CB9AD4C, 0xDBFA, 0x4c32, 0xB1, 0x78, 0xC2, 0xF5, 0x68, 0xA7, 0x03, 0xB2 };
 		static constexpr const GUID IID_IAudioRenderClient		= { 0xF294ACFC, 0x3146, 0x4483, 0xA7, 0xBF, 0xAD, 0xDC, 0xA7, 0xC2, 0x60, 0xE2 };
@@ -57,14 +59,34 @@ namespace al::engine
 		Flags32					win32flags;
 		std::thread				soundSysThread;
 
+		WavFile*				dbgPlayingSound = nullptr;
+		PlaybackPointer			dbgPlaybackPtr;
+
 		void sound_update(std::promise<void> creation_promise);
 
+		void fill_buffer(BYTE* buffer, uint32_t frames)
+		{
+			if (frames == 0) return;
+
+#if 1
+			// silence
+			const uint32_t bytesPerFrame = validParameters.bitsPerSample / 8 * validParameters.channels;
+			std::memset(buffer, 0, frames * bytesPerFrame);
+#endif
+			if (!dbgPlayingSound)
+			{
+				return;
+			}
+
+			dbgPlayingSound->read_data(static_cast<uint8_t*>(buffer), frames, validParameters, dbgPlaybackPtr);
+		}
+
 		template<typename SampleType, int channels>
-		static void dbg_fill_sound_buffer(BYTE* buffer, uint32_t frames, DWORD samplesPerSec)
+		void dbg_fill_sound_buffer(BYTE* buffer, uint32_t frames, DWORD samplesPerSec)
 		{
 			constexpr float loudness = 0.25f;
 			static float pos = 0.0f;
-
+			
 			for (uint32_t it = 0; it < frames; ++it)
 			{
 				const float dK = (440.0f * 6.283185307f) / static_cast<float>(samplesPerSec);

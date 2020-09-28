@@ -44,9 +44,7 @@ int main()
 	};
 	al::engine::SoundParameters soundParameters
 	{
-		al::nonSpecifiedValue,	// sample rate
-		al::nonSpecifiedValue,	// num channels
-		al::nonSpecifiedValue	// bytes per sample
+		// all default
 	};
 
 	errorInfo = al::engine::create_application_window(properties, &window);
@@ -66,7 +64,9 @@ int main()
 	errorInfo = al::engine::create_shader(&shader, (const char*)vertexShader.get_data(), (const char*)fragmentShader.get_data());
 	HANDLE_ERROR
 
-	al::engine::WavFile("Assets\\sound.wav");
+	// @NOTE : Currently there is no sound provided in github repository
+	al::engine::WavFile sound("Assets\\sound.wav");
+	window->soundSystem->dbg_play_single_wav(&sound);
 
 	al::engine::ApplicationWindowInput inputBuffer { };
 
@@ -91,7 +91,7 @@ int main()
 
 	while (true)
 	{
-		al::engine::ScopeTimer timer{ [](double time) { AL_LOG_SHORT(al::engine::Logger::MESSAGE, "Frame time : ", time, " ms") } };
+		//al::engine::ScopeTimer timer{ [](double time) { AL_LOG_SHORT(al::engine::Logger::MESSAGE, "Frame time : ", time, " ms") } };
 
 		{ // process input
 			errorInfo = al::engine::get_window_inputs(window, &inputBuffer);

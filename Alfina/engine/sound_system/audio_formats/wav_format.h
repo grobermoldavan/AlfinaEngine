@@ -16,7 +16,7 @@ namespace al::engine
 		struct Riff
 		{
 			uint8_t		chunkId[4];		// must be == "RIFF"
-			uint32_t	chunksSize;		// 
+			uint32_t	chunkSize;		// 
 			uint8_t		format[4];		// must be == "WAVE"
 		} 
 		riff;
@@ -24,7 +24,7 @@ namespace al::engine
 		struct Format
 		{
 			uint8_t		chunkId[4];		// must be == "fmt "
-			uint32_t	chunksSize;		// 16 ?
+			uint32_t	chunkSize;		// 16 ?
 			uint16_t	audioFormat;	// == 1 for PCM (non-compressed data)
 			uint16_t	numChannels;	//
 			uint32_t	sampleRate;		//
@@ -37,7 +37,7 @@ namespace al::engine
 		struct Data
 		{
 			uint8_t		chunkId[4];		// must be == "data"
-			uint32_t	chunksSize;		// size of actual wav data
+			uint32_t	chunkSize;		// size of actual wav data
 			uint8_t		firstByte;		// first byte of data
 		}
 		data;
@@ -50,12 +50,16 @@ namespace al::engine
 			AL_ASSERT_MSG(!std::strncmp(reinterpret_cast<const char*>(riff.format)		, "WAVE", 4), WAV_ERROR_HEADER, "Incorrect RIFF format id");
 			AL_ASSERT_MSG(!std::strncmp(reinterpret_cast<const char*>(format.chunkId)	, "fmt ", 4), WAV_ERROR_HEADER, "Incorrect Format chunk id");
 			AL_ASSERT_MSG(!std::strncmp(reinterpret_cast<const char*>(data.chunkId)		, "data", 4), WAV_ERROR_HEADER, "Incorrect Data chunk id");
+			AL_ASSERT_MSG(format.audioFormat == 1, WAV_ERROR_HEADER, "Only PCM formats are currently supported");
 
 			return { ErrorInfo::Code::ALL_FINE };
 		}
 	};
 
-	
+	struct PlaybackPointer
+	{
+		size_t index;
+	};
 
 	class WavFile
 	{
@@ -63,12 +67,16 @@ namespace al::engine
 		WavFile(const char* path);
 		~WavFile();
 
-		void read_data(uint8_t* dst, size_t framesNum, const SoundParameters& parameters);
+		void			read_data(uint8_t* buffer, size_t frames, const SoundParameters& destParameters, PlaybackPointer& playbackPtr);
+		PlaybackPointer get_playback_ptr();
 
 	private:
 		FileHandle		handle;
 		WavFormat*		format;
 		SoundParameters parameters;
+
+		template<size_t FileChannels = 1, size_t DestChannels = 1, typename DestType>
+		inline void fill_buffer(uint8_t* buffer, size_t frames, const SoundParameters& destParameters, PlaybackPointer& playbackPtr, DestType(*func)(uint8_t*));
 	};
 
 	WavFile::WavFile(const char* path)
@@ -80,9 +88,9 @@ namespace al::engine
 		result = format->validate();
 		AL_ASSERT(result);
 
-		parameters.bytesPerSample	= SoundParameters::convert_bits_to_bytes_per_sample(static_cast<uint32_t>(format->format.bitsPerSample));
-		parameters.channels			= SoundParameters::convert_channels(static_cast<uint32_t>(format->format.numChannels));
-		parameters.sampleRate		= format->format.sampleRate;
+		parameters.bitsPerSample	= static_cast<size_t>(format->format.bitsPerSample);
+		parameters.channels			= static_cast<size_t>(format->format.numChannels);
+		parameters.sampleRate		= static_cast<size_t>(format->format.sampleRate);
 	}
 
 	WavFile::~WavFile()
@@ -91,11 +99,118 @@ namespace al::engine
 		AL_ASSERT(result);
 	}
 
-	void WavFile::read_data(uint8_t* dst, size_t framesNum, const SoundParameters& parameters)
+	inline uint32_t sample_int24_to_int32(uint8_t* data)
+	{
+		return ((data[2] << 24) | (data[1] << 16) | (data[0] << 8));
+	}
+
+	inline uint32_t sample_int16_to_int32(uint8_t* data)
+	{
+		return ((data[1] << 24) | (data[0] << 16));
+	}
+
+	template<typename T>
+	inline T sample_same_size(uint8_t* data)
+	{
+		return *reinterpret_cast<T*>(data);
+	}
+
+	void WavFile::read_data(uint8_t* buffer, size_t frames, const SoundParameters& destParameters, PlaybackPointer& playbackPtr)
 	{
 		AL_ASSERT(handle.get_data());
 
+		if (parameters.channels == destParameters.channels)
+		{
+			if (parameters.bitsPerSample == 16 && destParameters.bitsPerSample == 32)
+			{
+				fill_buffer(buffer, frames, destParameters, playbackPtr, sample_int16_to_int32);
+			}
+			else if (parameters.bitsPerSample == 24 && destParameters.bitsPerSample == 32)
+			{
+				fill_buffer(buffer, frames, destParameters, playbackPtr, sample_int24_to_int32);
+			}
+			else if (parameters.bitsPerSample == 32 && destParameters.bitsPerSample == 32)
+			{
+				fill_buffer(buffer, frames, destParameters, playbackPtr, sample_same_size<uint32_t>);
+			}
+			else
+			{
+				// @TODO: @NOTE: Add other bits variations if that assertion happends
+				AL_ASSERT_MSG(false, parameters.bitsPerSample, " :: ", destParameters.bitsPerSample, " : ", format->format.blockAlign);
+			}
+		}
+		else if (parameters.channels == 1 && destParameters.channels == 2)
+		{
+			// @TODO: implement this
+			AL_NO_IMPLEMENTATION_ASSERT
+		}
+		else if (parameters.channels == 2 && destParameters.channels == 1)
+		{
+			// @TODO: implement this
+			AL_NO_IMPLEMENTATION_ASSERT
+		}
+		else
+		{
+			// Invalid code path
+			AL_NO_IMPLEMENTATION_ASSERT
+		}
+	}
 
+	PlaybackPointer WavFile::get_playback_ptr()
+	{
+		return { 0 };
+	}
+
+	template<size_t FileChannels, size_t DestChannels, typename DestType>
+	inline void WavFile::fill_buffer(uint8_t* buffer, size_t frames, const SoundParameters& destParameters, PlaybackPointer& playbackPtr, DestType(*func)(uint8_t*))
+	{
+		constexpr float PLAYBACK_SPEED = 1;
+
+		const float		sampleRateRatio = static_cast<float>(parameters.sampleRate) / static_cast<float>(destParameters.sampleRate);
+		const uint8_t* endData = &format->data.firstByte + format->data.chunkSize;
+		const size_t	fileBytesPerSample = parameters.bitsPerSample / 8;
+		const size_t	targetBytesPerSample = destParameters.bitsPerSample / 8;
+
+		for (size_t it = 0; it < frames; ++it)
+		{
+			size_t currentFrameId = static_cast<size_t>(static_cast<float>(playbackPtr.index++) * sampleRateRatio * PLAYBACK_SPEED);
+			uint8_t* frame = &format->data.firstByte + currentFrameId * fileBytesPerSample * parameters.channels;
+			if (frame >= endData)
+			{
+				playbackPtr.index = 0;
+				frame = &format->data.firstByte;
+			}
+
+			if constexpr (FileChannels == DestChannels)
+			{
+				for (size_t channel = 0; channel < parameters.channels; ++channel)
+				{
+					DestType value = func(frame);
+					frame += fileBytesPerSample;
+					*reinterpret_cast<DestType*>(buffer) += value;
+					buffer += targetBytesPerSample;
+				}
+			}
+			else if constexpr (FileChannels == 1 && DestChannels == 2)
+			{
+				DestType value = func(frame);
+				for (size_t channel = 0; channel < 2; ++channel)
+				{
+					*reinterpret_cast<DestType*>(buffer) += value;
+					buffer += targetBytesPerSample;
+				}
+			}
+			else if constexpr (FileChannels == 2 && DestChannels == 1)
+			{
+				// Just use the first channel
+				DestType value = func(frame);
+				*reinterpret_cast<DestType*>(buffer) += value;
+			}
+			else
+			{
+				static_assert(false, "Unsupported channel format");
+			}
+		}
 	}
 }
 

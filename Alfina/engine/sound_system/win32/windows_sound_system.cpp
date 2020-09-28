@@ -77,6 +77,12 @@ namespace al::engine
 
 	}
 
+	void Win32SoundSystem::dbg_play_single_wav(WavFile* file)
+	{
+		dbgPlayingSound = file;
+		dbgPlaybackPtr = file->get_playback_ptr();
+	}
+
 	void Win32SoundSystem::sound_update(std::promise<void> creation_promise)
 	{
 		HRESULT result;
@@ -111,25 +117,12 @@ namespace al::engine
 		);
 		AL_ASSERT_MSG(result == S_OK, "result is : ", result);
 
-		static WORD spChannelsToWord[] =
-		{
-			1,	// MONO
-			2	// STEREO
-		};
-
-		static WORD spBytesToWord[] =
-		{
-			8,	// ONE
-			16,	// TWO
-			32	// FOUR
-		};
-
 		// Describe format, that is needed
 		WAVEFORMATEXTENSIBLE wfmt = {};
 		wfmt.Format.wFormatTag		= WAVE_FORMAT_EXTENSIBLE;
-		wfmt.Format.nChannels		= userParameters.channels.is_specified()		? spChannelsToWord[static_cast<int>(userParameters.channels.get_value())]		: 2;
-		wfmt.Format.nSamplesPerSec	= userParameters.sampleRate.is_specified()		? userParameters.sampleRate														: 44100;
-		wfmt.Format.wBitsPerSample	= userParameters.bytesPerSample.is_specified()	? spBytesToWord[static_cast<int>(userParameters.bytesPerSample.get_value())]	: 16;
+		wfmt.Format.nChannels		= userParameters.channels;
+		wfmt.Format.nSamplesPerSec	= userParameters.sampleRate;
+		wfmt.Format.wBitsPerSample	= userParameters.bitsPerSample;
 		wfmt.Format.nBlockAlign		= wfmt.Format.nChannels * wfmt.Format.wBitsPerSample / 8;
 		wfmt.Format.nAvgBytesPerSec = wfmt.Format.nSamplesPerSec * wfmt.Format.nBlockAlign;
 		wfmt.Format.cbSize			= sizeof(WAVEFORMATEXTENSIBLE) - sizeof(WAVEFORMATEX);
@@ -161,9 +154,9 @@ namespace al::engine
 
 		// Save valid sound parameters
 		{
-			validParameters.bytesPerSample	= SoundParameters::convert_bits_to_bytes_per_sample(static_cast<uint32_t>(wfmt.Format.wBitsPerSample));
-			validParameters.channels		= SoundParameters::convert_channels(static_cast<uint32_t>(wfmt.Format.nChannels));
-			validParameters.sampleRate		= static_cast<uint32_t>(wfmt.Format.nSamplesPerSec);
+			validParameters.bitsPerSample	= static_cast<size_t>(wfmt.Format.wBitsPerSample);
+			validParameters.channels		= static_cast<size_t>(wfmt.Format.nChannels);
+			validParameters.sampleRate		= static_cast<size_t>(wfmt.Format.nSamplesPerSec);
 		}
 
 		// Get device period
@@ -210,7 +203,7 @@ namespace al::engine
 		while (win32flags.get_flag(Win32SoundSystemFlags::IS_RUNNING))
 		{
 			// Sleep for half the buffer duration
-			Sleep(devicePeriod / 10000 / 3);
+			Sleep(devicePeriod / 10000 / 2);
 			
 			// Get current available frames
 			uint32_t framesAvailable;
@@ -224,7 +217,7 @@ namespace al::engine
 			if (audioRenderClient->GetBuffer(framesAvailable, &data) == S_OK)
 			{
 				// Fill buffer with stuff
-#if 1
+#if 0
 				if (wfmt.Format.nChannels == 1)
 				{
 					if		(wfmt.Format.wBitsPerSample == 8)	dbg_fill_sound_buffer<uint8_t, 1>	(data, framesAvailable, wfmt.Format.nSamplesPerSec);
@@ -237,6 +230,8 @@ namespace al::engine
 					else if (wfmt.Format.wBitsPerSample == 16)	dbg_fill_sound_buffer<uint16_t, 2>	(data, framesAvailable, wfmt.Format.nSamplesPerSec);
 					else if (wfmt.Format.wBitsPerSample == 32)	dbg_fill_sound_buffer<uint32_t, 2>	(data, framesAvailable, wfmt.Format.nSamplesPerSec);
 				}
+#else
+				fill_buffer(data, framesAvailable);
 #endif
 				// Release buffer
 				audioRenderClient->ReleaseBuffer(framesAvailable, 0);

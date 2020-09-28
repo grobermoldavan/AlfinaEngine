@@ -26,6 +26,8 @@ namespace al::engine
 
 		virtual SoundId			load_sound			(SourceType type, const char* path)			= 0;
 		virtual void			play_sound			(SoundId id)						const	= 0;
+
+		virtual void			dbg_play_single_wav (WavFile* file)								= 0;
 	};
 
 	class ApplicationWindow;
