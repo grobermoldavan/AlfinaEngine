@@ -2,6 +2,41 @@
 
 int main()
 {
+	using namespace al;
+	using namespace al::engine;
+
+	Root root
+	({
+		{ 
+			// default window properties
+		},
+		{
+			// default sound properties
+		},
+		gigabytes(1)
+	});
+	ErrorInfo error = root.get_construction_result();
+	assert(error);
+
+	// SoundId id = root.get_sound_system()->load_sound(SoundSystem::SourceType::WAV, "Assets\\sound.wav");
+	// root.get_sound_system()->dbg_play_single_wav(id);
+
+	ApplicationWindowInput input;
+
+	auto printTime = [](double time) { printf("%f\n", time); };
+	auto refPrintTime = std::ref(printTime);
+	while (true)
+	{
+		//ScopeTimer timer{ refPrintTime };
+		
+		root.get_input(&input);
+
+		if (input.generalInput.get_flag(ApplicationWindowInput::GeneralInputFlags::CLOSE_BUTTON_PRESSED)) break;
+		if (input.keyboard.buttons.get_flag(ApplicationWindowInput::KeyboardInputFlags::ESCAPE)) break;
+		
+		root.get_renderer()->commit();
+	}
+
 	// need to restructure stuff
 
 	/*
@@ -27,7 +62,7 @@ int main()
 	sounds
 	ecs
 	*/
-
+	/*
 	AL_LOG(al::engine::Logger::WARNING, "Test warning ", 1, 2.0f, 3.1234, al::float2{ 2, 3 })
 
 	al::engine::ErrorInfo errorInfo;
@@ -169,6 +204,7 @@ int main()
 	HANDLE_ERROR
 
 #undef HANDLE_ERROR
+	*/
 
     return 0;
 }

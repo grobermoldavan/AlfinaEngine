@@ -3,16 +3,14 @@
 
 #include <windows.h>
 
+#include "windows_application_window.h"
+
 namespace al::engine
 {
 	bool process_mouse_input	(Win32ApplicationWindow* window, UINT message, WPARAM wParam, LPARAM lParam);
 	bool process_keyboard_input	(Win32ApplicationWindow* window, UINT message, WPARAM wParam, LPARAM lParam);
 }
 
-#if defined(AL_UNITY_BUILD)
-#	include "windows_input.cpp"
-#else
-
-#endif
+#include "windows_input.cpp"
 
 #endif

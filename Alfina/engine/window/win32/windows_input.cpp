@@ -1,54 +1,54 @@
-#if defined(AL_UNITY_BUILD)
 
-#else
-#	include "windows_input.h"
-#endif
+#include "windows_input.h"
 
 #include "Windowsx.h"
 
-#include "windows_application_window.h"
-
 namespace al::engine
 {
+#define SAFE_READ(action)										\
+	::WaitForSingleObject(window->inputReadMutex, INFINITE);	\
+	action;														\
+	::ReleaseMutex(window->inputReadMutex);
+
 	bool process_mouse_input(Win32ApplicationWindow* window, UINT message, WPARAM wParam, LPARAM lParam)
 	{
-		#define LOGMSG(msg, ...) AL_LOG_SHORT(Logger::Type::MESSAGE, #msg, __VA_ARGS__)
+		#define LOGMSG(msg, ...) //AL_LOG_SHORT(Logger::Type::MESSAGE, #msg, __VA_ARGS__)
 
 		switch (message)
 		{
 			case WM_LBUTTONDOWN:
 			{
-				window->input.mouse.buttons.set_flag(ApplicationWindowInput::MouseInputFlags::LMB_PRESSED);
+				SAFE_READ(window->input.mouse.buttons.set_flag(ApplicationWindowInput::MouseInputFlags::LMB_PRESSED));
 				LOGMSG(WM_LBUTTONDOWN)
 				break;
 			}
 			case WM_LBUTTONUP:
 			{
-				window->input.mouse.buttons.clear_flag(ApplicationWindowInput::MouseInputFlags::LMB_PRESSED);
+				SAFE_READ(window->input.mouse.buttons.clear_flag(ApplicationWindowInput::MouseInputFlags::LMB_PRESSED));
 				LOGMSG(WM_LBUTTONUP)
 				break;
 			}
 			case WM_MBUTTONDOWN:
 			{
-				window->input.mouse.buttons.set_flag(ApplicationWindowInput::MouseInputFlags::MMB_PRESSED);
+				SAFE_READ(window->input.mouse.buttons.set_flag(ApplicationWindowInput::MouseInputFlags::MMB_PRESSED));
 				LOGMSG(WM_MBUTTONDOWN)
 				break;
 			}
 			case WM_MBUTTONUP:
 			{
-				window->input.mouse.buttons.clear_flag(ApplicationWindowInput::MouseInputFlags::MMB_PRESSED);
+				SAFE_READ(window->input.mouse.buttons.clear_flag(ApplicationWindowInput::MouseInputFlags::MMB_PRESSED));
 				LOGMSG(WM_MBUTTONUP)
 				break;
 			}
 			case WM_RBUTTONDOWN:
 			{
-				window->input.mouse.buttons.set_flag(ApplicationWindowInput::MouseInputFlags::RMB_PRESSED);
+				SAFE_READ(window->input.mouse.buttons.set_flag(ApplicationWindowInput::MouseInputFlags::RMB_PRESSED));
 				LOGMSG(WM_RBUTTONDOWN)
 				break;
 			}
 			case WM_RBUTTONUP:
 			{
-				window->input.mouse.buttons.clear_flag(ApplicationWindowInput::MouseInputFlags::RMB_PRESSED);
+				SAFE_READ(window->input.mouse.buttons.clear_flag(ApplicationWindowInput::MouseInputFlags::RMB_PRESSED));
 				LOGMSG(WM_RBUTTONUP)
 				break;
 			}
@@ -68,8 +68,8 @@ namespace al::engine
 			}
 			case WM_MOUSEWHEEL:
 			{
+				SAFE_READ(window->input.mouse.wheel += GET_WHEEL_DELTA_WPARAM(wParam));
 				LOGMSG(WM_MOUSEWHEEL, " ", GET_WHEEL_DELTA_WPARAM(wParam))
-				window->input.mouse.wheel += GET_WHEEL_DELTA_WPARAM(wParam);
 				break;
 			}
 			default:
@@ -78,8 +78,8 @@ namespace al::engine
 			}
 		}
 
-		window->input.mouse.x = GET_X_LPARAM(lParam);
-		window->input.mouse.y = GET_Y_LPARAM(lParam);
+		SAFE_READ(window->input.mouse.x = GET_X_LPARAM(lParam));
+		SAFE_READ(window->input.mouse.y = GET_Y_LPARAM(lParam));
 
 		return true;
 
@@ -90,7 +90,7 @@ namespace al::engine
 	{
 		#define k(key) ApplicationWindowInput::KeyboardInputFlags::key
 
-		static uint16_t VK_CODE_TO_KEYBOARD_FLAGS[] =
+		static uint32_t VK_CODE_TO_KEYBOARD_FLAGS[] =
 		{
 			k(NONE),		// 0x00 - none
 			k(NONE),		// 0x01 - lmb
@@ -369,15 +369,13 @@ namespace al::engine
 		{
 			case WM_KEYDOWN:
 			{
-				std::lock_guard<std::mutex> lock(window->inputReadMutex);
-				window->input.keyboard.buttons.set_flag(VK_CODE_TO_KEYBOARD_FLAGS[wParam]);
-				AL_LOG_SHORT(Logger::Type::MESSAGE, dbgToString[VK_CODE_TO_KEYBOARD_FLAGS[wParam]], " ", VK_CODE_TO_KEYBOARD_FLAGS[wParam], " ", wParam);
+				SAFE_READ(window->input.keyboard.buttons.set_flag(VK_CODE_TO_KEYBOARD_FLAGS[wParam]));
+				//printf("%s\n", dbgToString[VK_CODE_TO_KEYBOARD_FLAGS[wParam]]);
 				break;
 			}
 			case WM_KEYUP:
 			{
-				std::lock_guard<std::mutex> lock(window->inputReadMutex);
-				window->input.keyboard.buttons.clear_flag(VK_CODE_TO_KEYBOARD_FLAGS[wParam]);
+				SAFE_READ(window->input.keyboard.buttons.clear_flag(VK_CODE_TO_KEYBOARD_FLAGS[wParam]));
 				break;
 			}
 			default:
@@ -388,4 +386,7 @@ namespace al::engine
 
 		return true;
 	}
+
+#undef SAFE_READ
+
 }

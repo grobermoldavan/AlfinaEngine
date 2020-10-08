@@ -8,11 +8,10 @@
 #include <Objbase.h>
 
 #include <cstdint>
-#include <thread>
-#include <future>
 #include <limits>
 
 #include "engine/sound_system/base_sound_system.h"
+#include "engine/file_system/win32/windows_file_system.h"
 
 #include "utilities/flags.h"
 
@@ -23,6 +22,13 @@
 namespace al::engine
 {
 	class Win32ApplicationWindow;
+	class Win32SoundSystem;
+
+	struct SoundThreadArg
+	{
+		Win32SoundSystem*	soundSystem;
+		HANDLE				initEvent;
+	};
 
 	class Win32SoundSystem : public SoundSystem
 	{
@@ -33,18 +39,15 @@ namespace al::engine
 			IS_RUNNING
 		};
 
-		static constexpr const char* ALLOCATOR_TAG = "SOUND_SYS";
-
-		Win32SoundSystem(Win32ApplicationWindow* _win32window);
+		Win32SoundSystem(Win32ApplicationWindow* win32window, Win32FileSystem* win32fileSystem);
 		~Win32SoundSystem();
 
 		virtual void			init				(const SoundParameters& parameters)			override;
 		virtual SoundParameters	get_valid_parameters()									const	override;
 
 		virtual SoundId			load_sound			(SourceType type, const char* path)			override;
-		virtual void			play_sound			(SoundId id)						const	override;
-
-		virtual void			dbg_play_single_wav (WavFile* file)								override;
+		virtual SoundSourceId	create_sound_source	(SoundId id)								override;
+		virtual void			play_sound			(SoundSourceId id)							override;
 
 	private:
 		static constexpr const GUID IID_IAudioClient			= { 0x1CB9AD4C, 0xDBFA, 0x4c32, 0xB1, 0x78, 0xC2, 0xF5, 0x68, 0xA7, 0x03, 0xB2 };
@@ -54,15 +57,25 @@ namespace al::engine
 		static constexpr const GUID PcmSubformatGuid			= { STATIC_KSDATAFORMAT_SUBTYPE_PCM };
 
 		Win32ApplicationWindow* win32window;
+		Win32FileSystem*		win32fileSystem;
+
 		SoundParameters			userParameters;		// this parameters are provided by the user
 		SoundParameters			validParameters;	// this is actual parameters that are used by sound system
 		Flags32					win32flags;
-		std::thread				soundSysThread;
+		SoundThreadArg			threadArg;
+		HANDLE					soundSystemThread;
 
-		WavFile*				dbgPlayingSound = nullptr;
-		PlaybackPointer			dbgPlaybackPtr;
+		friend DWORD sound_update(LPVOID voidArg);
 
-		void sound_update(std::promise<void> creation_promise);
+
+
+
+
+
+
+
+
+
 
 		void fill_buffer(BYTE* buffer, uint32_t frames)
 		{
@@ -73,12 +86,6 @@ namespace al::engine
 			const uint32_t bytesPerFrame = validParameters.bitsPerSample / 8 * validParameters.channels;
 			std::memset(buffer, 0, frames * bytesPerFrame);
 #endif
-			if (!dbgPlayingSound)
-			{
-				return;
-			}
-
-			dbgPlayingSound->read_data(static_cast<uint8_t*>(buffer), frames, validParameters, dbgPlaybackPtr);
 		}
 
 		template<typename SampleType, int channels>
@@ -110,10 +117,6 @@ namespace al::engine
 	};
 }
 
-#if defined(AL_UNITY_BUILD)
-#	include "windows_sound_system.cpp"
-#else
-
-#endif
+#include "windows_sound_system.cpp"
 
 #endif

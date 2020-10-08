@@ -1,41 +1,120 @@
-#if defined(AL_UNITY_BUILD)
 
-#else
-#	include "windows_opengl_renderer.h"
-#endif
+#include "windows_opengl_renderer.h"
 
-#include "engine/engine_utilities/asserts.h"
-#include "engine/allocation/allocation.h"
+#include "engine/window/win32/windows_application_window.h"
 
 namespace al::engine
 {
-	ErrorInfo create_renderer(Renderer** renderer, ApplicationWindow* window)
+	ErrorInfo create_renderer(Renderer** renderer, ApplicationWindow* window, std::function<uint8_t* (size_t sizeBytes)> allocate)
 	{
-		*renderer = static_cast<Renderer*>(AL_DEFAULT_CONSTRUCT(Win32glRenderer, "RENDERER", reinterpret_cast<Win32ApplicationWindow*>(window)));
-		if (*renderer)
+		if (!renderer)
 		{
-			return{ ErrorInfo::Code::ALL_FINE };
+			return { ErrorInfo::Code::INCORRECT_INPUT_DATA, ErrorInfo::ERROR_MESSAGES[ErrorInfo::ErrorMessageCode::NULL_PTR_PROVIDED] };
 		}
-		else
+
+		// Allocate memory and construct object
+		Win32glRenderer* win32renderer = reinterpret_cast<Win32glRenderer*>(allocate(sizeof(Win32glRenderer)));
+		if (!win32renderer)
 		{
-			return{ ErrorInfo::Code::BAD_ALLOC };
+			return { ErrorInfo::Code::ALLOCATION_ERROR, ErrorInfo::ERROR_MESSAGES[ErrorInfo::ErrorMessageCode::UNABLE_TO_ALLOCATE_MEMORY] };
 		}
+
+		win32renderer = new(win32renderer) Win32glRenderer(static_cast<Win32ApplicationWindow*>(window));
+		*renderer = win32renderer;
+
+		return { ErrorInfo::Code::ALL_FINE, ErrorInfo::ERROR_MESSAGES[ErrorInfo::ErrorMessageCode::ALL_FINE] };
 	}
 
-	ErrorInfo destroy_renderer(Renderer* renderer)
+	ErrorInfo destroy_renderer(Renderer* renderer, std::function<void(uint8_t* ptr)> deallocate)
 	{
-		if (renderer) AL_DEFAULT_DESTRUCT(renderer, "RENDERER");
-		return{ ErrorInfo::Code::ALL_FINE };
+		if (!renderer)
+		{
+			return { ErrorInfo::Code::INCORRECT_INPUT_DATA, ErrorInfo::ERROR_MESSAGES[ErrorInfo::ErrorMessageCode::NULL_PTR_PROVIDED] };
+		}
+
+		Win32glRenderer* win32renderer = static_cast<Win32glRenderer*>(renderer);
+
+		// Destruct and deallocate window
+		win32renderer->~Win32glRenderer();
+		deallocate(reinterpret_cast<uint8_t*>(win32renderer));
+
+		return { ErrorInfo::Code::ALL_FINE, ErrorInfo::ERROR_MESSAGES[ErrorInfo::ErrorMessageCode::ALL_FINE] };
 	}
 
-	Win32glRenderer::Win32glRenderer(Win32ApplicationWindow* _win32window)
-		: win32window			{ _win32window }
-		, viewProjectionMatrix	{ IDENTITY4 }
+	Win32glRenderer::Win32glRenderer(Win32ApplicationWindow* win32window)
 	{
-		hdc = ::GetDC(win32window->hwnd);
-		AL_ASSERT_MSG_NO_DISCARD(hdc, "Win32 :: OpenGL :: Unable to retrieve device context")
+		// Create kick off event
+		kickOffEvent = ::CreateEvent(	NULL,					// default security attributes
+										TRUE,					// manual-reset event
+										FALSE,					// initial state is nonsignaled
+										TEXT("renderEvent"));	// object name
 
-		PIXELFORMATDESCRIPTOR pfd =
+		// Create finish event
+		finishEvent = ::CreateEvent(	NULL,					// default security attributes
+										TRUE,					// manual-reset event
+										FALSE,					// initial state is nonsignaled
+										TEXT("finishEvent"));	// object name
+
+		// Start the render thread
+		threadArg =
+		{
+			win32window,
+			::CreateEvent(NULL, TRUE, FALSE, TEXT("InitEvent")),
+			kickOffEvent,
+			finishEvent,
+			&state
+		};
+		renderThread = ::CreateThread(NULL, 0, render_update, &threadArg, 0, NULL);
+		::WaitForSingleObject(threadArg.initEvent, INFINITE);
+		::CloseHandle(threadArg.initEvent);
+
+		// Initial kick off
+		::SetEvent(kickOffEvent);
+	}
+
+	Win32glRenderer::~Win32glRenderer()
+	{
+		// Set flag
+		state.flags.set_flag(Win32RendererState::StateFlags::IS_DESTRUCTING);
+
+		// Last commit
+		commit();
+
+		// Wait for thread
+		::WaitForSingleObject(renderThread, INFINITE);
+		::CloseHandle(renderThread);
+		
+		// Close handle to an events
+		::CloseHandle(finishEvent);
+		::CloseHandle(kickOffEvent);
+	}
+
+	void Win32glRenderer::commit()
+	{
+		// Wait for current work to be finished
+		wait();
+
+		// Notify render thread
+		::ResetEvent(finishEvent);
+		::SetEvent(kickOffEvent);
+	}
+
+	void Win32glRenderer::wait()
+	{
+		::WaitForSingleObject(finishEvent, INFINITE);
+	}
+
+	DWORD render_update(LPVOID voidArg)
+	{
+		// @TODO : add error handling
+
+		RenderThreadArg* renderArgPtr = static_cast<RenderThreadArg*>(voidArg);
+		Win32ApplicationWindow* win32window = renderArgPtr->win32window;
+
+		HDC deviceContext = ::GetDC(win32window->hwnd);
+		//AL_ASSERT_MSG_NO_DISCARD(deviceContext, "Win32 :: OpenGL :: Unable to retrieve device context")
+
+		PIXELFORMATDESCRIPTOR pfd
 		{
 			sizeof(PIXELFORMATDESCRIPTOR),
 			1,
@@ -55,72 +134,59 @@ namespace al::engine
 			0, 0, 0
 		};
 
-		int pixelFormat = ::ChoosePixelFormat(hdc, &pfd);
-		AL_ASSERT_MSG_NO_DISCARD(pixelFormat != 0, "Win32 :: OpenGL :: Unable to choose pixel format for a given descriptor")
+		int pixelFormat = ::ChoosePixelFormat(deviceContext, &pfd);
+		//AL_ASSERT_MSG_NO_DISCARD(pixelFormat != 0, "Win32 :: OpenGL :: Unable to choose pixel format for a given descriptor")
 
-		bool isPixelFormatSet = ::SetPixelFormat(hdc, pixelFormat, &pfd);
-		AL_ASSERT_MSG_NO_DISCARD(isPixelFormatSet, "Win32 :: OpenGL :: Unable to set pixel format")
+		bool isPixelFormatSet = ::SetPixelFormat(deviceContext, pixelFormat, &pfd);
+		//AL_ASSERT_MSG_NO_DISCARD(isPixelFormatSet, "Win32 :: OpenGL :: Unable to set pixel format")
 
-		HGLRC renderContext = ::wglCreateContext(hdc);
-		AL_ASSERT_MSG_NO_DISCARD(renderContext, "Win32 :: OpenGL :: Unable to create openGL context")
+		HGLRC renderContext = ::wglCreateContext(deviceContext);
+		//AL_ASSERT_MSG_NO_DISCARD(renderContext, "Win32 :: OpenGL :: Unable to create openGL context")
 
 		win32window->hglrc = renderContext;
 
-		bool isCurrent = ::wglMakeCurrent(hdc, renderContext);
-		AL_ASSERT_MSG_NO_DISCARD(isCurrent, "Win32 :: OpenGL :: Unable to make openGL context current")
+		bool isCurrent = ::wglMakeCurrent(deviceContext, renderContext);
+		//AL_ASSERT_MSG_NO_DISCARD(isCurrent, "Win32 :: OpenGL :: Unable to make openGL context current")
 
-		GLenum glewInitRes = glewInit();
-		AL_ASSERT_MSG_NO_DISCARD(glewInitRes == GLEW_OK, "Win32 :: OpenGL :: Unable to init GLEW")
+		GLenum glewInitRes = ::glewInit();
+		//AL_ASSERT_MSG_NO_DISCARD(glewInitRes == GLEW_OK, "Win32 :: OpenGL :: Unable to init GLEW")
 
-		// @NOTE : vsync enabled by default
-		set_vsync(true);
-	}
-
-	Win32glRenderer::~Win32glRenderer()
-	{
-		::wglMakeCurrent(hdc, NULL);
-		::wglDeleteContext(win32window->hglrc);
-
-		::ReleaseDC(win32window->hwnd, hdc);
-	}
-
-	void Win32glRenderer::make_current()
-	{
-		::wglMakeCurrent(hdc, win32window->hglrc);
+		::wglMakeCurrent(deviceContext, win32window->hglrc);
 		::glEnable(GL_DEPTH_TEST);
 		::glDepthFunc(GL_LESS);
-	}
 
-	void Win32glRenderer::set_view_projection(const float4x4& vp)
-	{
-		viewProjectionMatrix = vp;
-	}
+		// Vsync
+		::wglSwapIntervalEXT(1);
 
-	void Win32glRenderer::clear_screen(const float3& color)
-	{
-		using namespace al::elements;
-		::glClearColor(color[R], color[G], color[B], 1.0f);
-		::glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	}
+		::SetEvent(renderArgPtr->initEvent);
 
-	void Win32glRenderer::draw(const Shader* shader, const VertexArray* va, const float4x4& trf)
-	{
-		va->bind();
-		shader->bind();
+		// Render loop
+		while (!renderArgPtr->state->flags.get_flag(Win32RendererState::StateFlags::IS_DESTRUCTING))
+		{
+			::WaitForSingleObject(renderArgPtr->kickOffEvent, INFINITE);
+			::ResetEvent(renderArgPtr->kickOffEvent);
 
-		// OpenGL stores matrices in column-major order, so we need to transpose our matrix
-		shader->set_mat4(MODEL_MATRIX_NAME, trf.transpose());
-		shader->set_mat4(VP_MATRIX_NAME, viewProjectionMatrix.transpose());
-		::glDrawElements(GL_TRIANGLES, va->get_index_buffer()->get_count(), GL_UNSIGNED_INT, nullptr);
-	}
+			// Do stuff here ================================
 
-	void Win32glRenderer::set_vsync(const bool isEnabled)
-	{
-		wglSwapIntervalEXT(isEnabled ? 1 : 0);
-	}
+			static float tint = 0.0f;
+			tint += 0.01f;
+			if (tint > 1.0f) tint = 0.0f;
 
-	void Win32glRenderer::commit()
-	{
-		::SwapBuffers(hdc);
+			::glClearColor(tint, tint, tint, 1.0f);
+			::glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+			// ==============================================
+
+			::SwapBuffers(deviceContext);
+
+			::SetEvent(renderArgPtr->finishEvent);
+		}
+		
+		::wglMakeCurrent(deviceContext, NULL);
+		::wglDeleteContext(win32window->hglrc);
+
+		::ReleaseDC(win32window->hwnd, deviceContext);
+		
+		return 0;
 	}
 }

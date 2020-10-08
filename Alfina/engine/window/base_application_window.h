@@ -1,28 +1,20 @@
-#ifndef __ALFINA_BASE_OS_PLATFORM_H__
-#define __ALFINA_BASE_OS_PLATFORM_H__
+#ifndef __ALFINA_BASE_APPLICATION_WINDOW_H__
+#define __ALFINA_BASE_APPLICATION_WINDOW_H__
 
 #include <cstdint>
+#include <functional>
 
 #include "engine/engine_utilities/error_info.h"
-
-#include "utilities/dispensable.h"
 #include "utilities/flags.h"
 
 namespace al::engine
 {
 	struct WindowProperties
 	{
-		enum ScreenMode : uint8_t
-		{
-			FULL_SCREEN,
-			WINDOWED
-		};
-
-		Dispensable<uint32_t> 	width;
-		Dispensable<uint32_t> 	height;
-		ScreenMode				screenMode;
-		
-		Dispensable<char*> 		name;
+		uint32_t 	width			= 1024;
+		uint32_t 	height			= 768;
+		bool		isFullscreen	= false;
+		char*		name			= "Alfina Engine";
 	};
 
 	// This struct gets changed by OS.
@@ -70,27 +62,25 @@ namespace al::engine
 		Flags32 generalInput;
 	};
 
-	class Renderer;
-	class SoundSystem;
-
-	struct ApplicationWindow
+	class ApplicationWindow
 	{
+	public:
+		ApplicationWindow(const WindowProperties& properties);
+		virtual ~ApplicationWindow() = default;
+
+		virtual void get_input(ApplicationWindowInput* inputBuffer) = 0;
+
+	public:
+		ApplicationWindowInput	input;
 		WindowProperties		properties;
-		Renderer* 				renderer;
-		SoundSystem*			soundSystem;
-		ApplicationWindowInput 	input;
 	};
-	
-	extern ErrorInfo	create_application_window	(const WindowProperties&, ApplicationWindow**);
-	extern ErrorInfo	destroy_application_window	(ApplicationWindow*);
 
-	extern ErrorInfo	get_window_inputs			(const ApplicationWindow*, ApplicationWindowInput*);
+	ApplicationWindow::ApplicationWindow(const WindowProperties& properties)
+		: properties{ properties }
+	{ }
 
-	extern ErrorInfo	create_renderer				(Renderer**, ApplicationWindow*);
-	extern ErrorInfo	destroy_renderer			(Renderer*);
-
-	extern ErrorInfo	create_sound_system			(SoundSystem**, ApplicationWindow*);
-	extern ErrorInfo	destroy_sound_system		(SoundSystem*);
+	ErrorInfo	create_application_window	(ApplicationWindow** window, const WindowProperties& properties, std::function<uint8_t*(size_t sizeBytes)> allocate);
+	ErrorInfo	destroy_application_window	(ApplicationWindow* window, std::function<void(uint8_t* ptr)> deallocate);
 }
 
 #endif

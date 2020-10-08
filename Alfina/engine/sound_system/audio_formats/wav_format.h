@@ -6,8 +6,7 @@
 
 #include "base_audio_format.h"
 
-#include "engine/platform/base_file_sys.h"
-#include "engine/engine_utilities/asserts.h"
+#include "engine/file_system/base_file_system.h"
 
 namespace al::engine
 {
@@ -46,11 +45,11 @@ namespace al::engine
 		{
 			constexpr char* WAV_ERROR_HEADER = "Incorrect WAV format :: ";
 
-			AL_ASSERT_MSG(!std::strncmp(reinterpret_cast<const char*>(riff.chunkId)		, "RIFF", 4), WAV_ERROR_HEADER, "Incorrect RIFF chunk id");
-			AL_ASSERT_MSG(!std::strncmp(reinterpret_cast<const char*>(riff.format)		, "WAVE", 4), WAV_ERROR_HEADER, "Incorrect RIFF format id");
-			AL_ASSERT_MSG(!std::strncmp(reinterpret_cast<const char*>(format.chunkId)	, "fmt ", 4), WAV_ERROR_HEADER, "Incorrect Format chunk id");
-			AL_ASSERT_MSG(!std::strncmp(reinterpret_cast<const char*>(data.chunkId)		, "data", 4), WAV_ERROR_HEADER, "Incorrect Data chunk id");
-			AL_ASSERT_MSG(format.audioFormat == 1, WAV_ERROR_HEADER, "Only PCM formats are currently supported");
+			//AL_ASSERT_MSG(!std::strncmp(reinterpret_cast<const char*>(riff.chunkId)		, "RIFF", 4), WAV_ERROR_HEADER, "Incorrect RIFF chunk id");
+			//AL_ASSERT_MSG(!std::strncmp(reinterpret_cast<const char*>(riff.format)		, "WAVE", 4), WAV_ERROR_HEADER, "Incorrect RIFF format id");
+			//AL_ASSERT_MSG(!std::strncmp(reinterpret_cast<const char*>(format.chunkId)	, "fmt ", 4), WAV_ERROR_HEADER, "Incorrect Format chunk id");
+			//AL_ASSERT_MSG(!std::strncmp(reinterpret_cast<const char*>(data.chunkId)		, "data", 4), WAV_ERROR_HEADER, "Incorrect Data chunk id");
+			//AL_ASSERT_MSG(format.audioFormat == 1, WAV_ERROR_HEADER, "Only PCM formats are currently supported");
 
 			return { ErrorInfo::Code::ALL_FINE };
 		}
@@ -81,22 +80,22 @@ namespace al::engine
 
 	WavFile::WavFile(const char* path)
 	{
-		ErrorInfo result = FileSys::read_file(path, &handle);
-		AL_ASSERT(result);
-
-		format = reinterpret_cast<WavFormat*>(handle.get_data());
-		result = format->validate();
-		AL_ASSERT(result);
-
-		parameters.bitsPerSample	= static_cast<size_t>(format->format.bitsPerSample);
-		parameters.channels			= static_cast<size_t>(format->format.numChannels);
-		parameters.sampleRate		= static_cast<size_t>(format->format.sampleRate);
+		//ErrorInfo result = FileSys::read_file(path, &handle);
+		////AL_ASSERT(result);
+		//
+		//format = reinterpret_cast<WavFormat*>(handle.get_data());
+		//result = format->validate();
+		////AL_ASSERT(result);
+		//
+		//parameters.bitsPerSample	= static_cast<size_t>(format->format.bitsPerSample);
+		//parameters.channels			= static_cast<size_t>(format->format.numChannels);
+		//parameters.sampleRate		= static_cast<size_t>(format->format.sampleRate);
 	}
 
 	WavFile::~WavFile()
 	{
-		ErrorInfo result = FileSys::free_file_handle(&handle);
-		AL_ASSERT(result);
+		//ErrorInfo result = FileSys::free_file_handle(&handle);
+		//AL_ASSERT(result);
 	}
 
 	inline uint32_t sample_int24_to_int32(uint8_t* data)
@@ -117,7 +116,7 @@ namespace al::engine
 
 	void WavFile::read_data(uint8_t* buffer, size_t frames, const SoundParameters& destParameters, PlaybackPointer& playbackPtr)
 	{
-		AL_ASSERT(handle.get_data());
+		//AL_ASSERT(handle.get_data());
 
 		if (parameters.channels == destParameters.channels)
 		{
@@ -136,23 +135,23 @@ namespace al::engine
 			else
 			{
 				// @TODO: @NOTE: Add other bits variations if that assertion happends
-				AL_ASSERT_MSG(false, parameters.bitsPerSample, " :: ", destParameters.bitsPerSample, " : ", format->format.blockAlign);
+				//AL_ASSERT_MSG(false, parameters.bitsPerSample, " :: ", destParameters.bitsPerSample, " : ", format->format.blockAlign);
 			}
 		}
 		else if (parameters.channels == 1 && destParameters.channels == 2)
 		{
 			// @TODO: implement this
-			AL_NO_IMPLEMENTATION_ASSERT
+			//AL_NO_IMPLEMENTATION_ASSERT
 		}
 		else if (parameters.channels == 2 && destParameters.channels == 1)
 		{
 			// @TODO: implement this
-			AL_NO_IMPLEMENTATION_ASSERT
+			//AL_NO_IMPLEMENTATION_ASSERT
 		}
 		else
 		{
 			// Invalid code path
-			AL_NO_IMPLEMENTATION_ASSERT
+			//AL_NO_IMPLEMENTATION_ASSERT
 		}
 	}
 
@@ -166,10 +165,10 @@ namespace al::engine
 	{
 		constexpr float PLAYBACK_SPEED = 1;
 
-		const float		sampleRateRatio = static_cast<float>(parameters.sampleRate) / static_cast<float>(destParameters.sampleRate);
-		const uint8_t* endData = &format->data.firstByte + format->data.chunkSize;
-		const size_t	fileBytesPerSample = parameters.bitsPerSample / 8;
-		const size_t	targetBytesPerSample = destParameters.bitsPerSample / 8;
+		const float		sampleRateRatio			= static_cast<float>(parameters.sampleRate) / static_cast<float>(destParameters.sampleRate);
+		const uint8_t*	endData					= &format->data.firstByte + format->data.chunkSize;
+		const size_t	fileBytesPerSample		= parameters.bitsPerSample / 8;
+		const size_t	targetBytesPerSample	= destParameters.bitsPerSample / 8;
 
 		for (size_t it = 0; it < frames; ++it)
 		{
