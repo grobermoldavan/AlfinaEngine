@@ -10,7 +10,10 @@ namespace al::engine
 	class Win32FileSystem : public FileSystem
 	{
 	public:
-		virtual void read_file(const char* fileName, FileHandle* handle, std::function<uint8_t*(size_t sizeBytes)> allocate) override;
+        Win32FileSystem(StackAllocator* allocator);
+        ~Win32FileSystem() = default;
+    
+		virtual void read_file(const char* fileName, FileHandle* handle) override;
 	};
 }
 

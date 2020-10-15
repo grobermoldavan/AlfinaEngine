@@ -24,10 +24,6 @@ namespace al::engine
 	};
 }
 
-#if defined(AL_UNITY_BUILD)
-#	include "windows_opengl_vertex_buffer.cpp"
-#else
-
-#endif
+#include "windows_opengl_vertex_buffer.cpp"
 
 #endif

@@ -45,7 +45,7 @@ namespace al::engine
 	class Win32glRenderer : public Renderer
 	{
 	public:
-		Win32glRenderer(Win32ApplicationWindow* win32window);
+		Win32glRenderer(ApplicationWindow* window, StackAllocator* allocator);
 		~Win32glRenderer();
 
 		virtual void commit	() override;

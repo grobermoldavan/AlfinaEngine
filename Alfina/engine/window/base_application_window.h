@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <functional>
 
+#include "engine/memory/stack_allocator.h"
 #include "engine/engine_utilities/error_info.h"
 #include "utilities/flags.h"
 
@@ -65,22 +66,21 @@ namespace al::engine
 	class ApplicationWindow
 	{
 	public:
-		ApplicationWindow(const WindowProperties& properties);
+		ApplicationWindow(const WindowProperties& properties, StackAllocator* allocator);
 		virtual ~ApplicationWindow() = default;
 
-		virtual void get_input(ApplicationWindowInput* inputBuffer) = 0;
+		virtual void get_input(ApplicationWindowInput* inputBuffer) const noexcept = 0;
 
 	public:
+        StackAllocator*         allocator;
 		ApplicationWindowInput	input;
 		WindowProperties		properties;
 	};
 
-	ApplicationWindow::ApplicationWindow(const WindowProperties& properties)
+	ApplicationWindow::ApplicationWindow(const WindowProperties& properties, StackAllocator* allocator)
 		: properties{ properties }
+        , allocator { allocator }
 	{ }
-
-	ErrorInfo	create_application_window	(ApplicationWindow** window, const WindowProperties& properties, std::function<uint8_t*(size_t sizeBytes)> allocate);
-	ErrorInfo	destroy_application_window	(ApplicationWindow* window, std::function<void(uint8_t* ptr)> deallocate);
 }
 
 #endif

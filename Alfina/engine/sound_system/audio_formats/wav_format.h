@@ -51,6 +51,12 @@ namespace al::engine
 			//AL_ASSERT_MSG(!std::strncmp(reinterpret_cast<const char*>(data.chunkId)		, "data", 4), WAV_ERROR_HEADER, "Incorrect Data chunk id");
 			//AL_ASSERT_MSG(format.audioFormat == 1, WAV_ERROR_HEADER, "Only PCM formats are currently supported");
 
+			al_assert(!std::strncmp(reinterpret_cast<const char*>(riff.chunkId)		, "RIFF", 4));
+			al_assert(!std::strncmp(reinterpret_cast<const char*>(riff.format)		, "WAVE", 4));
+			al_assert(!std::strncmp(reinterpret_cast<const char*>(format.chunkId)	, "fmt ", 4));
+			al_assert(!std::strncmp(reinterpret_cast<const char*>(data.chunkId)		, "data", 4));
+			al_assert(format.audioFormat == 1);
+
 			return { ErrorInfo::Code::ALL_FINE };
 		}
 	};
@@ -63,7 +69,7 @@ namespace al::engine
 	class WavFile
 	{
 	public:
-		WavFile(const char* path);
+		WavFile(const char* path, FileSystem* fileSystem);
 		~WavFile();
 
 		void			read_data(uint8_t* buffer, size_t frames, const SoundParameters& destParameters, PlaybackPointer& playbackPtr);
@@ -78,14 +84,18 @@ namespace al::engine
 		inline void fill_buffer(uint8_t* buffer, size_t frames, const SoundParameters& destParameters, PlaybackPointer& playbackPtr, DestType(*func)(uint8_t*));
 	};
 
-	WavFile::WavFile(const char* path)
+	WavFile::WavFile(const char* path, FileSystem* fileSystem)
 	{
-		//ErrorInfo result = FileSys::read_file(path, &handle);
-		////AL_ASSERT(result);
+		al_assert(fileSystem);
+
+		//ErrorInfo result;
+		//
+		///*result = */ fileSystem->read_file(path, &handle);
+		////al_assert(result);
 		//
 		//format = reinterpret_cast<WavFormat*>(handle.get_data());
 		//result = format->validate();
-		////AL_ASSERT(result);
+		//al_assert(result);
 		//
 		//parameters.bitsPerSample	= static_cast<size_t>(format->format.bitsPerSample);
 		//parameters.channels			= static_cast<size_t>(format->format.numChannels);

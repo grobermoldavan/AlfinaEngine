@@ -5,6 +5,7 @@
 #include <limits>
 #include <type_traits>
 #include <numbers>
+#include <concepts>
 
 namespace al
 {
@@ -126,7 +127,7 @@ namespace al
 		}
 	}
 	
-	template<typename T, class = typename std::enable_if<std::is_floating_point<T>::value>::type>
+	template<std::floating_point T>
 	constexpr T sqrt(T value)
 	{
 		T zero = static_cast<T>(0);
@@ -140,35 +141,75 @@ namespace al
 		}
 	}
 	
-	template<typename T, class = typename std::enable_if<!std::is_floating_point<T>::value>::type>
+	template<std::unsigned_integral T>
 	constexpr T kilobytes(T num) 
 	{
 		return num * static_cast<T>(1024);
 	}
 	
-	template<typename T, class = typename std::enable_if<!std::is_floating_point<T>::value>::type>
+	template<std::unsigned_integral T>
 	constexpr T megabytes(T num) 
 	{	
 		return kilobytes(num) * static_cast<T>(1024);
 	}
 	
-	template<typename T, class = typename std::enable_if<!std::is_floating_point<T>::value>::type>
+	template<std::unsigned_integral T>
 	constexpr T gigabytes(T num) 
 	{
 		return megabytes(num) * static_cast<T>(1024);
 	}
 
-	template<typename T, class = typename std::enable_if<std::is_floating_point<T>::value>::type>
+	template<std::floating_point T>
 	constexpr T to_radians(T degrees)
 	{
 		return degrees * std::numbers::pi_v<T> / static_cast<T>(180);
 	}
 
-	template<typename T, class = typename std::enable_if<std::is_floating_point<T>::value>::type>
+	template<std::floating_point T>
 	constexpr T to_degrees(T radians)
 	{
 		return radians * static_cast<T>(180) / std::numbers::pi_v<T>;
 	}
+
+    template<std::unsigned_integral T>
+    constexpr inline T remove_bit(T value, size_t bit)
+    {
+        return value & ~(T{1} << bit);
+    }
+
+    template<std::unsigned_integral T>
+    constexpr inline T set_bit(T value, size_t bit)
+    {
+        return value | (T{1} << bit);
+    }
+
+    // 101
+    // 0000 0000
+    // 3
+    // 1000 0000
+
+    // 1000 1000
+    // 1000 1000
+    // 1010 1000
+
+    template<std::unsigned_integral T>
+    constexpr T set_bits(T value, size_t startBit, size_t numBits, T bitsValue)
+    {
+        T result = value;
+        for(size_t it = 0; it < numBits; ++it)
+        {
+            bool isSet = ((bitsValue >> it) % 2) == 1;
+            if (isSet) 
+            {
+                result = set_bit(result, startBit + it);
+            }
+            else
+            {
+                result = remove_bit(result, startBit + it);
+            }
+        }
+        return result;
+    }
 }
 
 #endif

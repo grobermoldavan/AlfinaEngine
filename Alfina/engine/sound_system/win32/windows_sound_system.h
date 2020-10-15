@@ -39,15 +39,13 @@ namespace al::engine
 			IS_RUNNING
 		};
 
-		Win32SoundSystem(Win32ApplicationWindow* win32window, Win32FileSystem* win32fileSystem);
-		~Win32SoundSystem();
+		Win32SoundSystem    (ApplicationWindow* window, FileSystem* fileSystem, const SoundParameters& parameters, StackAllocator* allocator)   noexcept;
+		~Win32SoundSystem   ()                                                                                                                  noexcept;
 
-		virtual void			init				(const SoundParameters& parameters)			override;
-		virtual SoundParameters	get_valid_parameters()									const	override;
-
-		virtual SoundId			load_sound			(SourceType type, const char* path)			override;
-		virtual SoundSourceId	create_sound_source	(SoundId id)								override;
-		virtual void			play_sound			(SoundSourceId id)							override;
+		virtual SoundParameters	get_valid_parameters()									const	noexcept    override;
+		virtual SoundId			load_sound			(SourceType type, const char* path)			noexcept    override;
+		virtual SoundSourceId	create_sound_source	(SoundId id)								noexcept    override;
+		virtual void			play_sound			(SoundSourceId id)							noexcept    override;
 
 	private:
 		static constexpr const GUID IID_IAudioClient			= { 0x1CB9AD4C, 0xDBFA, 0x4c32, 0xB1, 0x78, 0xC2, 0xF5, 0x68, 0xA7, 0x03, 0xB2 };
@@ -64,18 +62,11 @@ namespace al::engine
 		Flags32					win32flags;
 		SoundThreadArg			threadArg;
 		HANDLE					soundSystemThread;
+		StackAllocator*			stack;
+
+        void init_assert() const noexcept;
 
 		friend DWORD sound_update(LPVOID voidArg);
-
-
-
-
-
-
-
-
-
-
 
 		void fill_buffer(BYTE* buffer, uint32_t frames)
 		{

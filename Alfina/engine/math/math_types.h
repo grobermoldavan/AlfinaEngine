@@ -5,8 +5,9 @@
 #include <cmath>
 #include <utility>
 #include <array>
+#include <iostream>
 
-#include "engine/engine_utilities/asserts.h"
+#include "engine/asserts/asserts.h"
 
 #include "utilities/flags.h"
 #include "utilities/constexpr_functions.h"
@@ -90,8 +91,8 @@ namespace al
 	MULT_TYPE_TEMPLATE mult<T, num>::mult(const std::array<T, num>& array)	: components{ array } { }
 	MULT_TYPE_TEMPLATE mult<T, num>::mult(const mult<T, num>& other)		: components{ other.components } { }
 
-	MULT_TYPE_TEMPLATE inline T&       mult<T, num>::get			(size_t element) const { AL_ASSERT(element < num); return const_cast<T&>(components[element]); }
-	MULT_TYPE_TEMPLATE inline T&       mult<T, num>::operator []	(size_t element) const { AL_ASSERT(element < num); return const_cast<T&>(components[element]); }
+	MULT_TYPE_TEMPLATE inline T&       mult<T, num>::get			(size_t element) const { al_assert(element < num); return const_cast<T&>(components[element]); }
+	MULT_TYPE_TEMPLATE inline T&       mult<T, num>::operator []	(size_t element) const { al_assert(element < num); return const_cast<T&>(components[element]); }
 	MULT_TYPE_TEMPLATE inline size_t   mult<T, num>::size			()               const { return num; }
 
 	MULT_TYPE_TEMPLATE
@@ -361,8 +362,8 @@ namespace al
 		ARITHMETIC_TEMPLATE				matrix2d<T, rows, columns>			operator *	(const U& value)									const;
 										mult<T, rows>						operator *	(const mult<T, columns>& vector)					const;
 
-		virtual							T									det			()													const { AL_NO_IMPLEMENTATION_ASSERT return {}; }
-		virtual							matrix2d<T, rows, columns>			invert		()													const { AL_NO_IMPLEMENTATION_ASSERT return {}; }
+		virtual							T									det			()													const { al_assert(false); /*no impl*/ return {}; }
+		virtual							matrix2d<T, rows, columns>			invert		()													const { al_assert(false); /*no impl*/ return {}; }
 										matrix2d<T, columns, rows>			transpose	()													const;
 
 		MATRIX_2D_TYPE_TEMPLATE
@@ -413,16 +414,16 @@ namespace al
 	MATRIX_2D_TYPE_TEMPLATE
 	inline T& matrix2d<T, rows, columns>::get(size_t row, size_t column) const
 	{
-		AL_ASSERT(row < rows)
-		AL_ASSERT(column < columns)
+		al_assert(row < rows);
+		al_assert(column < columns);
 		return const_cast<T&>(components[row * columns + column]);
 	}
 
 	MATRIX_2D_TYPE_TEMPLATE
 	inline mult<T, columns>& matrix2d<T, rows, columns>::operator [] (size_t row) const
 	{
-		AL_ASSERT(row < rows)
-			return const_cast<mult<T, columns>&>(vec[row]);
+		al_assert(row < rows);
+		return const_cast<mult<T, columns>&>(vec[row]);
 	}
 
 	MATRIX_2D_TYPE_TEMPLATE
@@ -548,7 +549,7 @@ namespace al
 		{
 			const auto determinant = det();
 			// @TODO : add method which returns bool istead of asserting
-			AL_ASSERT(!is_equal(determinant, static_cast<T>(0)))
+			al_assert(!is_equal(determinant, static_cast<T>(0)));
 			const auto invDet = 1.0f / determinant;
 
 			return 
@@ -583,7 +584,7 @@ namespace al
 
 			const auto determinant = det();
 			// @TODO : add method which returns bool istead of asserting
-			AL_ASSERT(!is_equal(determinant, static_cast<T>(0)))
+			al_assert(!is_equal(determinant, static_cast<T>(0)));
 			const auto invDet = 1.0f / determinant;
 
 			// 2x2 sub-determinants of transposed matrix required to calculate 3x3 inverse
@@ -646,7 +647,7 @@ namespace al
 
 			const auto determinant = det();
 			// @TODO : add method which returns bool istead of asserting
-			AL_ASSERT(!is_equal(determinant, static_cast<T>(0)))
+			al_assert(!is_equal(determinant, static_cast<T>(0)));
 			const auto invDet = 1.0f / determinant;
 
 			const float A2323 = get(2, 2) * get(3, 3) - get(2, 3) * get(3, 2);

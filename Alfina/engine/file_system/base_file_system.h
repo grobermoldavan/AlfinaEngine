@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <functional>
 
+#include "engine/memory/stack_allocator.h"
 #include "engine/engine_utilities/error_info.h"
 #include "utilities/non_copyable.h"
 
@@ -14,8 +15,18 @@ namespace al::engine
 	class FileSystem
 	{
 	public:
-		virtual void read_file(const char* fileName, FileHandle* handle, std::function<uint8_t*(size_t sizeBytes)> allocate) = 0;
+        FileSystem(StackAllocator* allocator);
+        virtual ~FileSystem() = default;
+
+		virtual void read_file(const char* fileName, FileHandle* handle) = 0;
+
+    protected:
+        StackAllocator* allocator;
 	};
+
+    FileSystem::FileSystem(StackAllocator* allocator)
+        : allocator{ allocator }
+    { }
 
 	class FileHandle : NonCopyable
 	{
@@ -37,9 +48,6 @@ namespace al::engine
 
 		friend FileSystem;
 	};
-
-	ErrorInfo	create_file_system	(FileSystem** fileSystem, std::function<uint8_t* (size_t sizeBytes)> allocate);
-	ErrorInfo	destroy_file_system	(FileSystem* fileSystem, std::function<void(uint8_t* ptr)> deallocate);
 }
 
 #endif

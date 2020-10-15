@@ -28,10 +28,6 @@ namespace al::engine
 	};
 }
 
-#if defined(AL_UNITY_BUILD)
-#	include "windows_opengl_vertex_array.cpp"
-#else
-
-#endif
+#include "windows_opengl_vertex_array.cpp"
 
 #endif

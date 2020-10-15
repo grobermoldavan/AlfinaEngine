@@ -7,7 +7,7 @@
 
 namespace al::engine
 {
-	namespace audio_format_sfinae
+	namespace audio_format_private
 	{
 		template<typename T>
 		struct HasReadData
@@ -22,7 +22,7 @@ namespace al::engine
 	template<typename T>
 	struct IsAudioFormat
 	{
-		static const bool value = audio_format_sfinae::HasReadData<T>::value;
+		static const bool value = audio_format_private::HasReadData<T>::value;
 	};
 }
 

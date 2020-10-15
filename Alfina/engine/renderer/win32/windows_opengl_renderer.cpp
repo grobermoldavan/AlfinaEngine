@@ -5,43 +5,8 @@
 
 namespace al::engine
 {
-	ErrorInfo create_renderer(Renderer** renderer, ApplicationWindow* window, std::function<uint8_t* (size_t sizeBytes)> allocate)
-	{
-		if (!renderer)
-		{
-			return { ErrorInfo::Code::INCORRECT_INPUT_DATA, ErrorInfo::ERROR_MESSAGES[ErrorInfo::ErrorMessageCode::NULL_PTR_PROVIDED] };
-		}
-
-		// Allocate memory and construct object
-		Win32glRenderer* win32renderer = reinterpret_cast<Win32glRenderer*>(allocate(sizeof(Win32glRenderer)));
-		if (!win32renderer)
-		{
-			return { ErrorInfo::Code::ALLOCATION_ERROR, ErrorInfo::ERROR_MESSAGES[ErrorInfo::ErrorMessageCode::UNABLE_TO_ALLOCATE_MEMORY] };
-		}
-
-		win32renderer = new(win32renderer) Win32glRenderer(static_cast<Win32ApplicationWindow*>(window));
-		*renderer = win32renderer;
-
-		return { ErrorInfo::Code::ALL_FINE, ErrorInfo::ERROR_MESSAGES[ErrorInfo::ErrorMessageCode::ALL_FINE] };
-	}
-
-	ErrorInfo destroy_renderer(Renderer* renderer, std::function<void(uint8_t* ptr)> deallocate)
-	{
-		if (!renderer)
-		{
-			return { ErrorInfo::Code::INCORRECT_INPUT_DATA, ErrorInfo::ERROR_MESSAGES[ErrorInfo::ErrorMessageCode::NULL_PTR_PROVIDED] };
-		}
-
-		Win32glRenderer* win32renderer = static_cast<Win32glRenderer*>(renderer);
-
-		// Destruct and deallocate window
-		win32renderer->~Win32glRenderer();
-		deallocate(reinterpret_cast<uint8_t*>(win32renderer));
-
-		return { ErrorInfo::Code::ALL_FINE, ErrorInfo::ERROR_MESSAGES[ErrorInfo::ErrorMessageCode::ALL_FINE] };
-	}
-
-	Win32glRenderer::Win32glRenderer(Win32ApplicationWindow* win32window)
+	Win32glRenderer::Win32glRenderer(ApplicationWindow* window, StackAllocator* allocator)
+        : Renderer{ window, allocator }
 	{
 		// Create kick off event
 		kickOffEvent = ::CreateEvent(	NULL,					// default security attributes
@@ -58,7 +23,7 @@ namespace al::engine
 		// Start the render thread
 		threadArg =
 		{
-			win32window,
+			static_cast<Win32ApplicationWindow*>(window),
 			::CreateEvent(NULL, TRUE, FALSE, TEXT("InitEvent")),
 			kickOffEvent,
 			finishEvent,

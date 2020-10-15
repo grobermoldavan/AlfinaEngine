@@ -5,11 +5,15 @@
 
 #include "sound_parameters.h"
 #include "audio_formats/audio_formats.h"
+#include "engine/memory/stack_allocator.h"
 
 namespace al::engine
 {
 	using SoundId		= size_t;
 	using SoundSourceId = size_t;
+
+    class ApplicationWindow;
+	class FileSystem;
 
 	class SoundSystem
 	{
@@ -20,27 +24,28 @@ namespace al::engine
 			__end
 		};
 
+        SoundSystem(ApplicationWindow* window, FileSystem* fileSystem, const SoundParameters& parameters, StackAllocator* allocator);
 		virtual ~SoundSystem() = default;
 
-		virtual void			init				(const SoundParameters& parameters)			= 0;
-		virtual SoundParameters	get_valid_parameters()									const	= 0;
+        // Sound system must implement method, which returns actual sound parameters that are used on users machine
+        // Theese parameters may be different from userParameters
+		virtual SoundParameters	get_valid_parameters()									const   noexcept    = 0;
 
 		// SoundId represents actual sound data stored in sound system
 		// SoundSourceId represents sound source. There could be multiple sound sources using the same SoundId
-		virtual SoundId			load_sound			(SourceType type, const char* path)			= 0;
-		virtual SoundSourceId	create_sound_source	(SoundId id)								= 0;
-		virtual void			play_sound			(SoundSourceId id)							= 0;
+		virtual SoundId			load_sound			(SourceType type, const char* path)			noexcept    = 0;
+		virtual SoundSourceId	create_sound_source	(SoundId id)								noexcept    = 0;
+		virtual void			play_sound			(SoundSourceId id)							noexcept    = 0;
 
 	protected:
-		static constexpr const size_t MAX_SOUNDS		= 64;
-		static constexpr const size_t MAX_SOUND_SOURCES	= 128;
+        SoundParameters userParameters;
+        StackAllocator* allocator;
 	};
 
-	class ApplicationWindow;
-	class FileSystem;
-
-	extern ErrorInfo create_sound_system	(SoundSystem**, ApplicationWindow*, FileSystem*, std::function<uint8_t* (size_t sizeBytes)> allocate);
-	extern ErrorInfo destroy_sound_system	(SoundSystem*, std::function<void(uint8_t* ptr)> deallocate);
+    SoundSystem::SoundSystem(ApplicationWindow* window, FileSystem* fileSystem, const SoundParameters& parameters, StackAllocator* allocator)
+        : userParameters{ parameters }
+        , allocator     { allocator }
+    { }
 }
 
 #endif

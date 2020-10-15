@@ -4,22 +4,25 @@
 #include <cstdint>
 #include <functional>
 
+#include "allocator_interface.h"
 #include "engine/engine_utilities/error_info.h"
+#include "engine/asserts/asserts.h"
 
 namespace al::engine
 {
-	class StackAllocator
+	class StackAllocator : public AllocatorInterface<StackAllocator>
 	{
 	public:
-		StackAllocator	() = default;
+		StackAllocator	();
 		~StackAllocator	() = default;
 
-		ErrorInfo	init				(size_t sizeBytes, std::function<uint8_t*(size_t)> allocate);
-		void		terminate			(std::function<void(uint8_t*)> deallocate);
+					    ErrorInfo	init				(size_t sizeBytes, std::function<uint8_t*(size_t)> allocate) 			noexcept;
+						void		terminate			(std::function<void(uint8_t*)> deallocate)								noexcept;
 
-		uint8_t*	allocate			(size_t sizeBytes);
-		uint8_t*	get_current_top		() const;
-		void		free_to_pointer		(uint8_t* ptr);
+		[[nodiscard]] 	uint8_t*	allocateImpl		(size_t sizeBytes)														noexcept;
+		[[nodiscard]]	uint8_t*	get_current_top		() 																const 	noexcept;
+						void		free_to_pointer		(uint8_t* ptr)															noexcept;
+                        void		clear		        ()															            noexcept;
 
 	private:
 		uint8_t* data;
@@ -27,7 +30,11 @@ namespace al::engine
 		uint8_t* currentTop;
 	};
 
-	ErrorInfo StackAllocator::init(size_t sizeBytes, std::function<uint8_t* (size_t)> allocate)
+    StackAllocator::StackAllocator()
+        : AllocatorInterface<StackAllocator>(this)
+    { }
+
+	ErrorInfo StackAllocator::init(size_t sizeBytes, std::function<uint8_t* (size_t)> allocate) noexcept
 	{
 		data = allocate(sizeBytes);
 		if (!data)
@@ -41,12 +48,12 @@ namespace al::engine
 		return { ErrorInfo::Code::ALL_FINE, ErrorInfo::ERROR_MESSAGES[ErrorInfo::ErrorMessageCode::ALL_FINE] };
 	}
 
-	void StackAllocator::terminate(std::function<void(uint8_t*)> deallocate)
+	void StackAllocator::terminate(std::function<void(uint8_t*)> deallocate) noexcept
 	{
 		deallocate(data);
 	}
 
-	uint8_t* StackAllocator::allocate(size_t sizeBytes)
+	uint8_t* StackAllocator::allocateImpl(size_t sizeBytes) noexcept
 	{
 		if ((currentTop + sizeBytes) > end) return nullptr;
 		uint8_t* ptr = currentTop;
@@ -54,15 +61,21 @@ namespace al::engine
 		return ptr;
 	}
 
-	uint8_t* StackAllocator::get_current_top() const
+	uint8_t* StackAllocator::get_current_top() const noexcept
 	{
 		return currentTop;
 	}
 
-	void StackAllocator::free_to_pointer(uint8_t* ptr)
+    // This method cannot be used as regular deallocate method
+	void StackAllocator::free_to_pointer(uint8_t* ptr) noexcept
 	{
-		// @TODO : add argument validation mb
+		al_assert(ptr >= data && ptr < end);
 		currentTop = ptr;
+	}
+
+    void StackAllocator::clear() noexcept
+	{
+		currentTop = data;
 	}
 }
 

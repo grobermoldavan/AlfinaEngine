@@ -41,6 +41,11 @@ namespace al
 			flags = 0;
 		}
 
+		uint32_t get_flags()
+		{
+			return flags;
+		}
+
 	private:
 		uint32_t flags;
 	};

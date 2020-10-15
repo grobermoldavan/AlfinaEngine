@@ -21,30 +21,30 @@ namespace al::engine
 
 	struct WindowThreadArg
 	{
-		Win32ApplicationWindow* window;
-		HANDLE					initEvent;
+		Win32ApplicationWindow*  window;
+		HANDLE					            initEvent;
 	};
 
 	class Win32ApplicationWindow : public ApplicationWindow
     {
 	public:
-		Win32ApplicationWindow(const WindowProperties& properties);
+		Win32ApplicationWindow(const WindowProperties& properties, StackAllocator* allocator);
 		~Win32ApplicationWindow();
 
-		virtual void get_input(ApplicationWindowInput* inputBuffer) override;
+		virtual void get_input(ApplicationWindowInput* inputBuffer) const noexcept override;
 
 	public:
-		Win32WindowState	state;
+		Win32WindowState    state;
 
-		WindowThreadArg		threadArg;
+		WindowThreadArg	    threadArg;
 		HANDLE				windowThread;
 		HANDLE 				inputReadMutex;
 		HWND				hwnd;
 		HGLRC				hglrc;
     };
 
-	DWORD window_update(LPVOID voidArg);
-	LRESULT CALLBACK window_proc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
+	DWORD 				window_update	(LPVOID voidArg);
+	LRESULT CALLBACK 	window_proc		(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
 }
 
 #include "windows_application_window.cpp"

@@ -1,67 +1,16 @@
 
 #include "windows_sound_system.h"
 
-#include "engine/engine_utilities/thread/thread_utilities.h"
-
-#define AL_SOUND_SYS_INIT_ASSERT //AL_ASSERT_MSG(win32flags.get_flag(Win32SoundSystemFlags::IS_INITED), "Sound system must be initialized before use.")
+#include "engine/asserts/asserts.h"
 
 namespace al::engine
 {
-	ErrorInfo create_sound_system(SoundSystem** soundSystem, ApplicationWindow* window, FileSystem* fileSystem, std::function<uint8_t* (size_t sizeBytes)> allocate)
-	{
-		if (!soundSystem || !window || !fileSystem)
-		{
-			return { ErrorInfo::Code::INCORRECT_INPUT_DATA, ErrorInfo::ERROR_MESSAGES[ErrorInfo::ErrorMessageCode::NULL_PTR_PROVIDED] };
-		}
-
-		// Allocate memory and construct object
-		Win32SoundSystem* win32soundSystem = reinterpret_cast<Win32SoundSystem*>(allocate(sizeof(Win32SoundSystem)));
-		if (!win32soundSystem)
-		{
-			return { ErrorInfo::Code::ALLOCATION_ERROR, ErrorInfo::ERROR_MESSAGES[ErrorInfo::ErrorMessageCode::UNABLE_TO_ALLOCATE_MEMORY] };
-		}
-
-		win32soundSystem = new(win32soundSystem) Win32SoundSystem(static_cast<Win32ApplicationWindow*>(window), static_cast<Win32FileSystem*>(fileSystem));
-		*soundSystem = win32soundSystem;
-
-		return { ErrorInfo::Code::ALL_FINE, ErrorInfo::ERROR_MESSAGES[ErrorInfo::ErrorMessageCode::ALL_FINE] };
-	}
-
-	ErrorInfo destroy_sound_system(SoundSystem* soundSystem, std::function<void(uint8_t* ptr)> deallocate)
-	{
-		if (!soundSystem)
-		{
-			return { ErrorInfo::Code::INCORRECT_INPUT_DATA, ErrorInfo::ERROR_MESSAGES[ErrorInfo::ErrorMessageCode::NULL_PTR_PROVIDED] };
-		}
-
-		Win32SoundSystem* win32soundSystem = static_cast<Win32SoundSystem*>(soundSystem);
-
-		// Destruct and deallocate window
-		win32soundSystem->~Win32SoundSystem();
-		deallocate(reinterpret_cast<uint8_t*>(win32soundSystem));
-
-		return { ErrorInfo::Code::ALL_FINE, ErrorInfo::ERROR_MESSAGES[ErrorInfo::ErrorMessageCode::ALL_FINE] };
-	}
-
-	Win32SoundSystem::Win32SoundSystem(Win32ApplicationWindow* win32window, Win32FileSystem* win32fileSystem)
-		: win32window		{ win32window }
-		, win32fileSystem	{ win32fileSystem }
+	Win32SoundSystem::Win32SoundSystem(ApplicationWindow* window, FileSystem* fileSystem, const SoundParameters& parameters, StackAllocator* allocator) noexcept
+		: SoundSystem       { window, fileSystem, parameters, allocator }
+        , win32window		{ static_cast<Win32ApplicationWindow*>(window) }
+		, win32fileSystem	{ static_cast<Win32FileSystem*>(fileSystem) }
 	{
 		win32flags.clear_flag(Win32SoundSystemFlags::IS_INITED);
-	}
-
-	Win32SoundSystem::~Win32SoundSystem()
-	{
-		win32flags.clear_flag(Win32SoundSystemFlags::IS_RUNNING);
-		
-		// Wait for thread
-		::WaitForSingleObject(soundSystemThread, INFINITE);
-		::CloseHandle(soundSystemThread);
-	}
-
-	void Win32SoundSystem::init(const SoundParameters& parameters)
-	{
-		userParameters = parameters;
 
 		// Start window thread and wait for initialization
 		threadArg =
@@ -76,40 +25,59 @@ namespace al::engine
 		win32flags.set_flag(Win32SoundSystemFlags::IS_INITED);
 	}
 
-	SoundParameters	Win32SoundSystem::get_valid_parameters() const
+	Win32SoundSystem::~Win32SoundSystem() noexcept
 	{
-		AL_SOUND_SYS_INIT_ASSERT;
+		win32flags.clear_flag(Win32SoundSystemFlags::IS_RUNNING);
+		
+		// Wait for thread
+		::WaitForSingleObject(soundSystemThread, INFINITE);
+		::CloseHandle(soundSystemThread);
+	}
+
+	SoundParameters	Win32SoundSystem::get_valid_parameters() const noexcept
+	{
+		init_assert();
 		return validParameters;
 	}
 
-	SoundId Win32SoundSystem::load_sound(SourceType type, const char* path)
+	SoundId Win32SoundSystem::load_sound(SourceType type, const char* path) noexcept
 	{
-		AL_SOUND_SYS_INIT_ASSERT;
+		init_assert();
 
-		//switch (SoundSystem::SourceType)
-		//{
-		//	case SoundSystem::SourceType::WAV:
-		//	{
-		//
-		//	}
-		//}
+		switch (type)
+		{
+			case SoundSystem::SourceType::WAV:
+			{
+				
+				break;
+			}
+			default:
+			{
+				al_assert(false);
+			}
+		}
 
 		return 0;
 	}
 
-	SoundSourceId Win32SoundSystem::create_sound_source(SoundId id)
+	SoundSourceId Win32SoundSystem::create_sound_source(SoundId id) noexcept
 	{
-		AL_SOUND_SYS_INIT_ASSERT;
+		init_assert();
 
 		return 0;
 	}
 
-	void Win32SoundSystem::play_sound(SoundSourceId id)
+	void Win32SoundSystem::play_sound(SoundSourceId id) noexcept
 	{
-		AL_SOUND_SYS_INIT_ASSERT;
+		init_assert();
 
 
 	}
+
+    void Win32SoundSystem::init_assert() const noexcept
+    {
+        al_assert(win32flags.get_flag(Win32SoundSystemFlags::IS_INITED));
+    }
 
 	DWORD sound_update(LPVOID voidArg)
 	{
@@ -132,12 +100,12 @@ namespace al::engine
 			Win32SoundSystem::IID_IMMDeviceEnumerator,
 			reinterpret_cast<void**>(&enumerator)
 		);
-		//AL_ASSERT_MSG(result == S_OK, "result is : ", result);
+		al_assert(result == S_OK);
 
 		// Get default device
 		IMMDevice *device;
 		result = enumerator->GetDefaultAudioEndpoint(eRender, eConsole, &device);
-		//AL_ASSERT_MSG(result == S_OK, "result is : ", result);
+		al_assert(result == S_OK);
 
 		// Get audio client
 		IAudioClient *audioClient;
@@ -148,7 +116,7 @@ namespace al::engine
 			0,
 			reinterpret_cast<void**>(&audioClient)
 		);
-		//AL_ASSERT_MSG(result == S_OK, "result is : ", result);
+		al_assert(result == S_OK);
 
 		// Describe format, that is needed
 		WAVEFORMATEXTENSIBLE wfmt = {};
@@ -182,7 +150,7 @@ namespace al::engine
 		else
 		{
 			// Else assert if result is not S_OK
-			//AL_ASSERT_MSG(result == S_OK, "result is : ", result);
+			al_assert(result == S_OK);
 		}
 
 		// Save valid sound parameters
@@ -193,7 +161,7 @@ namespace al::engine
 		// Get device period
 		REFERENCE_TIME devicePeriod;
 		result = audioClient->GetDevicePeriod(nullptr, &devicePeriod);
-		//AL_ASSERT_MSG(result == S_OK, "result is : ", result);
+		al_assert(result == S_OK);
 
 		// Initialize device using resulting settings
 		result = audioClient->Initialize
@@ -205,12 +173,12 @@ namespace al::engine
 			reinterpret_cast<WAVEFORMATEX *>(&wfmt),
 			nullptr
 		);
-		//AL_ASSERT_MSG(result == S_OK, "result is : ", result);
+		al_assert(result == S_OK);
 
 		// Get buffer size
 		uint32_t bufferFrameCount;
 		result = audioClient->GetBufferSize(&bufferFrameCount);
-		//AL_ASSERT_MSG(result == S_OK, "result is : ", result);
+		al_assert(result == S_OK);
 
 		// Get audio render
 		IAudioRenderClient* audioRenderClient;
@@ -219,7 +187,7 @@ namespace al::engine
 			Win32SoundSystem::IID_IAudioRenderClient,
 			reinterpret_cast<void**>(&audioRenderClient)
 		);
-		//AL_ASSERT_MSG(result == S_OK, "result is : ", result);
+		al_assert(result == S_OK);
 		
 		// Set flag for the audio system that thread is running
 		win32soundSystem->win32flags.set_flag(Win32SoundSystem::Win32SoundSystemFlags::IS_RUNNING);
@@ -240,7 +208,7 @@ namespace al::engine
 			// Get current available frames
 			uint32_t framesAvailable;
 			result = audioClient->GetCurrentPadding(&framesAvailable);
-			//AL_ASSERT_MSG(result == S_OK, "result is : ", result);
+			al_assert(result == S_OK);
 
 			framesAvailable = bufferFrameCount - framesAvailable;
 			BYTE* data;
@@ -270,15 +238,15 @@ namespace al::engine
 			}
 			else
 			{
-				//AL_LOG_SHORT(Logger::MESSAGE, "Can't get buffer")
+				al_assert(false);
 			}
 		}
 		
-		audioClient->Stop();
-		audioRenderClient->Release();
-		audioClient->Release();
-		device->Release();
-		enumerator->Release();
+		audioClient			->Stop();
+		audioRenderClient	->Release();
+		audioClient			->Release();
+		device				->Release();
+		enumerator			->Release();
 
 		::CoUninitialize();
 

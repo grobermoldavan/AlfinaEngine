@@ -51,10 +51,6 @@ namespace al::engine
 	};
 }
 
-#if defined(AL_UNITY_BUILD)
-#	include "windows_opengl_shader.cpp"
-#else
-
-#endif
+#include "windows_opengl_shader.cpp"
 
 #endif

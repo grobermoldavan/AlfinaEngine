@@ -2,46 +2,12 @@
 #include "windows_application_window.h"
 #include "windows_input.h"
 
+#include "engine/asserts/asserts.h"
+
 namespace al::engine
 {
-	ErrorInfo create_application_window(ApplicationWindow** window, const WindowProperties& properties, std::function<uint8_t* (size_t sizeBytes)> allocate)
-	{
-		if (!window)
-		{
-			return { ErrorInfo::Code::INCORRECT_INPUT_DATA, ErrorInfo::ERROR_MESSAGES[ErrorInfo::ErrorMessageCode::NULL_PTR_PROVIDED] };
-		}
-
-		// Allocate memory and construct object
-		Win32ApplicationWindow* win32window = reinterpret_cast<Win32ApplicationWindow*>(allocate(sizeof(Win32ApplicationWindow)));
-		if (!win32window)
-		{
-			return { ErrorInfo::Code::ALLOCATION_ERROR, ErrorInfo::ERROR_MESSAGES[ErrorInfo::ErrorMessageCode::UNABLE_TO_ALLOCATE_MEMORY] };
-		}
-
-		win32window = new(win32window) Win32ApplicationWindow(properties);
-		*window = win32window;
-
-		return { ErrorInfo::Code::ALL_FINE, ErrorInfo::ERROR_MESSAGES[ErrorInfo::ErrorMessageCode::ALL_FINE] };
-	}
-
-	ErrorInfo destroy_application_window(ApplicationWindow* window, std::function<void(uint8_t* ptr)> deallocate)
-	{
-		if (!window)
-		{
-			return { ErrorInfo::Code::INCORRECT_INPUT_DATA, ErrorInfo::ERROR_MESSAGES[ErrorInfo::ErrorMessageCode::NULL_PTR_PROVIDED] };
-		}
-
-		Win32ApplicationWindow* win32window = static_cast<Win32ApplicationWindow*>(window);
-
-		// Destruct and deallocate window
-		win32window->~Win32ApplicationWindow();
-		deallocate(reinterpret_cast<uint8_t*>(win32window));
-
-		return { ErrorInfo::Code::ALL_FINE, ErrorInfo::ERROR_MESSAGES[ErrorInfo::ErrorMessageCode::ALL_FINE] };
-	}
-
-	Win32ApplicationWindow::Win32ApplicationWindow(const WindowProperties& properties)
-		: ApplicationWindow{ properties }
+	Win32ApplicationWindow::Win32ApplicationWindow(const WindowProperties& properties, StackAllocator* allocator)
+		: ApplicationWindow{ properties, allocator }
 	{ 
 		// Create window input read mutex
 		inputReadMutex = ::CreateMutex(	NULL,	// default security attributes
@@ -72,7 +38,7 @@ namespace al::engine
 		::CloseHandle(inputReadMutex);
 	}
 
-	void Win32ApplicationWindow::get_input(ApplicationWindowInput* inputBuffer)
+	void Win32ApplicationWindow::get_input(ApplicationWindowInput* inputBuffer) const noexcept
 	{
 		// Wait for mutex
 		::WaitForSingleObject(inputReadMutex, INFINITE);
@@ -126,14 +92,14 @@ namespace al::engine
 
 		const char* WIN_NAME = win32window->properties.name;
 
-		WNDCLASS wc = {};
+		WNDCLASSA wc = {};
 
 		wc.lpfnWndProc		= window_proc;
 		wc.hInstance		= moduleHandle;
 		wc.lpszClassName	= WIN_NAME;
 		wc.hCursor			= ::LoadCursor(NULL, IDC_ARROW);
 
-		const bool isClassRegistered = ::RegisterClass(&wc);
+		const bool isClassRegistered = ::RegisterClassA(&wc);
 
 		constexpr DWORD windowedStyle = 
 			WS_OVERLAPPED	|			// Window has title and borders
@@ -142,7 +108,7 @@ namespace al::engine
 
 		constexpr DWORD fullscreenStyle = WS_POPUP;
 
-		HWND hwnd = ::CreateWindowEx(
+		HWND hwnd = ::CreateWindowExA(
 			0,                              										// Optional window styles.
 			WIN_NAME,               												// Window class
 			WIN_NAME,    															// Window text
