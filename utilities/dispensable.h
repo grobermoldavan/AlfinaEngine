@@ -1,5 +1,5 @@
-#ifndef __ALFINA_DISPENSABLE_H__
-#define __ALFINA_DISPENSABLE_H__
+#ifndef AL_DISPENSABLE_H
+#define AL_DISPENSABLE_H
 
 namespace al
 {

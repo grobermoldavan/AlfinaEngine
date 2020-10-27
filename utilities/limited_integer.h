@@ -1,5 +1,5 @@
-#ifndef __ALFINA_LIMITED_INTEGER_H__
-#define __ALFINA_LIMITED_INTEGER_H__
+#ifndef AL_LIMITED_INTEGER_H
+#define AL_LIMITED_INTEGER_H
 
 #include <cstdint>
 #include <concepts>

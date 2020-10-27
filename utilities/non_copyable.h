@@ -1,5 +1,5 @@
-#ifndef __ALFINA_NON_COPYABLE_H__
-#define __ALFINA_NON_COPYABLE_H__
+#ifndef AL_NON_COPYABLE_H
+#define AL_NON_COPYABLE_H
 
 namespace al
 {

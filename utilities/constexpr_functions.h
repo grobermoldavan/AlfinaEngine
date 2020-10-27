@@ -1,11 +1,12 @@
-#ifndef __ALFINA_CONSTEXPR_FUNCTIONS_H__
-#define __ALFINA_CONSTEXPR_FUNCTIONS_H__
+#ifndef AL_CONSTEXPR_FUNCTIONS_H
+#define AL_CONSTEXPR_FUNCTIONS_H
 
 #include <cstdint>
 #include <limits>
 #include <type_traits>
 #include <numbers>
 #include <concepts>
+#include <cstddef>
 
 namespace al
 {
@@ -83,31 +84,31 @@ namespace al
 			0x2D02EF8DU
 		};
 		
-		template<typename T, size_t size>
-		constexpr uint32_t crc32(const T (&data)[size], uint32_t crc = 0)
+		template<typename T, std::size_t size>
+		constexpr uint32_t crc32(const T (&data)[size], uint32_t crc = 0) noexcept
 		{
 			static_assert(sizeof(T) == sizeof(uint8_t));
 			crc = ~crc;
-			for (size_t it = 0; it < size; ++it)
+			for (std::size_t it = 0; it < size; ++it)
 				crc = crc_table[data[it] ^ (crc & 0xFF)] ^ (crc >> 8);
 			return ~crc;
 		}
 	}
 	
-	template<typename T, size_t size>
-	constexpr uint64_t crc32(const T (&data)[size])
+	template<typename T, std::size_t size>
+	constexpr uint64_t crc32(const T (&data)[size]) noexcept
 	{
 		return crc_private::crc32(data);
 	}
 	
 	template<typename T>
-	constexpr bool is_equal(T value1, T value2, T precision = std::numeric_limits<T>::epsilon())
+	constexpr bool is_equal(T value1, T value2, T precision = std::numeric_limits<T>::epsilon()) noexcept
 	{
 		return (value1 > value2 ? value1 - value2 : value2 - value1) < precision;
 	}
 
 	template<typename T>
-	constexpr T pow(T num, uint64_t power)
+	constexpr T pow(T num, uint64_t power) noexcept
 	{
 		if (power == 0) return 1;
 		T result = num;
@@ -119,7 +120,7 @@ namespace al
 	namespace sqrt_private
 	{
 		template<typename T>
-		constexpr T newton_sqrt(T x, T curr, T prev)
+		constexpr T newton_sqrt(T x, T curr, T prev) noexcept
 		{
 			return is_equal(curr, prev)
 				? curr
@@ -128,7 +129,7 @@ namespace al
 	}
 	
 	template<std::floating_point T>
-	constexpr T sqrt(T value)
+	constexpr T sqrt(T value) noexcept
 	{
 		T zero = static_cast<T>(0);
 		if ((value > zero || is_equal(value, zero)) && value < std::numeric_limits<T>::infinity())
@@ -142,61 +143,62 @@ namespace al
 	}
 	
 	template<std::unsigned_integral T>
-	constexpr T kilobytes(T num) 
+	constexpr T kilobytes(T num)  noexcept
 	{
 		return num * static_cast<T>(1024);
 	}
 	
 	template<std::unsigned_integral T>
-	constexpr T megabytes(T num) 
+	constexpr T megabytes(T num) noexcept
 	{	
 		return kilobytes(num) * static_cast<T>(1024);
 	}
 	
 	template<std::unsigned_integral T>
-	constexpr T gigabytes(T num) 
+	constexpr T gigabytes(T num) noexcept
 	{
 		return megabytes(num) * static_cast<T>(1024);
 	}
 
 	template<std::floating_point T>
-	constexpr T to_radians(T degrees)
+	constexpr T to_radians(T degrees) noexcept
 	{
 		return degrees * std::numbers::pi_v<T> / static_cast<T>(180);
 	}
 
 	template<std::floating_point T>
-	constexpr T to_degrees(T radians)
+	constexpr T to_degrees(T radians) noexcept
 	{
 		return radians * static_cast<T>(180) / std::numbers::pi_v<T>;
 	}
 
     template<std::unsigned_integral T>
-    constexpr inline T remove_bit(T value, size_t bit)
+    constexpr inline T remove_bit(T value, std::size_t bit) noexcept
     {
         return value & ~(T{1} << bit);
     }
 
+    constexpr std::byte remove_bit(std::byte value, std::size_t bit) noexcept
+    {
+        return static_cast<std::byte>(remove_bit(std::to_integer<uint8_t>(value), bit));
+    }
+
     template<std::unsigned_integral T>
-    constexpr inline T set_bit(T value, size_t bit)
+    constexpr inline T set_bit(T value, std::size_t bit) noexcept
     {
         return value | (T{1} << bit);
     }
 
-    // 101
-    // 0000 0000
-    // 3
-    // 1000 0000
-
-    // 1000 1000
-    // 1000 1000
-    // 1010 1000
+    constexpr std::byte set_bit(std::byte value, std::size_t bit) noexcept
+    {
+        return static_cast<std::byte>(set_bit(std::to_integer<uint8_t>(value), bit));
+    }
 
     template<std::unsigned_integral T>
-    constexpr T set_bits(T value, size_t startBit, size_t numBits, T bitsValue)
+    constexpr T set_bits(T value, std::size_t startBit, std::size_t numBits, T bitsValue) noexcept
     {
         T result = value;
-        for(size_t it = 0; it < numBits; ++it)
+        for(std::size_t it = 0; it < numBits; ++it)
         {
             bool isSet = ((bitsValue >> it) % 2) == 1;
             if (isSet) 
@@ -209,6 +211,27 @@ namespace al
             }
         }
         return result;
+    }
+
+    constexpr std::byte set_bits(std::byte value, std::size_t startBit, std::size_t numBits, std::byte bitsValue) noexcept
+    {
+        return static_cast<std::byte>(set_bits(std::to_integer<uint8_t>(value), startBit, numBits, std::to_integer<uint8_t>(bitsValue)));
+    }
+
+    template<std::unsigned_integral T>
+    constexpr bool is_bit_set(T value, std::size_t bit) noexcept
+    {
+        return ((value >> bit) % 2 == 1);
+    }
+
+    constexpr bool is_bit_set(std::byte value, std::size_t bit) noexcept
+    {
+        return is_bit_set(std::to_integer<uint8_t>(value), bit);
+    }
+
+    constexpr bool is_power_of_two(std::size_t value) noexcept
+    {
+        return (value & (value - 1)) == 0;
     }
 }
 

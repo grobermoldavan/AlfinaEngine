@@ -1,5 +1,5 @@
-#ifndef __ALFINA_FLAGS_H__
-#define __ALFINA_FLAGS_H__
+#ifndef AL_FLAGS_H
+#define AL_FLAGS_H
 
 #include <cstdint>
 

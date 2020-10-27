@@ -1,5 +1,5 @@
-#ifndef __ALFINA_SMOOTH_AVERAGE_H__
-#define __ALFINA_SMOOTH_AVERAGE_H__
+#ifndef AL_SMOOTH_AVERAGE_H
+#define AL_SMOOTH_AVERAGE_H
 
 namespace al
 {

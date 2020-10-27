@@ -1,5 +1,5 @@
-#ifndef __ALFINA_DEFER_H__
-#define __ALFINA_DEFER_H__
+#ifndef AL_DEFER_H
+#define AL_DEFER_H
 
 #include <functional>
 
