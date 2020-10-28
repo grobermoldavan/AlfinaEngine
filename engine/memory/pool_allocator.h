@@ -6,20 +6,18 @@
 #include <array>
 #include <algorithm>
 
+#include "allocator_base.h"
 #include "utilities/constexpr_functions.h"
 
 namespace al::engine
 {
-    // Implementation is in memory_manager.h
-    [[nodiscard]] std::byte* stack_alloc(std::size_t memorySizeBytes);
-
     class MemoryBucket
     {
     public:
         MemoryBucket() noexcept;
         ~MemoryBucket() noexcept;
 
-        void initialize(std::size_t blockSize, std::size_t blockCount) noexcept;
+        void initialize(std::size_t blockSize, std::size_t blockCount, AllocatorBase* allocator) noexcept;
         [[nodiscard]] std::byte* allocate(std::size_t memorySizeBytes) noexcept;
         void deallocate(std::byte* ptr, std::size_t memorySizeBytes) noexcept;
         const bool is_belongs(std::byte* ptr) const noexcept;
@@ -54,7 +52,7 @@ namespace al::engine
     MemoryBucket::~MemoryBucket() noexcept
     { }
 
-    void MemoryBucket::initialize(std::size_t blockSize, std::size_t blockCount) noexcept
+    void MemoryBucket::initialize(std::size_t blockSize, std::size_t blockCount, AllocatorBase* allocator) noexcept
     {
         this->blockSize = blockSize;
         this->blockCount = blockCount;
@@ -62,8 +60,8 @@ namespace al::engine
         memorySizeBytes = blockSize * blockCount;
         ledgerSizeBytes = 1 + ((blockCount - 1) / 8);
 
-        memory = stack_alloc(memorySizeBytes);
-        ledger = stack_alloc(ledgerSizeBytes);
+        memory = allocator->allocate(memorySizeBytes);
+        ledger = allocator->allocate(ledgerSizeBytes);
 
         std::memset(ledger, 0, ledgerSizeBytes);
     }
@@ -171,26 +169,6 @@ namespace al::engine
         }
     }
 
-    template<std::size_t BlockSize, std::size_t BlockCount>
-    class MemoryBucketTemplateWrapper
-    {
-    public:
-        MemoryBucketTemplateWrapper() = default;
-        ~MemoryBucketTemplateWrapper() = default;
-
-        void initialize() noexcept
-        {
-            bucket.initialize(BlockSize, BlockCount);
-        }
-
-        MemoryBucket* operator -> () noexcept
-        { 
-            return &bucket; 
-        }
-
-        MemoryBucket bucket;
-    };
-
     struct BucketDescrition
     {
         std::size_t blockSize = 0;
@@ -209,7 +187,7 @@ namespace al::engine
         }
     };
 
-    class PoolAllocator
+    class PoolAllocator : public AllocatorBase
     {
     public:
         constexpr static std::size_t MAX_BUCKETS = 5;
@@ -217,28 +195,16 @@ namespace al::engine
         PoolAllocator() = default;
         ~PoolAllocator() = default;
 
-        void initialize(std::array<BucketDescrition, MAX_BUCKETS> bucketDescriptions) noexcept;
+        virtual [[nodiscard]] std::byte* allocate(std::size_t memorySizeBytes) noexcept override;
 
-        [[nodiscard]] std::byte* allocate(std::size_t memorySizeBytes);
-        void deallocate(std::byte* ptr, std::size_t memorySizeBytes);
+        void initialize(std::array<BucketDescrition, MAX_BUCKETS> bucketDescriptions, AllocatorBase* allocator) noexcept;
+        void deallocate(std::byte* ptr, std::size_t memorySizeBytes) noexcept;
 
     private:
         std::array<MemoryBucket, MAX_BUCKETS> buckets;
     };
 
-    void PoolAllocator::initialize(std::array<BucketDescrition, MAX_BUCKETS> bucketDescriptions) noexcept
-    {
-        for (std::size_t it = 0; it < MAX_BUCKETS; it++)
-        {
-            if (bucketDescriptions[it].blockSize == 0 || bucketDescriptions[it].blockCount == 0)
-            {
-                continue;
-            }
-            buckets[it].initialize(bucketDescriptions[it].blockSize, bucketDescriptions[it].blockCount);
-        }
-    }
-
-    [[nodiscard]] std::byte* PoolAllocator::allocate(std::size_t memorySizeBytes)
+    [[nodiscard]] std::byte* PoolAllocator::allocate(std::size_t memorySizeBytes) noexcept
     {
         BucketCompareInfo comapreInfos[MAX_BUCKETS];
         std::size_t it;
@@ -278,7 +244,19 @@ namespace al::engine
         return nullptr;
     }
 
-    void PoolAllocator::deallocate(std::byte* ptr, std::size_t memorySizeBytes)
+    void PoolAllocator::initialize(std::array<BucketDescrition, MAX_BUCKETS> bucketDescriptions, AllocatorBase* allocator) noexcept
+    {
+        for (std::size_t it = 0; it < MAX_BUCKETS; it++)
+        {
+            if (bucketDescriptions[it].blockSize == 0 || bucketDescriptions[it].blockCount == 0)
+            {
+                continue;
+            }
+            buckets[it].initialize(bucketDescriptions[it].blockSize, bucketDescriptions[it].blockCount, allocator);
+        }
+    }
+
+    void PoolAllocator::deallocate(std::byte* ptr, std::size_t memorySizeBytes) noexcept
     {
         for (std::size_t it = 0; it < MAX_BUCKETS; it++)
         {

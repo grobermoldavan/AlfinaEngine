@@ -3,16 +3,19 @@
 
 #include <cstddef>
 
+#include "allocator_base.h"
+
 namespace al::engine
 {
-    class StackAllocator
+    class StackAllocator : public AllocatorBase
     {
     public:
         StackAllocator() noexcept;
         ~StackAllocator() noexcept;
 
+        virtual [[nodiscard]] std::byte* allocate(std::size_t memorySizeBytes) noexcept;
+
         void initialize(std::byte* memory, std::size_t memorySizeBytes) noexcept;
-        [[nodiscard]] std::byte* allocate(std::size_t memorySizeBytes) noexcept;
         void free_to_pointer(std::byte* ptr) noexcept;
 
     private:

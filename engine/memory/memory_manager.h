@@ -13,27 +13,23 @@ namespace al::engine
     class MemoryManager
     {
     public:
-        static void initialize() noexcept;
-        static void terminate() noexcept;
-
         MemoryManager() noexcept;
         ~MemoryManager() noexcept;
 
-        static StackAllocator* get_stack() noexcept;
-        static PoolAllocator* get_pool() noexcept;
+        void initialize() noexcept;
+        void terminate() noexcept;
+
+        StackAllocator* get_stack() noexcept;
+        PoolAllocator* get_pool() noexcept;
 
     private:
         constexpr static std::size_t MEMORY_SIZE = gigabytes<std::size_t>(1);
-
-        static MemoryManager instance;
 
         StackAllocator stack;
         PoolAllocator pool;
         bool isInitialized;
         std::byte* memory;
     };
-
-    MemoryManager MemoryManager::instance;
 
     MemoryManager::MemoryManager() noexcept
         : isInitialized{ false }
@@ -43,40 +39,31 @@ namespace al::engine
     MemoryManager::~MemoryManager() noexcept
     { }
 
-    StackAllocator* MemoryManager::get_stack() noexcept
-    {
-        return &instance.stack;
-    }
-
-    PoolAllocator* MemoryManager::get_pool() noexcept
-    {
-        return &instance.pool;
-    }
-
     void MemoryManager::initialize() noexcept
     {
-        if (instance.isInitialized) return;
-
-        instance.memory = static_cast<std::byte*>(std::malloc(MEMORY_SIZE));
-        instance.stack.initialize(instance.memory, MEMORY_SIZE);
-        instance.pool.initialize({
+        memory = static_cast<std::byte*>(std::malloc(MEMORY_SIZE));
+        stack.initialize(memory, MEMORY_SIZE);
+        pool.initialize({
             BucketDescrition{ 8, 1024 },
             BucketDescrition{ 16, 512 },
             BucketDescrition{ 32, 256 },
             BucketDescrition{ 64, 128 }
-        });
+        }, &stack);
     }
 
     void MemoryManager::terminate() noexcept
     {
-        if (!instance.isInitialized) return;
-
-        std::free(instance.memory);
+        std::free(memory);
     }
 
-    [[nodiscard]] std::byte* stack_alloc(std::size_t memorySizeBytes)
+    StackAllocator* MemoryManager::get_stack() noexcept
     {
-        return MemoryManager::get_stack()->allocate(memorySizeBytes);
+        return &stack;
+    }
+
+    PoolAllocator* MemoryManager::get_pool() noexcept
+    {
+        return &pool;
     }
 }
 

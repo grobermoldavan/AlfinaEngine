@@ -11,15 +11,13 @@
 #include <system_error>
 
 #include "engine/asserts/asserts.h"
+#include "engine/memory/allocator_base.h"
 #include "utilities/concepts.h"
 #include "utilities/non_copyable.h"
 #include "utilities/thread_safe/thread_safe_queue.h"
 
 namespace al::engine
 {
-    // Implementation is in memory_manager.h
-    [[nodiscard]] std::byte* stack_alloc(std::size_t memorySizeBytes);
-
     class Job : NonCopyable
     {
     public:
@@ -70,7 +68,7 @@ namespace al::engine
     class JobSystem : NonCopyable
     {
     public:
-        JobSystem(std::size_t numThreads) noexcept;
+        JobSystem(std::size_t numThreads, AllocatorBase* allocator) noexcept;
         ~JobSystem() noexcept;
 
         void add_job(Job* job) noexcept;
@@ -180,8 +178,8 @@ namespace al::engine
         return jobSystem->get_job();
     }
 
-    JobSystem::JobSystem(std::size_t numThreads) noexcept
-        : threads{ reinterpret_cast<JobSystemThread*>(stack_alloc(sizeof(JobSystemThread) * numThreads)), numThreads }
+    JobSystem::JobSystem(std::size_t numThreads, AllocatorBase* allocator) noexcept
+        : threads{ reinterpret_cast<JobSystemThread*>(allocator->allocate(sizeof(JobSystemThread) * numThreads)), numThreads }
         , jobs{ }
     {
         for (JobSystemThread& thread : threads)
