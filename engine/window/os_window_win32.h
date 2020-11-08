@@ -144,37 +144,37 @@ namespace al::engine
         {
             case WM_LBUTTONDOWN:
             {
-                window->input.mouse.buttons.set_flag(OsWindowInput::MouseInputFlags::LMB_PRESSED);
+                window->input.mouse.buttons.set_flag(static_cast<uint32_t>(OsWindowInput::MouseInputFlags::LMB_PRESSED));
                 LOGMSG(WM_LBUTTONDOWN)
                 break;
             }
             case WM_LBUTTONUP:
             {
-                window->input.mouse.buttons.clear_flag(OsWindowInput::MouseInputFlags::LMB_PRESSED);
+                window->input.mouse.buttons.clear_flag(static_cast<uint32_t>(OsWindowInput::MouseInputFlags::LMB_PRESSED));
                 LOGMSG(WM_LBUTTONUP)
                 break;
             }
             case WM_MBUTTONDOWN:
             {
-                window->input.mouse.buttons.set_flag(OsWindowInput::MouseInputFlags::MMB_PRESSED);
+                window->input.mouse.buttons.set_flag(static_cast<uint32_t>(OsWindowInput::MouseInputFlags::MMB_PRESSED));
                 LOGMSG(WM_MBUTTONDOWN)
                 break;
             }
             case WM_MBUTTONUP:
             {
-                window->input.mouse.buttons.clear_flag(OsWindowInput::MouseInputFlags::MMB_PRESSED);
+                window->input.mouse.buttons.clear_flag(static_cast<uint32_t>(OsWindowInput::MouseInputFlags::MMB_PRESSED));
                 LOGMSG(WM_MBUTTONUP)
                 break;
             }
             case WM_RBUTTONDOWN:
             {
-                window->input.mouse.buttons.set_flag(OsWindowInput::MouseInputFlags::RMB_PRESSED);
+                window->input.mouse.buttons.set_flag(static_cast<uint32_t>(OsWindowInput::MouseInputFlags::RMB_PRESSED));
                 LOGMSG(WM_RBUTTONDOWN)
                 break;
             }
             case WM_RBUTTONUP:
             {
-                window->input.mouse.buttons.clear_flag(OsWindowInput::MouseInputFlags::RMB_PRESSED);
+                window->input.mouse.buttons.clear_flag(static_cast<uint32_t>(OsWindowInput::MouseInputFlags::RMB_PRESSED));
                 LOGMSG(WM_RBUTTONUP)
                 break;
             }
@@ -214,7 +214,7 @@ namespace al::engine
 
     bool process_keyboard_input(OsWindowWin32* window, UINT message, WPARAM wParam, LPARAM lParam) noexcept
     {
-        #define k(key) OsWindowInput::KeyboardInputFlags::key
+        #define k(key) static_cast<uint32_t>(OsWindowInput::KeyboardInputFlags::key)
 
         static uint32_t VK_CODE_TO_KEYBOARD_FLAGS[] =
         {
@@ -476,20 +476,6 @@ namespace al::engine
         };
 
         #undef k
-
-        static const char* dbgToString[] =
-        {
-            "NONE",
-            "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "A", "S", "D", "F", "G", "H", "J", "K", "L", "Z", "X", "C", "V", "B", "N", "M",
-            "L_BRACKET", "R_BRACKET", "SEMICOLON", "APOSTROPHE", "BACKSLASH", "COMMA", "PERIOD", "SLASH",
-            "TILDA", "NUM_1", "NUM_2", "NUM_3", "NUM_4", "NUM_5", "NUM_6", "NUM_7", "NUM_8", "NUM_9", "NUM_0", "MINUS", "EQUALS",
-            "TAB", "CAPS_LOCK", "ENTER", "BACKSPACE", "SPACE",
-            "L_SHIFT", "R_SHIFT", "SHIFT",
-            "L_CTRL", "R_CTRL", "CTRL",
-            "L_ALT", "R_ALT", "ALT",
-            "ESCAPE", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
-            "ARROW_UP", "ARROW_DOWN", "ARROW_LEFT", "ARROW_RIGHT"
-        };
 
         switch (message)
         {

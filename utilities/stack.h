@@ -30,14 +30,14 @@ namespace al
             this->size = size;
         }
 
-        bool push(T* value) noexcept
+        bool push(const T& value) noexcept
         {
             if (is_full())
             {
                 return false;
             }
 
-            memory[topElement++] = *value;
+            memory[topElement++] = value;
             return true;
         }
 
@@ -65,6 +65,17 @@ namespace al
         bool is_full() const noexcept
         {
             return topElement == size;
+        }
+
+        bool at(T* element, std::size_t id) noexcept
+        {
+            if (id >= topElement)
+            {
+                return false;
+            }
+
+            *element = memory[id];
+            return true;
         }
 
     private:

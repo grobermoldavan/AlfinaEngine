@@ -7,6 +7,9 @@
 #include "engine/job_system/job_system.h"
 #include "engine/window/os_window.h"
 
+#include "utilities/event.h"
+#include "utilities/toggle.h"
+
 namespace al::engine
 {
     class AlfinaEngineApplication;
@@ -19,21 +22,26 @@ namespace al::engine
     class AlfinaEngineApplication
     {
     public:
-        virtual void InitializeComponents() noexcept;
-        virtual void TerminateComponents() noexcept;
+        virtual void initialize_components() noexcept;
+        virtual void terminate_components() noexcept;
 
-        void Run() noexcept;
-        void UpdateInput() noexcept;
-        void Simulate(float dt) noexcept;
-        void Render() noexcept;
+        void run() noexcept;
+        void update_input() noexcept;
+        void simulate(float dt) noexcept;
+        void render() noexcept;
 
     protected:
         MemoryManager memoryManager;
         JobSystem* jobSystem;
         OsWindow* window;
+
+        Toggle<OsWindowInput> inputState;
+
+        Event<void(OsWindowInput::KeyboardInputFlags)> onKeyboardButtonPressed;
+        Event<void(OsWindowInput::MouseInputFlags)> onMouseButtonPressed;
     };
 
-    void AlfinaEngineApplication::InitializeComponents() noexcept
+    void AlfinaEngineApplication::initialize_components() noexcept
     {
         memoryManager.initialize();
         jobSystem = memoryManager.get_stack()->allocate_as<JobSystem>();
@@ -41,14 +49,14 @@ namespace al::engine
         window = create_window({ }, memoryManager.get_stack());
     }
 
-    void AlfinaEngineApplication::TerminateComponents() noexcept
+    void AlfinaEngineApplication::terminate_components() noexcept
     {
         destroy_window(window);
         jobSystem->~JobSystem();
         memoryManager.terminate();
     }
 
-    void AlfinaEngineApplication::Run() noexcept
+    void AlfinaEngineApplication::run() noexcept
     {
         using ClockT = std::chrono::steady_clock;
         using DtDuration = std::chrono::duration<float>;
@@ -66,24 +74,47 @@ namespace al::engine
                 break;
             }
 
-            UpdateInput();
-            Simulate(dt);
-            Render();
+            update_input();
+            simulate(dt);
+            render();
         }
     }
 
-    void AlfinaEngineApplication::UpdateInput() noexcept
+    void AlfinaEngineApplication::update_input() noexcept
     {
-        auto input = window->get_input();
+        inputState.toggle();
+        OsWindowInput& current = inputState.get_current();
+        OsWindowInput& previous = inputState.get_previous();
+
+        current = window->get_input();
+
+        for (std::size_t it = 1; it < static_cast<std::size_t>(OsWindowInput::KeyboardInputFlags::__end); it++)
+        {
+            bool currentFlag = current.keyboard.buttons.get_flag(it);
+            bool previousFlag = previous.keyboard.buttons.get_flag(it);
+            if (currentFlag && !previousFlag)
+            {
+                onKeyboardButtonPressed(static_cast<OsWindowInput::KeyboardInputFlags>(it));
+            }
+        }
+
+        for (std::size_t it = 0; it < static_cast<std::size_t>(OsWindowInput::MouseInputFlags::__end); it++)
+        {
+            bool currentFlag = current.mouse.buttons.get_flag(it);
+            bool previousFlag = previous.mouse.buttons.get_flag(it);
+            if (currentFlag && !previousFlag)
+            {
+                onMouseButtonPressed(static_cast<OsWindowInput::MouseInputFlags>(it));
+            }
+        }
+    }
+
+    void AlfinaEngineApplication::simulate(float dt) noexcept
+    {
 
     }
 
-    void AlfinaEngineApplication::Simulate(float dt) noexcept
-    {
-
-    }
-
-    void AlfinaEngineApplication::Render() noexcept
+    void AlfinaEngineApplication::render() noexcept
     {
 
     }

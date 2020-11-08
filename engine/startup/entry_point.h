@@ -9,9 +9,9 @@ int main(int argc, const char* argv[])
 
     CommandLineParams params{ argv, static_cast<CommandLineParams::size_type>(argc) };
     AlfinaEngineApplication* application = create_application(params);
-    application->InitializeComponents();
-    application->Run();
-    application->TerminateComponents();
+    application->initialize_components();
+    application->run();
+    application->terminate_components();
     destroy_application(application);
 }
 
