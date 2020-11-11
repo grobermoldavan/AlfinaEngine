@@ -85,6 +85,7 @@ namespace al::engine
         virtual ~OsWindow() noexcept = default;
 
         virtual void process() noexcept = 0;
+        virtual void quit() noexcept = 0;
         virtual bool is_quit() noexcept = 0;
         virtual OsWindowInput get_input() noexcept = 0;
 

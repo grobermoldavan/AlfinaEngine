@@ -17,6 +17,7 @@ namespace al::engine
         OsWindowWin32(const OsWindowParams& params) noexcept;
         ~OsWindowWin32() noexcept = default;
 
+        virtual void quit() noexcept override;
         virtual void process() noexcept override;
         virtual bool is_quit() noexcept override;
         virtual OsWindowInput get_input() noexcept override;
@@ -97,6 +98,11 @@ namespace al::engine
             ::TranslateMessage(&msg);
             ::DispatchMessage(&msg);
         }
+    }
+
+    void OsWindowWin32::quit() noexcept
+    {
+        ::PostQuitMessage(0);
     }
 
     bool OsWindowWin32::is_quit() noexcept

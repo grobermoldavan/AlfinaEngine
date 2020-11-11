@@ -17,6 +17,9 @@ namespace al
     // Checks if type is not a function, but something invocable
     template<typename T, typename ... Args>
     concept invokable = !std::is_function<T>::value && std::invocable<T, Args...>;
+
+    template<typename T>
+    concept number = std::is_floating_point<T>::value || std::is_integral<T>::value;
 }
 
 #endif

@@ -28,7 +28,7 @@ namespace al
             : subscribers{ }
         { }
 
-        void invoke(const Args&... args) noexcept
+        inline void invoke(const Args&... args) noexcept
         {
             subscribers.for_each([&](FunctionT* func)
             {
@@ -36,7 +36,7 @@ namespace al
             });
         }
 
-        void subscribe(const FunctionT& func) noexcept
+        inline void subscribe(const FunctionT& func) noexcept
         {
             subscribers.insert(func);
         }
@@ -44,7 +44,7 @@ namespace al
         // @NOTE : currently usubscription works only by removing all
         //         subscriptions of a given object
         // @TODO : add a way to unsubscribe any function
-        void unsubscribe(void* host) noexcept
+        inline void unsubscribe(void* host) noexcept
         {
             subscribers.remove_by_condition([&](FunctionT* other) -> bool
             {
@@ -52,7 +52,7 @@ namespace al
             });
         }
 
-        void operator () (const Args&... args) noexcept
+        inline void operator () (const Args&... args) noexcept
         {
             invoke(args...);
         }

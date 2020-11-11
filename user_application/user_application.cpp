@@ -45,6 +45,11 @@ void UserApplication::terminate_components() noexcept
 void UserApplication::handle_keyboard_input(al::engine::OsWindowInput::KeyboardInputFlags key)
 {
     std::cout << al::engine::OsWindowInput::KEYBOARD_FLAGS_TO_STRING[static_cast<uint32_t>(key)] << std::endl;
+
+    if (key == al::engine::OsWindowInput::KeyboardInputFlags::ESCAPE)
+    {
+        app_quit();
+    }
 }
 
 void UserApplication::handle_mouse_input(al::engine::OsWindowInput::MouseInputFlags key)

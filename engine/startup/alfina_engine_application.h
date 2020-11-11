@@ -10,6 +10,8 @@
 #include "utilities/event.h"
 #include "utilities/toggle.h"
 
+#include "utilities/math.h"
+
 namespace al::engine
 {
     class AlfinaEngineApplication;
@@ -38,7 +40,11 @@ namespace al::engine
         Toggle<OsWindowInput> inputState;
 
         Event<void(OsWindowInput::KeyboardInputFlags)> onKeyboardButtonPressed;
+        Event<void(OsWindowInput::KeyboardInputFlags)> onKeyboardButtonReleased;
         Event<void(OsWindowInput::MouseInputFlags)> onMouseButtonPressed;
+        Event<void(OsWindowInput::MouseInputFlags)> onMouseButtonReleased;
+
+        void app_quit() noexcept;
     };
 
     void AlfinaEngineApplication::initialize_components() noexcept
@@ -96,6 +102,10 @@ namespace al::engine
             {
                 onKeyboardButtonPressed(static_cast<OsWindowInput::KeyboardInputFlags>(it));
             }
+            else if (!currentFlag && previousFlag)
+            {
+                onKeyboardButtonReleased(static_cast<OsWindowInput::KeyboardInputFlags>(it));
+            }
         }
 
         for (std::size_t it = 0; it < static_cast<std::size_t>(OsWindowInput::MouseInputFlags::__end); it++)
@@ -106,17 +116,26 @@ namespace al::engine
             {
                 onMouseButtonPressed(static_cast<OsWindowInput::MouseInputFlags>(it));
             }
+            else if (!currentFlag && previousFlag)
+            {
+                onMouseButtonReleased(static_cast<OsWindowInput::MouseInputFlags>(it));
+            }
         }
     }
 
     void AlfinaEngineApplication::simulate(float dt) noexcept
     {
-
+        
     }
 
     void AlfinaEngineApplication::render() noexcept
     {
 
+    }
+
+    void AlfinaEngineApplication::app_quit() noexcept
+    {
+        window->quit();
     }
 }
 
