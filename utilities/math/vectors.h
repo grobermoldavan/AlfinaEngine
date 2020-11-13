@@ -2,6 +2,7 @@
 #define AL_VECTORS_H
 
 #include <cstring>
+#include <iostream>
 
 #include "../concepts.h"
 #include "../constexpr_functions.h"
@@ -53,6 +54,12 @@ namespace al
         friend  inline vec2     operator /  (const vec2& one, Type value)           noexcept    { return one.div(value); }
         friend  inline vec2     operator *  (Type value, const vec2& one)           noexcept    { return one.mul(value); }
         friend  inline vec2     operator /  (Type value, const vec2& one)           noexcept    { return one.div(value); }
+        
+        friend std::ostream& operator << (std::ostream& os, const vec2& vector) noexcept
+        {
+            os << "[" << vector.x << ", " << vector.y << "]";
+            return os;
+        }
     };
 
     template<al::number Type>
@@ -104,6 +111,12 @@ namespace al
         friend  inline vec3     operator /  (const vec3& one, Type value)           noexcept    { return one.div(value); }
         friend  inline vec3     operator *  (Type value, const vec3& one)           noexcept    { return one.mul(value); }
         friend  inline vec3     operator /  (Type value, const vec3& one)           noexcept    { return one.div(value); }
+
+        friend std::ostream& operator << (std::ostream& os, const vec3& vector) noexcept
+        {
+            os << "[" << vector.x << ", " << vector.y << ", " << vector.z << "]";
+            return os;
+        }
     };
 
     template<al::number Type>
@@ -157,6 +170,12 @@ namespace al
         friend  inline vec4     operator /  (const vec4& one, Type value)           noexcept    { return one.div(value); }
         friend  inline vec4     operator *  (Type value, const vec4& one)           noexcept    { return one.mul(value); }
         friend  inline vec4     operator /  (Type value, const vec4& one)           noexcept    { return one.div(value); }
+
+        friend std::ostream& operator << (std::ostream& os, const vec4& vector) noexcept
+        {
+            os << "[" << vector.x << ", " << vector.y << ", " << vector.z << ", " << vector.w << "]";
+            return os;
+        }
     };
 
     using float2 = vec2<float>;

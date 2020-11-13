@@ -9,6 +9,66 @@
 
 namespace al
 {
+    float4x4 construct_translation_mat(const float3& position) noexcept
+    {
+        return
+        {
+            1, 0, 0, position.x,
+            0, 1, 0, position.y,
+            0, 0, 1, position.z,
+            0, 0, 0, 1,
+        };
+    }
+
+    float4x4 construct_rotation_mat(const float3& eulerAngles) noexcept
+    {
+        const float cosPitch = std::cos(to_radians(eulerAngles.x));
+        const float sinPitch = std::sin(to_radians(eulerAngles.x));
+
+        const float cosYaw = std::cos(to_radians(eulerAngles.y));
+        const float sinYaw = std::sin(to_radians(eulerAngles.y));
+
+        const float cosRoll = std::cos(to_radians(eulerAngles.z));
+        const float sinRoll = std::sin(to_radians(eulerAngles.z));
+
+        const float4x4 pitch
+        {
+            1, 0       , 0               , 0,
+            0, cosPitch, -1.0f * sinPitch, 0,
+            0, sinPitch,         cosPitch, 0,
+            0, 0       , 0               , 1
+        };
+
+        const float4x4 yaw
+        {
+            cosYaw        , 0, sinYaw, 0,
+            0             , 1, 0     , 0,
+            -1.0f * sinYaw, 0, cosYaw, 0,
+            0             , 0, 0     , 1
+        };
+
+        const float4x4 roll
+        {
+            cosRoll, -1.0f * sinRoll, 0, 0,
+            sinRoll,         cosRoll, 0, 0,
+            0      , 0              , 1, 0,
+            0      , 0              , 0, 1
+        };
+
+        return yaw * pitch * roll;
+    }
+
+    float4x4 construct_scale_mat(const float3& scale) noexcept
+    {
+        return
+        {
+            scale.x , 0         , 0         , 0,
+            0       , scale.y   , 0         , 0,
+            0       , 0         , scale.z   , 0,
+            0       , 0         , 0         , 1
+        };
+    }
+
     struct Transform
     {
         float4x4 translation;
@@ -91,62 +151,17 @@ namespace al
 
     void Transform::set_position(const float3& position) noexcept
     {
-        translation.set
-        ({
-            1, 0, 0, position.x,
-            0, 1, 0, position.y,
-            0, 0, 1, position.z,
-            0, 0, 0, 1,
-        });
+        translation.set(construct_translation_mat(position));
     }
 
     void Transform::set_rotation(const float3& eulerAngles) noexcept
     {
-        const float cosPitch = std::cos(to_radians(eulerAngles.x));
-        const float sinPitch = std::sin(to_radians(eulerAngles.x));
-
-        const float cosYaw = std::cos(to_radians(eulerAngles.y));
-        const float sinYaw = std::sin(to_radians(eulerAngles.y));
-
-        const float cosRoll = std::cos(to_radians(eulerAngles.z));
-        const float sinRoll = std::sin(to_radians(eulerAngles.z));
-
-        const float4x4 pitch
-        {
-            1, 0       , 0               , 0,
-            0, cosPitch, -1.0f * sinPitch, 0,
-            0, sinPitch,         cosPitch, 0,
-            0, 0       , 0               , 1
-        };
-
-        const float4x4 yaw
-        {
-            cosYaw        , 0, sinYaw, 0,
-            0             , 1, 0     , 0,
-            -1.0f * sinYaw, 0, cosYaw, 0,
-            0             , 0, 0     , 1
-        };
-
-        const float4x4 roll
-        {
-            cosRoll, -1.0f * sinRoll, 0, 0,
-            sinRoll,         cosRoll, 0, 0,
-            0      , 0              , 1, 0,
-            0      , 0              , 0, 1
-        };
-
-        rotation = yaw * pitch * roll;
+        rotation = construct_rotation_mat(eulerAngles);
     }
 
     void Transform::set_scale(const float3& vec) noexcept
     {
-        scale.set
-        ({
-            vec.x, 0    , 0    , 0,
-            0    , vec.y, 0    , 0,
-            0    , 0    , vec.z, 0,
-            0    , 0    , 0    , 1
-        });
+        scale.set(construct_scale_mat(vec));
     }
 }
 

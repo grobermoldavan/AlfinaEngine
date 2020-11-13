@@ -1,6 +1,8 @@
 #ifndef AL_MATRICES_H
 #define AL_MATRICES_H
 
+#include <iostream>
+
 #include "utilities/concepts.h"
 #include "utilities/constexpr_functions.h"
 #include "vectors.h"
@@ -164,6 +166,15 @@ namespace al
         friend  inline mat4x4       operator * (const mat4x4& mat, Type value)              noexcept { return mat.mul(value); }
         friend  inline mat4x4       operator * (Type value, const mat4x4& mat)              noexcept { return mat.mul(value); }
         friend  inline vec4<Type>   operator * (const mat4x4& mat, const vec4<Type>& vec)   noexcept { return mat.mul(vec); }
+
+        friend std::ostream& operator << (std::ostream& os, const mat4x4& mat) noexcept
+        {
+            os << "[" << mat.m[0][0] << ", " << mat.m[0][1] << ", " << mat.m[0][2] << ", " << mat.m[0][3] << "]" << std::endl;
+            os << "[" << mat.m[1][0] << ", " << mat.m[1][1] << ", " << mat.m[1][2] << ", " << mat.m[1][3] << "]" << std::endl;
+            os << "[" << mat.m[2][0] << ", " << mat.m[2][1] << ", " << mat.m[2][2] << ", " << mat.m[2][3] << "]" << std::endl;
+            os << "[" << mat.m[3][0] << ", " << mat.m[3][1] << ", " << mat.m[3][2] << ", " << mat.m[3][3] << "]" << std::endl;
+            return os;
+        }
     };
     
     using float4x4 = mat4x4<float>;

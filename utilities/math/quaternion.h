@@ -2,8 +2,10 @@
 #define AL_QUATERNION_H
 
 #include <cmath>
+#include <numbers>
 
 #include "vectors.h"
+#include "matrices.h"
 #include "utilities/constexpr_functions.h"
 
 namespace al
@@ -18,13 +20,15 @@ namespace al
         };
 
         Quaternion() noexcept;
-        Quaternion(const float3&, float) noexcept;
-        Quaternion(const Quaternion&) noexcept;
+        Quaternion(const float3& axis, float angle) noexcept;
+        Quaternion(const Quaternion& other) noexcept;
 
         void        set_axis_angle(const float3& axis, float angle)         noexcept;
         AxisAngle   get_axis_angle()                                const   noexcept;
-        void        set_euler_angles(float3 angles)                         noexcept;
+        void        set_euler_angles(const float3& angles)                  noexcept;
         float3      get_euler_angles()                              const   noexcept;
+        void        set_rotation_mat(const float4x4& mat)                   noexcept;
+        float4x4    get_rotation_mat()                              const   noexcept;
 
         Quaternion add(const Quaternion& other) const noexcept;
         Quaternion sub(const Quaternion& other) const noexcept;
@@ -40,9 +44,22 @@ namespace al
         void        invert()                    noexcept;
         Quaternion  inverted()          const   noexcept;
 
-    private:
-        float3 imaginary;
-        float real;
+        friend std::ostream& operator << (std::ostream& os, const Quaternion& quat) noexcept;
+
+    public:
+        union
+        {
+            struct
+            {
+                float3 imaginary;
+                float real;
+            };
+            struct
+            {
+                float x, y, z, w;
+            };
+            float elements[4];
+        };
     };
 
     Quaternion::Quaternion() noexcept
@@ -50,10 +67,12 @@ namespace al
         , real{ 1 }
     { }
 
-    Quaternion::Quaternion(const float3& _imaginary, float _real) noexcept
-        : imaginary{ _imaginary }
-        , real{ _real }
-    { }
+    Quaternion::Quaternion(const float3& axis, float angle) noexcept
+        : imaginary{ }
+        , real{ }
+    {
+        set_axis_angle(axis, angle);
+    }
 
     Quaternion::Quaternion(const Quaternion& other) noexcept
         : imaginary{ other.imaginary }
@@ -90,57 +109,70 @@ namespace al
         }
     }
 
-    void Quaternion::set_euler_angles(float3 angles) noexcept
+    void Quaternion::set_euler_angles(const float3& angles) noexcept
     {
-        float cy = std::cos(to_radians(angles.z) * 0.5f);
-        float sy = std::sin(to_radians(angles.z) * 0.5f);
-        float cp = std::cos(to_radians(angles.y) * 0.5f);
-        float sp = std::sin(to_radians(angles.y) * 0.5f);
-        float cr = std::cos(to_radians(angles.x) * 0.5f);
-        float sr = std::sin(to_radians(angles.x) * 0.5f);
+        // https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
+        // xyz - zxy
 
-        imaginary.x = sr * cp * cy - cr * sp * sy;
-        imaginary.y = cr * sp * cy + sr * cp * sy;
-        imaginary.z = cr * cp * sy - sr * sp * cy;
-        real = cr * cp * cy + sr * sp * sy;
+        // @NOTE : PHB to PYR notations conversion
+        //         pitch - x - pitch
+        //         head  - y - yaw
+        //         bank  - z - roll
+
+        float cy = std::cos(to_radians(angles.y) * 0.5f);
+        float sy = std::sin(to_radians(angles.y) * 0.5f);
+        float cx = std::cos(to_radians(angles.x) * 0.5f);
+        float sx = std::sin(to_radians(angles.x) * 0.5f);
+        float cz = std::cos(to_radians(angles.z) * 0.5f);
+        float sz = std::sin(to_radians(angles.z) * 0.5f);
+
+        x = cz * sx * cy + sz * cx * sy;
+        y = cz * cx * sy - sz * sx * cy;
+        z = sz * cx * cy - cz * sx * sy;
+        w = cz * cx * cy + sz * sx * sy;
     }
 
     float3 Quaternion::get_euler_angles() const noexcept
     {
-        float test = imaginary.x * imaginary.y + imaginary.z * real;
-        if (test > 0.5f || is_equal(test, 0.5f))
-        {
-            return
-            {
-                0.0f,
-                2.0f * to_degrees(std::atan2(imaginary.x, real)),
-                90.0f
-            };
-        }
-        else if (test < -0.5f || is_equal(test, -0.5f))
-        {
-            return 
-            {
-                0.0f,
-                -1.0f * 2.0f * to_degrees(std::atan2(imaginary.x, real)),
-                -1.0f * 90.0f
-            };
-        }
+        // https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
+        // xyz - zxy
 
         float3 result;
-
-        float squareX = imaginary.x * imaginary.x;
-        float squareY = imaginary.y * imaginary.y;
-        float squareZ = imaginary.z * imaginary.z;
-
-        float denom = 1.0f - 2.0f * (squareY + squareZ);
-        result.y = to_degrees(std::atan2(2.0f * (imaginary.y * real - imaginary.x * imaginary.z), denom));
-        result.z = to_degrees(std::asin(2.0f * test));
-
-        denom = 1.0f - 2.0f * (squareX + squareZ);
-        result.x = to_degrees(std::atan2(2.0f * (imaginary.x * real - imaginary.y * imaginary.z), denom));
-
+        float sinp = 2.0f * (w * x - y * z);
+        if (std::abs(sinp) >= 1.0f)
+        {
+            result.x = to_degrees(std::copysign(std::numbers::pi_v<float> / 2.0f, sinp));
+        }
+        else
+        {
+            result.x = to_degrees(std::asin(sinp));
+        }
+        result.y = to_degrees(std::atan2(2.0f * (w * y + z * x), 1.0f - 2.0f * (x * x + y * y)));
+        result.z = to_degrees(std::atan2(2.0f * (w * z + x * y), 1.0f - 2.0f * (z * z + x * x)));
         return result;
+    }
+
+    void Quaternion::set_rotation_mat(const float4x4& mat) noexcept
+    {
+        // https://www.euclideanspace.com/maths/geometry/rotations/conversions/matrixToQuaternion/index.htm
+
+        w = std::sqrt(1.0f + mat.m[0][0] + mat.m[1][1] + mat.m[2][2]) / 2.0f;
+        x = (mat.m[2][1] - mat.m[1][2]) / (4.0f * w);
+        y = (mat.m[0][2] - mat.m[2][0]) / (4.0f * w);
+        z = (mat.m[1][0] - mat.m[0][1]) / (4.0f * w);
+    }
+
+    float4x4 Quaternion::get_rotation_mat() const noexcept
+    {
+        // https://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToMatrix/index.htm
+
+        return
+        {
+            1.0f - 2.0f * y * y - 2.0f * z * z  , 2.0f * x * y - 2.0f * z * w       , 2.0f * x * z + 2.0f * y * w       , 0.0f,
+            2.0f * x * y + 2.0f * z * w         , 1.0f - 2.0f * x * x - 2.0f * z * z, 2.0f * y * z + 2.0f * x * w       , 0.0f,
+            2.0f * x * z - 2.0f * y * w         , 2.0f * y * z + 2.0f * x * w       , 1.0f - 2.0f * x * x - 2.0f * y * y, 0.0f,
+            0.0f                                , 0.0f                              , 0.0f                              , 1.0f
+        };
     }
 
     Quaternion Quaternion::add(const Quaternion& other) const noexcept
@@ -163,10 +195,16 @@ namespace al
 
     Quaternion Quaternion::mul(const Quaternion& other) const noexcept
     {
+        // https://www.cprogramming.com/tutorial/3d/quaternions.html
+
         return
         {
-            other.imaginary * real + imaginary * other.real + imaginary.cross(other.imaginary),
-            real * other.real * imaginary.dot(other.imaginary)
+            {
+                real * other.imaginary.x + imaginary.x * other.real         + imaginary.y * other.imaginary.z   - imaginary.z * other.imaginary.y,
+                real * other.imaginary.y - imaginary.x * other.imaginary.z  + imaginary.y * other.real          + imaginary.z * other.imaginary.x,
+                real * other.imaginary.z + imaginary.x * other.imaginary.y  - imaginary.y * other.imaginary.x   + imaginary.z * other.real
+            },
+            real * other.real - imaginary.x * other.imaginary.x - imaginary.y * other.imaginary.y - imaginary.z * other.imaginary.z
         };
     }
 
@@ -227,6 +265,12 @@ namespace al
             imaginary * -1.0f,
             real
         };
+    }
+
+    std::ostream& operator << (std::ostream& os, const Quaternion& quat) noexcept
+    {
+        os << quat.imaginary << " " << quat.real;
+        return os;
     }
 }
 
