@@ -15,33 +15,38 @@
 #include "utilities/concepts.h"
 #include "utilities/non_copyable.h"
 #include "utilities/thread_safe/thread_safe_queue.h"
+#include "utilities/function.h"
 
 namespace al::engine
 {
     class Job : NonCopyable
     {
     public:
-        using DispatchFunction = void(*)(Job*);
+        using DispatchFunction = Function<void(Job*)>;
 
         Job() noexcept;
         Job(DispatchFunction func, Job* parent = nullptr) noexcept;
 
-        template<pod T> void set_data(const T& data) noexcept;
-        template<pod T> T& get_data() noexcept;
+        //template<pod T> void set_data(const T& data) noexcept;
+        //template<pod T> T& get_data() noexcept;
 
         void dispatch() noexcept;
         bool is_finished() const noexcept;
 
     protected:
+        typedef std::byte CachelinePadding[std::hardware_destructive_interference_size];
+
         std::atomic<std::size_t> unfinishedJobs;
         DispatchFunction dispatchFunction;
         Job* parent;
 
-        static constexpr std::size_t JOB_PAYLOAD_SIZE = sizeof(unfinishedJobs) + sizeof(dispatchFunction) + sizeof(parent);
-        static constexpr std::size_t JOB_MAX_PADDING_SIZE = std::hardware_destructive_interference_size;
-        static constexpr std::size_t JOB_PADDING_SIZE = JOB_MAX_PADDING_SIZE - JOB_PAYLOAD_SIZE;
+        CachelinePadding pad;
 
-        std::byte padding[JOB_PADDING_SIZE];
+        //static constexpr std::size_t JOB_PAYLOAD_SIZE = sizeof(unfinishedJobs) + sizeof(dispatchFunction) + sizeof(parent);
+        //static constexpr std::size_t JOB_MAX_PADDING_SIZE = std::hardware_destructive_interference_size;
+        //static constexpr std::size_t JOB_PADDING_SIZE = JOB_MAX_PADDING_SIZE - JOB_PAYLOAD_SIZE;
+        //
+        //std::byte padding[JOB_PADDING_SIZE];
 
         void finish() noexcept;
     };
@@ -86,7 +91,7 @@ namespace al::engine
 
     Job::Job() noexcept
         : unfinishedJobs{ 1 }
-        , dispatchFunction{ nullptr }
+        , dispatchFunction{ }
         , parent{ nullptr }
     { }
 
@@ -101,22 +106,21 @@ namespace al::engine
         }
     }
 
-    template<pod T>
-    void Job::set_data(const T& data) noexcept
-    {
-        static_assert(sizeof(data) <= JOB_PADDING_SIZE);
-        std::memcpy(padding, &data, sizeof(data));
-    }
-
-    template<pod T>
-    T& Job::get_data() noexcept
-    {
-        return *reinterpret_cast<T*>(padding);
-    }
+    //template<pod T>
+    //void Job::set_data(const T& data) noexcept
+    //{
+    //    static_assert(sizeof(data) <= JOB_PADDING_SIZE);
+    //    std::memcpy(padding, &data, sizeof(data));
+    //}
+    //
+    //template<pod T>
+    //T& Job::get_data() noexcept
+    //{
+    //    return *reinterpret_cast<T*>(padding);
+    //}
 
     void Job::dispatch() noexcept
     {
-        al_assert(dispatchFunction);
         dispatchFunction(this);
         finish();
     }
