@@ -8,6 +8,11 @@
 #include "pool_allocator.h"
 #include "utilities/constexpr_functions.h"
 
+// @NOTE : currently MemoryManager is not thread safe,
+//         so allocations must be used only in main thread.
+//         Maybe this is a good idea to have thread-local memory pools
+//         to give an ability to allocate memory from other threads
+
 namespace al::engine
 {
     class MemoryManager
@@ -43,6 +48,9 @@ namespace al::engine
     {
         memory = static_cast<std::byte*>(std::malloc(MEMORY_SIZE));
         stack.initialize(memory, MEMORY_SIZE);
+        // @TODO : change this hardcoded pool initialization to
+        //         dynamic, which counts each bucket memory size
+        //         based on some user settings
         pool.initialize({
             BucketDescrition{ 8, 1024 },
             BucketDescrition{ 16, 512 },

@@ -6,10 +6,10 @@
 #include "engine/memory/memory_manager.h"
 #include "engine/job_system/job_system.h"
 #include "engine/window/os_window.h"
+#include "engine/file_system/file_system.h"
 
 #include "utilities/event.h"
 #include "utilities/toggle.h"
-
 #include "utilities/math.h"
 
 namespace al::engine
@@ -35,6 +35,7 @@ namespace al::engine
     protected:
         MemoryManager memoryManager;
         JobSystem* jobSystem;
+        FileSystem* fileSystem;
         OsWindow* window;
 
         Toggle<OsWindowInput> inputState;
@@ -49,15 +50,25 @@ namespace al::engine
 
     void AlfinaEngineApplication::initialize_components() noexcept
     {
+        GlobalAssertsData::mainThreadId = std::this_thread::get_id();
+
+        const std::size_t NUM_OF_JOB_THREADS = std::thread::hardware_concurrency() - 1;
+
         memoryManager.initialize();
+
         jobSystem = memoryManager.get_stack()->allocate_as<JobSystem>();
-        ::new(jobSystem) JobSystem{ std::thread::hardware_concurrency() - 1, memoryManager.get_stack() };
+        ::new(jobSystem) JobSystem{ NUM_OF_JOB_THREADS, memoryManager.get_stack() };
+
+        fileSystem = memoryManager.get_stack()->allocate_as<FileSystem>();
+        ::new(fileSystem) FileSystem{ memoryManager.get_pool() };
+
         window = create_window({ }, memoryManager.get_stack());
     }
 
     void AlfinaEngineApplication::terminate_components() noexcept
     {
         destroy_window(window);
+        fileSystem->~FileSystem();
         jobSystem->~JobSystem();
         memoryManager.terminate();
     }
@@ -125,7 +136,7 @@ namespace al::engine
 
     void AlfinaEngineApplication::simulate(float dt) noexcept
     {
-        
+
     }
 
     void AlfinaEngineApplication::render() noexcept

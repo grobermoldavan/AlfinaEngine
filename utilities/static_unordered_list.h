@@ -21,7 +21,7 @@ namespace al
     //         Removing elements also has O(n) time complexity in worst case
     //         (because of find_prev_node method).
     
-    template<typename T, std::size_t Size>
+    template<std::default_initializable T, std::size_t Size>
     class SuList
     {
     public:
@@ -51,13 +51,12 @@ namespace al
 
         ~SuList() = default;
 
-        T* insert(const T& element) noexcept
+        T* get() noexcept
         {
             SuListNodePair pair = find_free_node();
             if (pair.node)
             {
                 SuListNode* node = pair.node;
-                node->value = element;
                 if (pair.prev)
                 {
                     SuListNode* prev = pair.prev;
@@ -201,7 +200,7 @@ namespace al
         SuListNode* head;
         std::size_t size;
 
-        SuListNodePair find_free_node()
+        SuListNodePair find_free_node() noexcept
         {
             if (!head)
             {
@@ -225,7 +224,7 @@ namespace al
             return { node, prev };
         }
 
-        SuListNode* find_prev_node(SuListNode* target)
+        SuListNode* find_prev_node(SuListNode* target) noexcept
         {
             // Previous node is that node, which nextNode value
             // points to the target
@@ -248,17 +247,17 @@ namespace al
             return node;
         }
 
-        inline bool is_node_belongs_to_list(SuListNode* node)
+        inline bool is_node_belongs_to_list(SuListNode* node) const noexcept
         {
             return (nodes[0] <= node) && (nodes[Size - 1] >= node);
         }
 
-        inline bool is_node_free(SuListNode* node)
+        inline bool is_node_free(SuListNode* node) const noexcept
         {
             return node->nextNode == nullptr;
         }
 
-        inline SuListNode* step_right(SuListNode* node)
+        inline SuListNode* step_right(SuListNode* node) noexcept
         {
             if (node == &nodes[Size - 1])
             {
@@ -267,7 +266,7 @@ namespace al
             return node + 1;
         }
 
-        inline SuListNode* step_left(SuListNode* node)
+        inline SuListNode* step_left(SuListNode* node) noexcept
         {
             if (node == &nodes[0])
             {

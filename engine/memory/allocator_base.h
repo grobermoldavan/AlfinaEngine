@@ -9,6 +9,7 @@ namespace al::engine
     {
     public:
         virtual [[nodiscard]] std::byte* allocate(std::size_t memorySizeBytes) noexcept = 0;
+        virtual void deallocate(std::byte* ptr, std::size_t memorySizeBytes) noexcept = 0;
 
         template<typename T>
         inline [[nodiscard]] T* allocate_as()

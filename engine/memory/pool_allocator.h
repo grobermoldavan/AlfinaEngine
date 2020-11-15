@@ -196,9 +196,9 @@ namespace al::engine
         ~PoolAllocator() = default;
 
         virtual [[nodiscard]] std::byte* allocate(std::size_t memorySizeBytes) noexcept override;
+        virtual void deallocate(std::byte* ptr, std::size_t memorySizeBytes) noexcept override;
 
         void initialize(std::array<BucketDescrition, MAX_BUCKETS> bucketDescriptions, AllocatorBase* allocator) noexcept;
-        void deallocate(std::byte* ptr, std::size_t memorySizeBytes) noexcept;
 
     private:
         std::array<MemoryBucket, MAX_BUCKETS> buckets;
@@ -244,18 +244,6 @@ namespace al::engine
         return nullptr;
     }
 
-    void PoolAllocator::initialize(std::array<BucketDescrition, MAX_BUCKETS> bucketDescriptions, AllocatorBase* allocator) noexcept
-    {
-        for (std::size_t it = 0; it < MAX_BUCKETS; it++)
-        {
-            if (bucketDescriptions[it].blockSize == 0 || bucketDescriptions[it].blockCount == 0)
-            {
-                continue;
-            }
-            buckets[it].initialize(bucketDescriptions[it].blockSize, bucketDescriptions[it].blockCount, allocator);
-        }
-    }
-
     void PoolAllocator::deallocate(std::byte* ptr, std::size_t memorySizeBytes) noexcept
     {
         for (std::size_t it = 0; it < MAX_BUCKETS; it++)
@@ -268,6 +256,18 @@ namespace al::engine
                 bucket.deallocate(ptr, memorySizeBytes);
                 break;
             }
+        }
+    }
+
+    void PoolAllocator::initialize(std::array<BucketDescrition, MAX_BUCKETS> bucketDescriptions, AllocatorBase* allocator) noexcept
+    {
+        for (std::size_t it = 0; it < MAX_BUCKETS; it++)
+        {
+            if (bucketDescriptions[it].blockSize == 0 || bucketDescriptions[it].blockCount == 0)
+            {
+                continue;
+            }
+            buckets[it].initialize(bucketDescriptions[it].blockSize, bucketDescriptions[it].blockCount, allocator);
         }
     }
 }

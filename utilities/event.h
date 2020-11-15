@@ -38,7 +38,8 @@ namespace al
 
         inline void subscribe(const FunctionT& func) noexcept
         {
-            subscribers.insert(func);
+            FunctionT* freeFunction = subscribers.get();
+            *freeFunction = func;
         }
 
         // @NOTE : currently usubscription works only by removing all

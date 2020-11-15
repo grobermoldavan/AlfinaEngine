@@ -14,6 +14,7 @@ namespace al::engine
         ~StackAllocator() noexcept;
 
         virtual [[nodiscard]] std::byte* allocate(std::size_t memorySizeBytes) noexcept;
+        virtual void deallocate(std::byte*, std::size_t) noexcept override;
 
         void initialize(std::byte* memory, std::size_t memorySizeBytes) noexcept;
         void free_to_pointer(std::byte* ptr) noexcept;
@@ -48,6 +49,11 @@ namespace al::engine
         std::byte* result = top;
         top += memorySizeBytes;
         return result;
+    }
+
+    void StackAllocator::deallocate(std::byte*, std::size_t) noexcept
+    {
+        // Can't deallocate with stack allocator
     }
 
     void StackAllocator::free_to_pointer(std::byte* ptr) noexcept
