@@ -9,6 +9,12 @@
 #include "allocator_base.h"
 #include "utilities/constexpr_functions.h"
 
+// @NOTE :  This allocator is not thread-safe
+
+// @NOTE :  This allocator implementation is based on Misha Shalem's talk 
+//          "Practical Memory Pool Based Allocators For Modern C++" on CppCon 2020
+//          https://www.youtube.com/watch?v=l14Zkx5OXr4
+
 namespace al::engine
 {
     class MemoryBucket
@@ -115,6 +121,15 @@ namespace al::engine
         for (std::size_t it = 0; it < ledgerSizeBytes; it++)
         {
             std::byte ledgerByte = *(ledger + it);
+            if (static_cast<uint8_t>(ledgerByte) == 255)
+            {
+                // @NOTE :  small optimization.
+                //          We don't need to check byte if is already full.
+                blockCounter = 0;
+                currentBlockId += 8;
+                continue;
+            }
+
             for (std::size_t byteIt = 0; byteIt < 8; byteIt++)
             {
                 if (is_bit_set(ledgerByte, byteIt))
@@ -174,6 +189,11 @@ namespace al::engine
         std::size_t blockSize = 0;
         std::size_t blockCount = 0;
     };
+
+    constexpr BucketDescrition bucket_desc(std::size_t blockSizeBytes, std::size_t memorySizeBytes)
+    {
+        return { blockSizeBytes, memorySizeBytes / blockSizeBytes };
+    }
 
     struct BucketCompareInfo
     {

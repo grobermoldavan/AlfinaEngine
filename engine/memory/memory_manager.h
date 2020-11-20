@@ -6,12 +6,10 @@
 
 #include "stack_allocator.h"
 #include "pool_allocator.h"
-#include "utilities/constexpr_functions.h"
+#include "system_allocator.h"
+#include "allocator_tests.h"
 
-// @NOTE : currently MemoryManager is not thread safe,
-//         so allocations must be used only in main thread.
-//         Maybe this is a good idea to have thread-local memory pools
-//         to give an ability to allocate memory from other threads
+#include "utilities/constexpr_functions.h"
 
 namespace al::engine
 {
@@ -52,10 +50,10 @@ namespace al::engine
         //         dynamic, which counts each bucket memory size
         //         based on some user settings
         pool.initialize({
-            BucketDescrition{ 8, 1024 },
-            BucketDescrition{ 16, 512 },
-            BucketDescrition{ 32, 256 },
-            BucketDescrition{ 64, 128 }
+            bucket_desc(8,  megabytes<std::size_t>(128)),
+            bucket_desc(16, megabytes<std::size_t>(128)),
+            bucket_desc(32, megabytes<std::size_t>(128)),
+            bucket_desc(64, megabytes<std::size_t>(128))
         }, &stack);
     }
 

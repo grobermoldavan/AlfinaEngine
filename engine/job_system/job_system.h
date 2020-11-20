@@ -152,7 +152,7 @@ namespace al::engine
         shouldRun = false;
         try
         {
-            thread.join();    
+            thread.join();
         }
         catch(const std::system_error& e)
         {

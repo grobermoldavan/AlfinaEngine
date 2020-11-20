@@ -187,6 +187,31 @@ namespace al
             }
         }
 
+        void for_each_interruptible(al::Function<bool(T*)> func)
+        {
+            SuListNode* begin = head;
+            SuListNode* node = head;
+            if (!node)
+            {
+                return;
+            }
+
+            while(node)
+            {
+                const bool result = func(reinterpret_cast<T*>(node));
+                if (!result)
+                {
+                    break;
+                }
+
+                node = node->nextNode;
+                if (node == begin)
+                {
+                    break;
+                }
+            }
+        }
+
         void dbg_print() const noexcept
         {
             for_each([](T* node)

@@ -2,8 +2,12 @@
 #define AL_STACK_ALLOCATOR_H
 
 #include <cstddef>
+#include <atomic>
 
 #include "allocator_base.h"
+#include "engine/asserts/asserts.h"
+
+// @NOTE : This allocator is thread-safe
 
 namespace al::engine
 {
@@ -22,7 +26,7 @@ namespace al::engine
     private:
         std::byte* memory;
         std::byte* memoryLimit;
-        std::byte* top;
+        std::atomic<std::byte*> top;
     };
 
     StackAllocator::StackAllocator() noexcept
@@ -43,11 +47,27 @@ namespace al::engine
 
     std::byte* StackAllocator::allocate(std::size_t memorySizeBytes) noexcept
     {
-        if (!memory) return nullptr;
-        if ((memoryLimit - top) < memorySizeBytes) return nullptr;
+        al_assert(memory);
 
-        std::byte* result = top;
-        top += memorySizeBytes;
+        std::byte* result = nullptr;
+
+        while (true)
+        {
+            std::byte* currentTop = top;
+            if ((memoryLimit - currentTop) < memorySizeBytes)
+            {
+                break;
+            }
+
+            std::byte* newTop = top + memorySizeBytes;
+            const bool casResult = top.compare_exchange_strong(currentTop, newTop);
+            if (casResult)
+            {
+                result = currentTop;
+                break;
+            }
+        }
+
         return result;
     }
 
@@ -58,6 +78,7 @@ namespace al::engine
 
     void StackAllocator::free_to_pointer(std::byte* ptr) noexcept
     {
+        al_assert(memory);
         if (ptr >= memory && ptr < memoryLimit) return;
         top = ptr;
     }

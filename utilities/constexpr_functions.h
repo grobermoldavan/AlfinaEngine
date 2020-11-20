@@ -194,8 +194,8 @@ namespace al
         return static_cast<std::byte>(set_bit(std::to_integer<uint8_t>(value), bit));
     }
 
-    template<std::unsigned_integral T>
-    constexpr T set_bits(T value, std::size_t startBit, std::size_t numBits, T bitsValue) noexcept
+    template<std::unsigned_integral T, std::unsigned_integral U>
+    constexpr T set_bits(T value, std::size_t startBit, std::size_t numBits, U bitsValue) noexcept
     {
         T result = value;
         for(std::size_t it = 0; it < numBits; ++it)
