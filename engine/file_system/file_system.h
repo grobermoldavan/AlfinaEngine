@@ -3,9 +3,12 @@
 
 #include <string_view>
 
+#include "engine/config/engine_config.h"
+
 #include "file_load.h"
 #include "engine/memory/allocator_base.h"
 #include "engine/job_system/job_system.h"
+
 #include "utilities/static_unordered_list.h"
 
 /*
@@ -45,7 +48,7 @@ namespace al::engine
         void free_handle(FileHandle* handle) noexcept;
 
     private:
-        SuList<FileHandle, 4096> handles;
+        SuList<FileHandle, EngineConfig::MAX_FILE_HANDLES> handles;
         AllocatorBase* allocator;
     };
 

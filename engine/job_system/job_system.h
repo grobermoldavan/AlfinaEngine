@@ -10,8 +10,11 @@
 #include <cstring>
 #include <system_error>
 
+#include "engine/config/engine_config.h"
+
 #include "engine/asserts/asserts.h"
 #include "engine/memory/allocator_base.h"
+
 #include "utilities/concepts.h"
 #include "utilities/non_copyable.h"
 #include "utilities/thread_safe/thread_safe_queue.h"
@@ -81,10 +84,8 @@ namespace al::engine
         void wait_for(Job* job) noexcept;
 
     public:
-        static constexpr std::size_t MAX_JOBS = 1024 * 4;
-
         std::span<JobSystemThread> threads;
-        StaticThreadSafeQueue<Job*, MAX_JOBS> jobs;
+        StaticThreadSafeQueue<Job*, EngineConfig::MAX_JOBS> jobs;
 
         friend JobSystemThread;
     };
@@ -172,7 +173,7 @@ namespace al::engine
             }
             else
             {
-                std::this_thread::sleep_for(std::chrono::milliseconds{ 15 });
+                std::this_thread::sleep_for(EngineConfig::JOB_THREAD_SLEEP_TIME);
             }
         }
     }
@@ -224,7 +225,7 @@ namespace al::engine
             }
             else
             {
-                std::this_thread::sleep_for(std::chrono::milliseconds{ 5 });
+                std::this_thread::sleep_for(EngineConfig::JOB_THREAD_SLEEP_TIME);
             }
         }
     }

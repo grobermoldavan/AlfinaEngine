@@ -7,6 +7,7 @@
 #include <algorithm>
 
 #include "allocator_base.h"
+
 #include "utilities/constexpr_functions.h"
 
 // @NOTE :  This allocator is not thread-safe

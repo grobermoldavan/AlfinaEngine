@@ -5,6 +5,7 @@
 #include <cstdint>
 
 #include "engine/memory/allocator_base.h"
+
 #include "utilities/flags.h"
 
 namespace al::engine

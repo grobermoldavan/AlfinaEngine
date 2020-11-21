@@ -79,8 +79,8 @@ namespace al::engine
         using DtDuration = std::chrono::duration<float>;
 
         // Allocator Test
-        ::new(&test::allocatorTestJob) Job{ [](Job*){ test::run_allocator_tests(std::cout); } };
-        jobSystem->add_job(&test::allocatorTestJob);
+        // ::new(&test::allocatorTestJob) Job{ [](Job*){ test::run_allocator_tests(std::cout); } };
+        // jobSystem->add_job(&test::allocatorTestJob);
 
         auto previousTime = ClockT::now();
         while(true)
