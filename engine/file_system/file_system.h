@@ -2,6 +2,7 @@
 #define AL_FILE_SYSTEM_H
 
 #include <string_view>
+#include <mutex>
 
 #include "engine/config/engine_config.h"
 
@@ -37,24 +38,47 @@
 
 namespace al::engine
 {
+    class AsyncFileReadJob : public Job
+    {
+    public:
+        using Job::Job;
+
+        char fileName[EngineConfig::ASYNC_FILE_READ_JOB_FILE_NAME_SIZE];
+        FileLoadMode mode;
+        FileHandle* handle;
+    };
+
     class FileSystem
     {
     public:
-        FileSystem(AllocatorBase* allocator);
+        FileSystem(JobSystem* jobSystem, AllocatorBase* allocator);
         ~FileSystem();
 
         [[nodiscard]] FileHandle* sync_load(std::string_view file, FileLoadMode mode) noexcept;
         [[nodiscard]] FileHandle* async_load(std::string_view file, FileLoadMode mode) noexcept;
         void free_handle(FileHandle* handle) noexcept;
 
+        void remove_finished_jobs() noexcept;
+
     private:
         SuList<FileHandle, EngineConfig::MAX_FILE_HANDLES> handles;
+        std::mutex handlesListMutex;
+
+        SuList<AsyncFileReadJob, EngineConfig::MAX_ASYNC_FILE_READ_JOBS> jobs;
+        std::mutex jobsListMutex;
+
         AllocatorBase* allocator;
+        JobSystem* jobSystem;
+        Job cleanupJob;
+
+        FileHandle* get_file_handle() noexcept;
+        AsyncFileReadJob* get_file_load_job() noexcept;
     };
 
-    FileSystem::FileSystem(AllocatorBase* allocator)
+    FileSystem::FileSystem(JobSystem* jobSystem, AllocatorBase* allocator)
         : handles{ }
         , allocator{ allocator }
+        , jobSystem{ jobSystem }
     { }
 
     FileSystem::~FileSystem()
@@ -67,31 +91,97 @@ namespace al::engine
 
     [[nodiscard]] FileHandle* FileSystem::sync_load(std::string_view file, FileLoadMode mode) noexcept
     {
-        al_assert_main_thread();
-
-        FileHandle* handle = handles.get();
+        FileHandle* handle = get_file_handle();
         *handle = al::engine::sync_load(file, allocator, mode);
         return handle;
     }
 
     [[nodiscard]] FileHandle* FileSystem::async_load(std::string_view file, FileLoadMode mode) noexcept
     {
-        al_assert_main_thread();
+        al_assert(EngineConfig::ASYNC_FILE_READ_JOB_FILE_NAME_SIZE > file.size());
 
-        // Not implemented
-        // @TODO : implement this when MemoryManager will
-        //         be able to allocate memory in multi-thread
-        al_assert(false);
+        FileHandle* handle = get_file_handle();
+        handle->state = FileHandle::State::LOADING;
 
-        return nullptr;
+        AsyncFileReadJob* job = get_file_load_job();
+        ::new(job) AsyncFileReadJob
+        {
+            [this](Job* baseJob)
+            {
+                AsyncFileReadJob* job = static_cast<AsyncFileReadJob*>(baseJob);
+                *job->handle = al::engine::sync_load(job->fileName, allocator, job->mode);
+            }
+        };
+
+        job->handle = handle;
+        job->mode = mode;
+        std::memcpy(job->fileName, file.data(), file.size());
+        job->fileName[file.size()] = 0;
+
+        jobSystem->add_job(job);
+
+        return handle;
     }
 
     void FileSystem::free_handle(FileHandle* handle) noexcept
     {
-        al_assert_main_thread();
+        // @TODO : implement freeing currently loading handle
+        al_assert(handle->state != FileHandle::State::LOADING);
 
         allocator->deallocate(handle->memory, handle->size);
-        handles.remove(handle);
+        {
+            std::lock_guard<std::mutex> lock{ handlesListMutex };
+            handles.remove(handle);
+        }
+    }
+
+    FileHandle* FileSystem::get_file_handle() noexcept
+    {
+        FileHandle* handle = nullptr;
+        {
+            std::lock_guard<std::mutex> lock{ handlesListMutex };
+            handle = handles.get();
+        }
+        // Out of handles
+        al_assert(handle);
+        return handle;
+    }
+
+    AsyncFileReadJob* FileSystem::get_file_load_job() noexcept
+    {
+        AsyncFileReadJob* job = nullptr;
+        {
+            std::lock_guard<std::mutex> lock{ jobsListMutex };
+            job = jobs.get();
+        }
+        // Out of jobs
+        al_assert(job);
+        return job;
+    }
+
+    // @NOTE :  after async load job has been finished it will not be removed
+    //          until this method is called. So, this method must be called if
+    //          there is no more jobs left in sulist, or regularly (each frame
+    //          every other frame, for example)
+    void FileSystem::remove_finished_jobs() noexcept
+    {
+        // Wait for cleanup if job is still running
+        jobSystem->wait_for(&cleanupJob);
+
+        // Clean up job simply removes all finished jobs from the list
+        ::new(&cleanupJob) Job
+        {
+            [this](Job*)
+            {
+                std::lock_guard<std::mutex> lock{ jobsListMutex };
+                jobs.remove_by_condition([](AsyncFileReadJob* job) -> bool
+                {
+                    return job->is_finished();
+                });
+            }
+        };
+
+        jobSystem->add_job(&cleanupJob);
     }
 }
 

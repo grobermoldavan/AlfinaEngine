@@ -91,7 +91,7 @@ namespace al::engine
     };
 
     Job::Job() noexcept
-        : unfinishedJobs{ 1 }
+        : unfinishedJobs{ 0 }
         , dispatchFunction{ }
         , parent{ nullptr }
     { }

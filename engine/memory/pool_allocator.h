@@ -1,16 +1,21 @@
 #ifndef AL_POOL_ALLOCATOR_H
 #define AL_POOL_ALLOCATOR_H
 
+#define POOL_ALLOCATOR_USE_LOCK 1
+
 #include <cstddef>
 #include <cstring>
 #include <array>
 #include <algorithm>
+#if(POOL_ALLOCATOR_USE_LOCK)
+#   include <mutex>
+#endif
 
 #include "allocator_base.h"
 
 #include "utilities/constexpr_functions.h"
 
-// @NOTE :  This allocator is not thread-safe
+// @NOTE :  This allocator is thread-safe if POOL_ALLOCATOR_USE_LOCK is true
 
 // @NOTE :  This allocator implementation is based on Misha Shalem's talk 
 //          "Practical Memory Pool Based Allocators For Modern C++" on CppCon 2020
@@ -33,9 +38,9 @@ namespace al::engine
         const bool is_initialized() const noexcept;
 
     private:
-        std::size_t find_contiguous_blocks(std::size_t number) const noexcept;
-        void set_blocks_in_use(std::size_t first, std::size_t number) noexcept;
-        void set_blocks_free(std::size_t first, std::size_t number) noexcept;
+#if(POOL_ALLOCATOR_USE_LOCK)
+        std::mutex memoryMutex;
+#endif
 
         std::size_t blockSize;
         std::size_t blockCount;
@@ -45,6 +50,10 @@ namespace al::engine
 
         std::byte* memory;
         std::byte* ledger;
+
+        std::size_t find_contiguous_blocks(std::size_t number) const noexcept;
+        void set_blocks_in_use(std::size_t first, std::size_t number) noexcept;
+        void set_blocks_free(std::size_t first, std::size_t number) noexcept;
     };
 
     MemoryBucket::MemoryBucket() noexcept
@@ -75,6 +84,10 @@ namespace al::engine
 
     [[nodiscard]] std::byte* MemoryBucket::allocate(std::size_t memorySizeBytes) noexcept
     {
+#if(POOL_ALLOCATOR_USE_LOCK)
+        const std::lock_guard<std::mutex> lock{ memoryMutex };
+#endif
+
         const std::size_t blockNum = 1 + ((memorySizeBytes - 1) / blockSize);
         const std::size_t blockId = find_contiguous_blocks(blockNum);
         if (blockId == blockCount)
@@ -88,6 +101,10 @@ namespace al::engine
 
     void MemoryBucket::deallocate(std::byte* ptr, std::size_t memorySizeBytes) noexcept
     {
+#if(POOL_ALLOCATOR_USE_LOCK)
+        const std::lock_guard<std::mutex> lock{ memoryMutex };
+#endif
+
         const std::size_t blockNum = 1 + ((memorySizeBytes - 1) / blockSize);
         const std::size_t blockId = static_cast<std::size_t>(ptr - memory) / blockSize;
         set_blocks_free(blockId, blockNum);
@@ -232,7 +249,7 @@ namespace al::engine
 
         for (it = 0; it < MAX_BUCKETS; it++)
         {
-            MemoryBucket bucket = buckets[it];
+            MemoryBucket& bucket = buckets[it];
             if (!bucket.is_initialized()) break;
 
             comapreInfos[it].bucketId = it;
@@ -269,7 +286,7 @@ namespace al::engine
     {
         for (std::size_t it = 0; it < MAX_BUCKETS; it++)
         {
-            MemoryBucket bucket = buckets[it];
+            MemoryBucket& bucket = buckets[it];
             if (!bucket.is_initialized()) break;
 
             if (bucket.is_belongs(ptr))

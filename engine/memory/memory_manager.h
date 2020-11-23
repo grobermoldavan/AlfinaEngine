@@ -49,11 +49,11 @@ namespace al::engine
         //         dynamic, which counts each bucket memory size
         //         based on some user settings
         pool.initialize({
-            bucket_desc(64  , megabytes<std::size_t>(128)),
-            bucket_desc(128 , megabytes<std::size_t>(128)),
-            bucket_desc(256 , megabytes<std::size_t>(128)),
-            bucket_desc(512 , megabytes<std::size_t>(128)),
-            bucket_desc(1024, megabytes<std::size_t>(128)),
+            bucket_desc(64                          , megabytes<std::size_t>(128)),
+            bucket_desc(128                         , megabytes<std::size_t>(128)),
+            bucket_desc(256                         , megabytes<std::size_t>(128)),
+            bucket_desc(kilobytes<std::size_t>(1)   , megabytes<std::size_t>(128)),
+            bucket_desc(kilobytes<std::size_t>(4)   , megabytes<std::size_t>(256)),
         }, &stack);
     }
 

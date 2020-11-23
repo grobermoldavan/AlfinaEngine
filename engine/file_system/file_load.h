@@ -12,7 +12,15 @@ namespace al::engine
 {
     struct FileHandle
     {
+        enum class State
+        {
+            FREE,
+            LOADED,
+            LOADING
+        };
+
         std::size_t size;
+        State state;
         std::byte* memory;
     };
 
@@ -49,6 +57,7 @@ namespace al::engine
         return
         {
             .size{ fileSize + 1 },
+            .state{ FileHandle::State::LOADED },
             .memory{ memory }
         };
     }

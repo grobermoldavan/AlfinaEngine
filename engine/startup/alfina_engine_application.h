@@ -60,7 +60,7 @@ namespace al::engine
         ::new(jobSystem) JobSystem{ NUM_OF_JOB_THREADS, memoryManager.get_stack() };
 
         fileSystem = memoryManager.get_stack()->allocate_as<FileSystem>();
-        ::new(fileSystem) FileSystem{ memoryManager.get_pool() };
+        ::new(fileSystem) FileSystem{ jobSystem, memoryManager.get_pool() };
 
         window = create_window({ }, memoryManager.get_stack());
     }
@@ -98,6 +98,8 @@ namespace al::engine
             update_input();
             simulate(dt);
             render();
+
+            fileSystem->remove_finished_jobs();
         }
     }
 

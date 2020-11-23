@@ -15,6 +15,8 @@ namespace al::engine
 
         // File System settings
         static constexpr std::size_t                MAX_FILE_HANDLES{ 4096 };
+        static constexpr std::size_t                MAX_ASYNC_FILE_READ_JOBS{ 128 };
+        static constexpr std::size_t                ASYNC_FILE_READ_JOB_FILE_NAME_SIZE{ 128 };
 
         // Job System settings
         static constexpr std::size_t                MAX_JOBS{ 1024 };

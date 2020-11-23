@@ -1,7 +1,7 @@
 #ifndef AL_DEFER_H
 #define AL_DEFER_H
 
-#include <functional>
+#include "function.h"
 
 // This macro combo generates a unique name 
 // based on line of file where it is being used
@@ -18,7 +18,7 @@ namespace al
 	class Defer
 	{
 	public:
-		Defer(std::function<void(void)>&& func)
+		Defer(al::Function<void(void)>&& func)
 			: function(std::move(func))
 		{ }
 
@@ -31,7 +31,7 @@ namespace al
 		Defer& operator = (const Defer& defer) = delete;
 
 	private:
-		std::function<void(void)> function;
+		al::Function<void(void)> function;
 	};
 }
 
