@@ -12,7 +12,7 @@
 
 #include "engine/config/engine_config.h"
 
-#include "engine/asserts/asserts.h"
+#include "engine/debug/debug.h"
 #include "engine/memory/allocator_base.h"
 
 #include "utilities/concepts.h"

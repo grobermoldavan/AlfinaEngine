@@ -10,7 +10,7 @@
 #include "system_allocator.h"
 #include "dl_allocator.h"
 #include "engine/job_system/job_system.h"
-#include "engine/asserts/asserts.h"
+#include "engine/debug/debug.h"
 
 #include "utilities/constexpr_functions.h"
 #include "utilities/static_unordered_list.h"

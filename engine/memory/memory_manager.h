@@ -29,21 +29,12 @@ namespace al::engine
     private:
         StackAllocator stack;
         PoolAllocator pool;
-        bool isInitialized;
         std::byte* memory;
     };
 
     MemoryManager::MemoryManager() noexcept
-        : isInitialized{ false }
-        , memory{ nullptr }
-    { }
-
-    MemoryManager::~MemoryManager() noexcept
-    { }
-
-    void MemoryManager::initialize() noexcept
+        : memory{ static_cast<std::byte*>(std::malloc(EngineConfig::MEMORY_SIZE)) }
     {
-        memory = static_cast<std::byte*>(std::malloc(EngineConfig::MEMORY_SIZE));
         stack.initialize(memory, EngineConfig::MEMORY_SIZE);
         // @TODO : change this hardcoded pool initialization to
         //         dynamic, which counts each bucket memory size
@@ -57,7 +48,7 @@ namespace al::engine
         }, &stack);
     }
 
-    void MemoryManager::terminate() noexcept
+    MemoryManager::~MemoryManager() noexcept
     {
         std::free(memory);
     }

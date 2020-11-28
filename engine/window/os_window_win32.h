@@ -5,7 +5,7 @@
 #include <Windowsx.h>
 
 #include "os_window.h"
-#include "engine/asserts/asserts.h"
+#include "engine/debug/debug.h"
 
 namespace al::engine
 {

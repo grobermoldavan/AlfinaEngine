@@ -21,6 +21,14 @@ namespace al::engine
         // Job System settings
         static constexpr std::size_t                MAX_JOBS{ 1024 };
         static constexpr std::chrono::milliseconds  JOB_THREAD_SLEEP_TIME{ 5 };
+
+        // Log System settings
+        static constexpr std::size_t                LOG_BUFFER_SIZE{ megabytes<std::size_t>(1) };
+        static constexpr bool                       LOG_USE_DEFAULT_OUTPUT{ true };
+        static constexpr const char*                LOG_OUTPUT_FILE{ "log.txt" };
+        static constexpr std::size_t                PROFILE_BUFFER_SIZE{ megabytes<std::size_t>(2) };
+        static constexpr bool                       PROFILE_USE_DEFAULT_OUTPUT{ false };
+        static constexpr const char*                PROFILE_OUTPUT_FILE{ "profile.json" };
     };
 }
 

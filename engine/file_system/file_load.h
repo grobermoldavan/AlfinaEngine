@@ -5,11 +5,17 @@
 #include <stdio.h>
 #include <string_view>
 
-#include "engine/asserts/asserts.h"
+#include "engine/debug/debug.h"
 #include "engine/memory/allocator_base.h"
 
 namespace al::engine
 {
+    enum class FileLoadMode
+    {
+        READ,
+        WRITE
+    };
+
     struct FileHandle
     {
         enum class State
@@ -22,12 +28,6 @@ namespace al::engine
         std::size_t size;
         State state;
         std::byte* memory;
-    };
-
-    enum class FileLoadMode
-    {
-        READ,
-        WRITE
     };
 
     static const char* SYNC_LOAD_MODE_TO_STR[] =

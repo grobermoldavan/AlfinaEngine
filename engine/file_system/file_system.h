@@ -9,6 +9,7 @@
 #include "file_load.h"
 #include "engine/memory/allocator_base.h"
 #include "engine/job_system/job_system.h"
+#include "engine/debug/debug.h"
 
 #include "utilities/static_unordered_list.h"
 
@@ -91,6 +92,8 @@ namespace al::engine
 
     [[nodiscard]] FileHandle* FileSystem::sync_load(std::string_view file, FileLoadMode mode) noexcept
     {
+        al_profile_function();
+
         FileHandle* handle = get_file_handle();
         *handle = al::engine::sync_load(file, allocator, mode);
         return handle;
@@ -98,6 +101,7 @@ namespace al::engine
 
     [[nodiscard]] FileHandle* FileSystem::async_load(std::string_view file, FileLoadMode mode) noexcept
     {
+        al_profile_function();
         al_assert(EngineConfig::ASYNC_FILE_READ_JOB_FILE_NAME_SIZE > file.size());
 
         FileHandle* handle = get_file_handle();
@@ -125,6 +129,8 @@ namespace al::engine
 
     void FileSystem::free_handle(FileHandle* handle) noexcept
     {
+        al_profile_function();
+
         // @TODO : implement freeing currently loading handle
         al_assert(handle->state != FileHandle::State::LOADING);
 
@@ -137,6 +143,8 @@ namespace al::engine
 
     FileHandle* FileSystem::get_file_handle() noexcept
     {
+        al_profile_function();
+
         FileHandle* handle = nullptr;
         {
             std::lock_guard<std::mutex> lock{ handlesListMutex };
@@ -149,6 +157,8 @@ namespace al::engine
 
     AsyncFileReadJob* FileSystem::get_file_load_job() noexcept
     {
+        al_profile_function();
+
         AsyncFileReadJob* job = nullptr;
         {
             std::lock_guard<std::mutex> lock{ jobsListMutex };
@@ -165,6 +175,8 @@ namespace al::engine
     //          every other frame, for example)
     void FileSystem::remove_finished_jobs() noexcept
     {
+        al_profile_function();
+
         // Wait for cleanup if job is still running
         jobSystem->wait_for(&cleanupJob);
 
