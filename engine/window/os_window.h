@@ -14,7 +14,7 @@ namespace al::engine
     struct OsWindowParams;
 
     [[nodiscard]] OsWindow* create_window(const OsWindowParams& params, AllocatorBase* allocator) noexcept; // @NOTE : this function is defined in os header
-    void destroy_window(OsWindow* window) noexcept;                                                         // @NOTE : this function is defined in os header
+    void destroy_window(OsWindow* window, AllocatorBase* allocator) noexcept;                               // @NOTE : this function is defined in os header
 
     struct OsWindowInput
     {

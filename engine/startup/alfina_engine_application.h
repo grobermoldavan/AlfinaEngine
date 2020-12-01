@@ -8,6 +8,7 @@
 #include "engine/window/os_window.h"
 #include "engine/file_system/file_system.h"
 #include "engine/debug/debug.h"
+#include "engine/rendering/renderer.h"
 
 #include "utilities/event.h"
 #include "utilities/toggle.h"
@@ -41,6 +42,7 @@ namespace al::engine
         JobSystem* jobSystem;
         FileSystem* fileSystem;
         OsWindow* window;
+        Renderer* renderer;
 
         Toggle<OsWindowInput> inputState;
         std::size_t frameCount;
@@ -55,7 +57,7 @@ namespace al::engine
 
     void AlfinaEngineApplication::initialize_components() noexcept
     {
-        const std::size_t NUM_OF_JOB_THREADS = std::thread::hardware_concurrency() - 1;
+        const std::size_t NUM_OF_JOB_THREADS = std::thread::hardware_concurrency() - 2; // Minus two because of the main thread and rendering thread
 
         ::new(&memoryManager) MemoryManager{ };
 
@@ -70,6 +72,8 @@ namespace al::engine
 
         window = create_window({ }, memoryManager.get_stack());
 
+        renderer = create_renderer(window, memoryManager.get_stack());
+
         al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Initialized engine components");
     }
 
@@ -77,7 +81,8 @@ namespace al::engine
     {
         al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Terminating engine components");
 
-        destroy_window(window);
+        destroy_renderer(renderer, memoryManager.get_stack());
+        destroy_window(window, memoryManager.get_stack());
         fileSystem->~FileSystem();
         jobSystem->~JobSystem();
         debug::globalLogger->~Logger();
@@ -101,7 +106,7 @@ namespace al::engine
         while(true)
         {
             al_profile_scope("Process frame");
-            al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Begin frame %d", frameCount);
+            //al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Begin frame %d", frameCount);
 
             auto currentTime = ClockT::now();
             auto dt = std::chrono::duration_cast<DtDuration>(currentTime - previousTime).count();
@@ -116,13 +121,12 @@ namespace al::engine
                 }
             }
 
+            renderer->start_process_frame();
             update_input();
             simulate(dt);
-            render();
+            renderer->wait_for_render_finish();
             process_end_frame();
         }
-
-        al_assert(false);
     }
 
     void AlfinaEngineApplication::update_input() noexcept

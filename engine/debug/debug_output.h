@@ -17,35 +17,51 @@ namespace al::engine::debug
 
     void close_log_output()
     {
-        if (USER_FILE_LOG_OUTPUT.is_open())
+        try
         {
-            USER_FILE_LOG_OUTPUT.flush();
-            USER_FILE_LOG_OUTPUT.close();
+            if (USER_FILE_LOG_OUTPUT.is_open())
+            {
+                USER_FILE_LOG_OUTPUT.flush();
+                USER_FILE_LOG_OUTPUT.close();
+            }
         }
+        catch(const std::exception& e) { /* @TODO : handle exception */ }
     }
 
     void override_log_output(const char* filename)
     {
         close_log_output();
 
-        USER_FILE_LOG_OUTPUT.open(filename, std::ofstream::out | std::ofstream::trunc);
+        try
+        {
+            USER_FILE_LOG_OUTPUT.open(filename, std::ofstream::out | std::ofstream::trunc);
+        }
+        catch(const std::exception& e) { /* @TODO : handle exception */ }
         GLOBAL_LOG_OUTPUT = &USER_FILE_LOG_OUTPUT;
     }
 
     void close_profile_output()
     {
-        if (USER_FILE_PROFILE_OUTPUT.is_open())
+        try
         {
-            USER_FILE_PROFILE_OUTPUT.flush();
-            USER_FILE_PROFILE_OUTPUT.close();
+            if (USER_FILE_PROFILE_OUTPUT.is_open())
+            {
+                USER_FILE_PROFILE_OUTPUT.flush();
+                USER_FILE_PROFILE_OUTPUT.close();
+            }
         }
+        catch(const std::exception& e) { /* @TODO : handle exception */ }
     }
 
     void override_profile_output(const char* filename)
     {
         close_profile_output();
 
-        USER_FILE_PROFILE_OUTPUT.open(filename, std::ofstream::out | std::ofstream::trunc);
+        try
+        {
+            USER_FILE_PROFILE_OUTPUT.open(filename, std::ofstream::out | std::ofstream::trunc);
+        }
+        catch(const std::exception& e) { /* @TODO : handle exception */ }
         GLOBAL_PROFILE_OUTPUT = &USER_FILE_PROFILE_OUTPUT;
     }
 }

@@ -17,6 +17,8 @@ namespace al::engine
         OsWindowWin32(const OsWindowParams& params) noexcept;
         ~OsWindowWin32() noexcept = default;
 
+        HWND get_handle() noexcept { return handle; }
+
         virtual void quit() noexcept override;
         virtual void process() noexcept override;
         virtual bool is_quit() noexcept override;
@@ -511,9 +513,10 @@ namespace al::engine
         return window;
     }
 
-    void destroy_window(OsWindow* window) noexcept
+    void destroy_window(OsWindow* window, AllocatorBase* allocator) noexcept
     {
         window->~OsWindow();
+        allocator->deallocate(reinterpret_cast<std::byte*>(window), sizeof(OsWindowWin32));
     }
 }
 

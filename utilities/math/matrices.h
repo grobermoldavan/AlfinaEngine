@@ -178,6 +178,14 @@ namespace al
     };
     
     using float4x4 = mat4x4<float>;
+
+    constexpr float4x4 IDENTITY4
+    {
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1
+    };
 }
 
 #endif

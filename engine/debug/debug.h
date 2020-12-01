@@ -46,6 +46,10 @@
 
 #define al_assert(cond) if (!(cond)) { ::al::engine::debug::assert_implementation(__FILE__, __FUNCSIG__, __LINE__, #cond); }
 
+#define al_crash_impl { int* crash = nullptr; crash = 0; }
+#define al_exception_wrap(code) try { code; } catch (const std::exception& e) { al_log_error("Exception", "%s", e.what()); al_assert(false); }
+#define al_exception_wrap_no_assert(code) try { code; } catch (const std::exception& e) { al_crash_impl }
+
 namespace al::engine::debug
 {
     class Logger* globalLogger = nullptr;
@@ -92,7 +96,7 @@ namespace al::engine::debug
         }
 
         template<typename ... Args>
-        void printf_log(Level level, const char* category, const char* format, Args ... args)
+        void printf_log(Level level, const char* category, const char* format, Args ... args) noexcept
         {
             if (!is_bit_set(levelFlags, level))
             {
@@ -103,18 +107,20 @@ namespace al::engine::debug
             if (size >= 0)
             {
                 char* messageBuffer = allocate_buffer(logBuffer, &logBufferPtr, EngineConfig::LOG_BUFFER_SIZE, size);
+                // @TODO :  handle buffer overflow (messageBuffer == nullptr)
                 std::sprintf(messageBuffer, format, category, args...);
             }
             else { /* @TODO : handle negative return value */ }
         }
 
         template<typename ... Args>
-        void printf_profile(const char* format, Args ... args)
+        void printf_profile(const char* format, Args ... args) noexcept
         {
             int size = std::snprintf(nullptr, 0, format, args...);
             if (size >= 0)
             {
                 char* messageBuffer = allocate_buffer(profileBuffer, &profileBufferPtr, EngineConfig::PROFILE_BUFFER_SIZE, size);
+                // @TODO : handle buffer overflow (messageBuffer == nullptr)
                 std::sprintf(messageBuffer, format, args...);
             }
             else { /* @TODO : handle negative return value */ }
@@ -123,16 +129,16 @@ namespace al::engine::debug
         void print_log_buffer() noexcept
         {
             logBuffer[logBufferPtr] = 0;
-            *GLOBAL_LOG_OUTPUT << logBuffer;
-            GLOBAL_LOG_OUTPUT->flush();
+            al_exception_wrap_no_assert(*GLOBAL_LOG_OUTPUT << logBuffer);
+            al_exception_wrap_no_assert(GLOBAL_LOG_OUTPUT->flush());
             logBufferPtr = 0;
         }
 
         void print_profile_buffer() noexcept
         {
             profileBuffer[profileBufferPtr] = 0;
-            *GLOBAL_PROFILE_OUTPUT << profileBuffer;
-            GLOBAL_PROFILE_OUTPUT->flush();
+            al_exception_wrap_no_assert(*GLOBAL_PROFILE_OUTPUT << profileBuffer);
+            al_exception_wrap_no_assert(GLOBAL_PROFILE_OUTPUT->flush());
             profileBufferPtr = 0;
         }
 
@@ -155,7 +161,7 @@ namespace al::engine::debug
 
         uint32_t levelFlags;
 
-        char* allocate_buffer(char* buffer, std::atomic<std::size_t>* bufferPtr, std::size_t bufferSize, std::size_t sizeToAllocate)
+        char* allocate_buffer(char* buffer, std::atomic<std::size_t>* bufferPtr, std::size_t bufferSize, std::size_t sizeToAllocate) noexcept
         {
             char* result = nullptr;
 
@@ -189,13 +195,13 @@ namespace al::engine::debug
         TimeType beginScopeTime;
         std::size_t threadId;
 
-        ScopeProfiler(const char* name)
+        ScopeProfiler(const char* name) noexcept
             : name{ name }
             , beginScopeTime{ ClockType::now() }
             , threadId{ std::hash<std::thread::id>{}(std::this_thread::get_id()) }
         { }
 
-        ~ScopeProfiler()
+        ~ScopeProfiler() noexcept
         {
             TimeType endScopeTime = ClockType::now();
             std::chrono::duration<double, std::micro> scopeTime = endScopeTime - beginScopeTime;
@@ -205,14 +211,13 @@ namespace al::engine::debug
         }
     };
 
-    void assert_implementation(const char* file, const char* function, const std::size_t line, const char* condition)
+    void assert_implementation(const char* file, const char* function, const std::size_t line, const char* condition) noexcept
     {
         al_log_error("assert", "Assertion failed. File : %s, function %s, line : %d, condition : %s", file, function, line, condition);
         globalLogger->print_log_buffer();
         globalLogger->print_profile_buffer();
-
         al_debug_break();
-        { int* crash = nullptr; crash = 0; }
+        al_crash_impl;
     }
 }
 

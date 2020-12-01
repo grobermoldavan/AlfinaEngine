@@ -29,6 +29,10 @@ namespace al::engine
         static constexpr std::size_t                PROFILE_BUFFER_SIZE{ megabytes<std::size_t>(2) };
         static constexpr bool                       PROFILE_USE_DEFAULT_OUTPUT{ false };
         static constexpr const char*                PROFILE_OUTPUT_FILE{ "profile.json" };
+
+        // Render System settings
+        static constexpr std::size_t                DRAW_COMMAND_BUFFER_SIZE{ 1024 };
+        static constexpr std::size_t                MAX_BUFFER_LAYOUT_ELEMENTS{ 16 };
     };
 }
 

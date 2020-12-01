@@ -1,4 +1,5 @@
 #define AL_PLATFORM_WIN32
+#define AL_OPENGL
 
 #define AL_LOGGING_ENABLED
 #define AL_PROFILING_ENABLED
@@ -27,7 +28,7 @@ al::engine::AlfinaEngineApplication* al::engine::create_application(al::engine::
 
 void al::engine::destroy_application(al::engine::AlfinaEngineApplication* application) noexcept
 {
-
+    
 }
 
 void UserApplication::initialize_components() noexcept
