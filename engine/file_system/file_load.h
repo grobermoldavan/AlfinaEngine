@@ -54,6 +54,7 @@ namespace al::engine
 
         std::fclose(file);
         memory[fileSize] = std::byte{ 0 };
+
         return
         {
             .size{ fileSize + 1 },

@@ -8,7 +8,6 @@
 
 #include "stack_allocator.h"
 #include "pool_allocator.h"
-#include "allocator_tests.h"
 
 #include "utilities/constexpr_functions.h"
 
@@ -20,11 +19,14 @@ namespace al::engine
         MemoryManager() noexcept;
         ~MemoryManager() noexcept;
 
-        void initialize() noexcept;
-        void terminate() noexcept;
-
         StackAllocator* get_stack() noexcept;
         PoolAllocator* get_pool() noexcept;
+
+        static MemoryManager* get()
+        {
+            static MemoryManager instance;
+            return &instance;
+        }
 
     private:
         StackAllocator stack;

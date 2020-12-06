@@ -6,6 +6,9 @@
 
 #include "engine/config/engine_config.h"
 
+#include "renderer_type.h"
+#include "engine/debug/debug.h"
+
 namespace al::engine
 {
     enum ShaderDataType : uint32_t
@@ -105,6 +108,22 @@ namespace al::engine
         virtual void                set_layout  (const BufferLayout& layout)                    noexcept = 0;
         virtual const BufferLayout* get_layout  ()                                      const   noexcept = 0;
     };
+
+    template<RendererType type> [[nodiscard]] VertexBuffer* create_vertex_buffer(const void* data, uint32_t size) noexcept;
+    template<RendererType type> void destroy_vertex_buffer(VertexBuffer* vb) noexcept;
+
+    template<RendererType type> [[nodiscard]] VertexBuffer* create_vertex_buffer(const void* data, uint32_t size) noexcept
+    {
+        al_log_error("Renderer", "Unsupported rendering API");
+        al_assert(false);
+        return nullptr;
+    }
+
+    template<RendererType type> void destroy_vertex_buffer(VertexBuffer* vb) noexcept
+    {
+        al_log_error("Renderer", "Unsupported rendering API");
+        al_assert(false);
+    }
 }
 
 #endif

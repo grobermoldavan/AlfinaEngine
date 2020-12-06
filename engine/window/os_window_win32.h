@@ -6,6 +6,7 @@
 
 #include "os_window.h"
 #include "engine/debug/debug.h"
+#include "engine/memory/memory_manager.h"
 
 namespace al::engine
 {
@@ -506,17 +507,17 @@ namespace al::engine
         return true;
     }
 
-    [[nodsicard]] OsWindow* create_window(const OsWindowParams& params, AllocatorBase* allocator) noexcept
+    [[nodsicard]] OsWindow* create_window(const OsWindowParams& params) noexcept
     {
-        OsWindow* window = allocator->allocate_as<OsWindowWin32>();
+        OsWindow* window = MemoryManager::get()->get_stack()->allocate_as<OsWindowWin32>();
         ::new(window) OsWindowWin32({ });
         return window;
     }
 
-    void destroy_window(OsWindow* window, AllocatorBase* allocator) noexcept
+    void destroy_window(OsWindow* window) noexcept
     {
         window->~OsWindow();
-        allocator->deallocate(reinterpret_cast<std::byte*>(window), sizeof(OsWindowWin32));
+        MemoryManager::get()->get_stack()->deallocate(reinterpret_cast<std::byte*>(window), sizeof(OsWindowWin32));
     }
 }
 

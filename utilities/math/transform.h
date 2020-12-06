@@ -71,9 +71,9 @@ namespace al
 
     struct Transform
     {
-        float4x4 translation;
-        float4x4 rotation;
-        float4x4 scale;
+        float4x4 translation    = IDENTITY4;
+        float4x4 rotation       = IDENTITY4;
+        float4x4 scale          = IDENTITY4;
 
         float4x4    get_full_transform()    const noexcept;
         float3      get_position()          const noexcept;

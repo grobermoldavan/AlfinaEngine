@@ -4,6 +4,8 @@
 #include <cstddef>
 #include <chrono>
 
+#include "engine/rendering/renderer_type.h"
+
 #include "utilities/constexpr_functions.h"
 
 namespace al::engine
@@ -32,7 +34,11 @@ namespace al::engine
 
         // Render System settings
         static constexpr std::size_t                DRAW_COMMAND_BUFFER_SIZE{ 1024 };
+        static constexpr std::size_t                RENDER_COMMAND_STACK_SIZE{ 1024 };
         static constexpr std::size_t                MAX_BUFFER_LAYOUT_ELEMENTS{ 16 };
+        static constexpr RendererType               DEFAULT_RENDERER_TYPE{ RendererType::OPEN_GL };
+        static constexpr const char*                SHADER_MODEL_MATRIX_UNIFORM_NAME{ "al_modelMatrix" };
+        static constexpr const char*                SHADER_VIEW_PROJECTION_MATRIX_UNIFORM_NAME{ "al_vpMatrix" };
     };
 }
 

@@ -9,10 +9,13 @@
 #include "engine/file_system/file_system.h"
 #include "engine/debug/debug.h"
 #include "engine/rendering/renderer.h"
+#include "engine/containers/dynamic_array.h"
+#include "engine/rendering/camera/perspective_render_camera.h"
 
 #include "utilities/event.h"
 #include "utilities/toggle.h"
 #include "utilities/math.h"
+#include "utilities/smooth_average.h"
 
 namespace al::engine
 {
@@ -32,13 +35,13 @@ namespace al::engine
         void run() noexcept;
         void update_input() noexcept;
         void simulate(float dt) noexcept;
-        void render() noexcept;
         void process_end_frame() noexcept;
+
+        void dbg_render_cube() noexcept;
 
     protected:
         static constexpr const char* LOG_CATEGORY_BASE_APPLICATION = "Engine";
 
-        MemoryManager memoryManager;
         JobSystem* jobSystem;
         FileSystem* fileSystem;
         OsWindow* window;
@@ -59,20 +62,20 @@ namespace al::engine
     {
         const std::size_t NUM_OF_JOB_THREADS = std::thread::hardware_concurrency() - 2; // Minus two because of the main thread and rendering thread
 
-        ::new(&memoryManager) MemoryManager{ };
+        MemoryManager* memoryManager = MemoryManager::get();
 
-        debug::globalLogger = memoryManager.get_stack()->allocate_as<debug::Logger>();
+        debug::globalLogger = memoryManager->get_stack()->allocate_as<debug::Logger>();
         ::new(debug::globalLogger) debug::Logger{ };
 
-        jobSystem = memoryManager.get_stack()->allocate_as<JobSystem>();
-        ::new(jobSystem) JobSystem{ NUM_OF_JOB_THREADS, memoryManager.get_stack() };
+        jobSystem = memoryManager->get_stack()->allocate_as<JobSystem>();
+        ::new(jobSystem) JobSystem{ NUM_OF_JOB_THREADS };
 
-        fileSystem = memoryManager.get_stack()->allocate_as<FileSystem>();
-        ::new(fileSystem) FileSystem{ jobSystem, memoryManager.get_pool() };
+        fileSystem = memoryManager->get_stack()->allocate_as<FileSystem>();
+        ::new(fileSystem) FileSystem{ jobSystem };
 
-        window = create_window({ }, memoryManager.get_stack());
+        window = create_window({ });
 
-        renderer = create_renderer(window, memoryManager.get_stack());
+        renderer = create_renderer<EngineConfig::DEFAULT_RENDERER_TYPE>(window);
 
         al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Initialized engine components");
     }
@@ -81,12 +84,13 @@ namespace al::engine
     {
         al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Terminating engine components");
 
-        destroy_renderer(renderer, memoryManager.get_stack());
-        destroy_window(window, memoryManager.get_stack());
+        MemoryManager* memoryManager = MemoryManager::get();
+
+        destroy_renderer<RendererType::OPEN_GL>(renderer);
+        destroy_window(window);
         fileSystem->~FileSystem();
         jobSystem->~JobSystem();
         debug::globalLogger->~Logger();
-        memoryManager.~MemoryManager();
     }
 
     void AlfinaEngineApplication::run() noexcept
@@ -95,18 +99,11 @@ namespace al::engine
         using DtDuration = std::chrono::duration<float>;
 
         al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Starting application");
-
-        // Allocator Test
-        // ::new(&test::allocatorTestJob) Job{ [](Job*){ test::run_allocator_tests(std::cout); } };
-        // jobSystem->add_job(&test::allocatorTestJob);
-
         frameCount = 0;
-
         auto previousTime = ClockT::now();
         while(true)
         {
             al_profile_scope("Process frame");
-            //al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Begin frame %d", frameCount);
 
             auto currentTime = ClockT::now();
             auto dt = std::chrono::duration_cast<DtDuration>(currentTime - previousTime).count();
@@ -124,6 +121,8 @@ namespace al::engine
             renderer->start_process_frame();
             update_input();
             simulate(dt);
+            renderer->wait_for_command_buffers_toggled();
+            dbg_render_cube();
             renderer->wait_for_render_finish();
             process_end_frame();
         }
@@ -170,12 +169,102 @@ namespace al::engine
 
     void AlfinaEngineApplication::simulate(float dt) noexcept
     {
-
+        static SmoothAverage<float> fps;
+        fps.push(dt);
+        al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Fps : %f", 1.0f / fps.get());
     }
 
-    void AlfinaEngineApplication::render() noexcept
+    void AlfinaEngineApplication::dbg_render_cube() noexcept
     {
+        static VertexBuffer* vb = nullptr;
+        static IndexBuffer* ib = nullptr;
+        static VertexArray* va = nullptr;
+        static Shader* shader = nullptr;
 
+        static uint32_t indices[] = {
+            0, 1, 3,
+            3, 1, 2,
+            1, 5, 2,
+            2, 5, 6,
+            5, 4, 6,
+            6, 5, 7,
+            4, 0, 7,
+            7, 0, 3,
+            3, 2, 7,
+            7, 2, 6,
+            4, 5, 0,
+            0, 5, 1
+        };
+
+        static float vertices[] =  {
+            -1.0f, -1.0f, -1.0f,
+            1.0f, -1.0f, -1.0f,
+            1.0f,  1.0f, -1.0f,
+            -1.0f,  1.0f, -1.0f,
+            -1.0f, -1.0f,  1.0f,
+            1.0f, -1.0f,  1.0f,
+            1.0f,  1.0f,  1.0f,
+            -1.0f,  1.0f,  1.0f
+        };
+
+        static bool isInited = false;
+        static PerspectiveRenderCamera cam;
+        static float time = 0.0f;
+        static Transform cubeTransform{ IDENTITY4 };
+
+        static FileHandle* vertSrc = fileSystem->async_load("assets\\shaders\\vertex.vert", FileLoadMode::READ);
+        static FileHandle* fragSrc = fileSystem->async_load("assets\\shaders\\fragment.frag", FileLoadMode::READ);
+        static bool isShadersLoadedChache = false;
+
+        static Function<bool()> isShadersLoaded{ [&]() -> bool
+        {
+            if (isShadersLoadedChache)
+            {
+                return true;
+            }
+            else
+            {
+                bool res = (vertSrc->state == FileHandle::State::LOADED) && (fragSrc->state == FileHandle::State::LOADED);
+                isShadersLoadedChache = res;
+                return res;
+            }
+        }};
+
+        time += 0.01f;
+        cam.get_transform().set_position({ std::sin(time) * 6, 0, std::cos(time) * 6 });
+        cam.look_at({ 0, 0, 0 }, { 0, 1, 0 });
+
+        if (!isInited && isShadersLoaded())
+        {
+            renderer->set_camera(&cam);
+            renderer->add_render_command([&]()
+            {
+                vb = create_vertex_buffer<RendererType::OPEN_GL>(vertices, sizeof(vertices));
+                vb->set_layout(BufferLayout::ElementContainer{ BufferElement{ ShaderDataType::Float3, false } });
+                ib = create_index_buffer<RendererType::OPEN_GL>(indices, sizeof(indices) / sizeof(uint32_t));
+                va = create_vertex_array<RendererType::OPEN_GL>();
+                va->set_vertex_buffer(vb);
+                va->set_index_buffer(ib);
+
+                const char* v = reinterpret_cast<const char*>(vertSrc->memory);
+                const char* f = reinterpret_cast<const char*>(fragSrc->memory);
+                shader = create_shader<RendererType::OPEN_GL>(v, f);
+
+                fileSystem->free_handle(vertSrc);
+                fileSystem->free_handle(fragSrc);
+            });
+
+            isInited = true;
+        }
+        else if (isShadersLoaded())
+        {
+            // @NOTE : Currently using dummy key
+            DrawCommandKey key = 0;
+            DrawCommandData* data = renderer->add_draw_command(key);
+            data->trf = cubeTransform;
+            data->va = va;
+            data->shader = shader;
+        }
     }
 
     void AlfinaEngineApplication::process_end_frame() noexcept

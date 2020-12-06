@@ -6,7 +6,7 @@
 #include "win32_opengl_backend.h"
 
 #include "../vertex_array.h"
-#include "engine/debug/debug.h"
+#include "engine/memory/memory_manager.h"
 
 namespace al::engine
 {
@@ -143,6 +143,19 @@ namespace al::engine
     const IndexBuffer* Win32OpenglVertexArray::get_index_buffer() const noexcept
     {
         return ib;
+    }
+
+    template<> [[nodiscard]] VertexArray* create_vertex_array<RendererType::OPEN_GL>() noexcept
+    {
+        VertexArray* va = MemoryManager::get()->get_pool()->allocate_as<Win32OpenglVertexArray>();
+        ::new(va) Win32OpenglVertexArray{ };
+        return va;
+    }
+
+    template<> void destroy_vertex_array<RendererType::OPEN_GL>(VertexArray* va) noexcept
+    {
+        va->~VertexArray();
+        MemoryManager::get()->get_pool()->deallocate(reinterpret_cast<std::byte*>(va), sizeof(Win32OpenglVertexArray));
     }
 }
 

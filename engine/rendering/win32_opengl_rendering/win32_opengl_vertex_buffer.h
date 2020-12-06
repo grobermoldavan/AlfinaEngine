@@ -6,6 +6,7 @@
 #include "win32_opengl_backend.h"
 
 #include "../vertex_buffer.h"
+#include "engine/memory/memory_manager.h"
 
 namespace al::engine
 {
@@ -62,6 +63,19 @@ namespace al::engine
     const BufferLayout* Win32OpenglVertexBuffer::get_layout() const noexcept
     {
         return &layout;
+    }
+
+    template<> [[nodiscard]] VertexBuffer* create_vertex_buffer<RendererType::OPEN_GL>(const void* data, uint32_t size) noexcept
+    {
+        VertexBuffer* vb = MemoryManager::get()->get_pool()->allocate_as<Win32OpenglVertexBuffer>();
+        ::new(vb) Win32OpenglVertexBuffer{ data, size };
+        return vb;
+    }
+
+    template<> void destroy_vertex_buffer<RendererType::OPEN_GL>(VertexBuffer* vb) noexcept
+    {
+        vb->~VertexBuffer();
+        MemoryManager::get()->get_pool()->deallocate(reinterpret_cast<std::byte*>(vb), sizeof(Win32OpenglVertexBuffer));
     }
 }
 

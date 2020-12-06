@@ -4,8 +4,6 @@
 #include <string_view>
 #include <cstdint>
 
-#include "engine/memory/allocator_base.h"
-
 #include "utilities/flags.h"
 
 namespace al::engine
@@ -13,8 +11,8 @@ namespace al::engine
     class OsWindow;
     struct OsWindowParams;
 
-    [[nodiscard]] OsWindow* create_window(const OsWindowParams& params, AllocatorBase* allocator) noexcept; // @NOTE : this function is defined in os header
-    void destroy_window(OsWindow* window, AllocatorBase* allocator) noexcept;                               // @NOTE : this function is defined in os header
+    [[nodiscard]] OsWindow* create_window(const OsWindowParams& params) noexcept;   // @NOTE : this function is defined in os header
+    void destroy_window(OsWindow* window) noexcept;                                 // @NOTE : this function is defined in os header
 
     struct OsWindowInput
     {
@@ -75,8 +73,8 @@ namespace al::engine
     struct OsWindowParams
     {
         std::string_view name = "Alfina Engine";
-        std::size_t width = 640;
-        std::size_t height = 480;
+        std::size_t width = 1024;
+        std::size_t height = 768;
     };
 
     class OsWindow

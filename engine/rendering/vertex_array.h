@@ -3,6 +3,8 @@
 
 #include "vertex_buffer.h"
 #include "index_buffer.h"
+#include "renderer_type.h"
+#include "engine/debug/debug.h"
 
 namespace al::engine
 {
@@ -18,6 +20,22 @@ namespace al::engine
         virtual const VertexBuffer* get_vertex_buffer   ()                                  const   noexcept = 0;
         virtual const IndexBuffer*  get_index_buffer    ()                                  const   noexcept = 0;
     };
+
+    template<RendererType type> [[nodiscard]] VertexArray* create_vertex_array() noexcept;
+    template<RendererType type> void destroy_vertex_array(VertexArray* va) noexcept;
+
+    template<RendererType type> [[nodiscard]] VertexArray* create_vertex_array() noexcept
+    {
+        al_log_error("Renderer", "Unsupported rendering API");
+        al_assert(false);
+        return nullptr;
+    }
+
+    template<RendererType type> void destroy_vertex_array(VertexArray* va) noexcept
+    {
+        al_log_error("Renderer", "Unsupported rendering API");
+        al_assert(false);
+    }
 }
 
 #endif

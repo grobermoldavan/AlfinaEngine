@@ -8,4 +8,7 @@
 #include <GL/wglew.h>
 #include <GL/GL.h>
 
+// @NOTE :  Current opengl rendering abstraction is based on public version of Hazel Engine. 
+//          Source code for this engine is available here : https://github.com/TheCherno/Hazel
+
 #endif

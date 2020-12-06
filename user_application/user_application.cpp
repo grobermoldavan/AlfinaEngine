@@ -1,5 +1,4 @@
 #define AL_PLATFORM_WIN32
-#define AL_OPENGL
 
 #define AL_LOGGING_ENABLED
 #define AL_PROFILING_ENABLED

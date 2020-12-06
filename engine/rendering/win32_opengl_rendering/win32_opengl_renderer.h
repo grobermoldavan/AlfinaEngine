@@ -1,12 +1,18 @@
 #ifndef AL_WIN32_OPENGL_RENDERER_H
 #define AL_WIN32_OPENGL_RENDERER_H
 
+#include "engine/config/engine_config.h"
+#include "win32_opengl_backend.h"
+
 #include "../renderer.h"
 #include "win32_opengl_backend.h"
 #include "win32_opengl_vertex_buffer.h"
 #include "win32_opengl_index_buffer.h"
 #include "win32_opengl_vertex_array.h"
+#include "win32_opengl_shader.h"
+#include "engine/memory/memory_manager.h"
 #include "engine/window/os_window_win32.h"
+#include "engine/containers/dynamic_array.h"
 
 namespace al::engine
 {
@@ -27,7 +33,7 @@ namespace al::engine
 
         virtual void clear_buffers() noexcept override
         {
-            ::glClearColor(1, 0, 0, 1.0f);
+            ::glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
             ::glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         }
 
@@ -36,10 +42,20 @@ namespace al::engine
             ::SwapBuffers(deviceContext);
         }
 
+        virtual void draw(VertexArray* va, Shader* shader, Transform* trf) noexcept override
+        {
+            va->bind();
+            shader->bind();
+
+            shader->set_mat4(EngineConfig::SHADER_MODEL_MATRIX_UNIFORM_NAME, trf->get_full_transform().transposed());
+            shader->set_mat4(EngineConfig::SHADER_VIEW_PROJECTION_MATRIX_UNIFORM_NAME, (renderCamera->get_projection() * renderCamera->get_view()).transposed());
+            ::glDrawElements(GL_TRIANGLES, va->get_index_buffer()->get_count(), GL_UNSIGNED_INT, nullptr);
+        }
+
         virtual void initialize_renderer() noexcept override
         {
             deviceContext = ::GetDC(win32window->get_handle());
-            al_assert(deviceContext) // unable to retrieve device context
+            al_assert(deviceContext);
 
             PIXELFORMATDESCRIPTOR pfd
             {
@@ -68,13 +84,13 @@ namespace al::engine
             al_assert(isPixelFormatSet); // Unable to set pixel format
 
             renderContext = ::wglCreateContext(deviceContext);
-            al_assert(renderContext); // Unable to create openGL context")
+            al_assert(renderContext); // Unable to create openGL context
 
             bool isCurrent = ::wglMakeCurrent(deviceContext, renderContext);
-            al_assert(isCurrent); // Unable to make openGL context current")
+            al_assert(isCurrent); // Unable to make openGL context current
 
             GLenum glewInitRes = ::glewInit();
-            al_assert(glewInitRes == GLEW_OK); // Unable to init GLEW")
+            al_assert(glewInitRes == GLEW_OK); // Unable to init GLEW
 
             ::wglMakeCurrent(deviceContext, renderContext);
             ::glEnable(GL_DEPTH_TEST);
@@ -86,24 +102,31 @@ namespace al::engine
 
         virtual void terminate_renderer() noexcept override
         {
-            ::wglMakeCurrent(deviceContext, NULL);
-            ::wglDeleteContext(renderContext);
-            ::ReleaseDC(win32window->get_handle(), deviceContext);
+            bool makeCurrentResult = ::wglMakeCurrent(deviceContext, NULL);
+            al_assert(makeCurrentResult);
+
+            bool deleteContextResult = ::wglDeleteContext(renderContext);
+            al_assert(deleteContextResult);
+
+            bool releaseDcResult = ::ReleaseDC(win32window->get_handle(), deviceContext);
+            al_assert(releaseDcResult);
         }
     };
 
-    [[nodiscard]] Renderer* create_renderer(OsWindow* window, AllocatorBase* allocator)
+    template<>
+    [[nodiscard]] Renderer* create_renderer<RendererType::OPEN_GL>(OsWindow* window) noexcept
     {
-        Renderer* renderer = allocator->allocate_as<Win32OpenglRenderer>();
+        Renderer* renderer = MemoryManager::get()->get_stack()->allocate_as<Win32OpenglRenderer>();
         ::new(renderer) Win32OpenglRenderer{ window };
         return renderer;
     }
 
-    void destroy_renderer(Renderer* renderer, AllocatorBase* allocator)
+    template<>
+    void destroy_renderer<RendererType::OPEN_GL>(Renderer* renderer) noexcept
     {
         renderer->terminate();
         renderer->~Renderer();
-        allocator->deallocate(reinterpret_cast<std::byte*>(renderer), sizeof(Win32OpenglRenderer));
+        MemoryManager::get()->get_stack()->deallocate(reinterpret_cast<std::byte*>(renderer), sizeof(Win32OpenglRenderer));
     }
 }
 

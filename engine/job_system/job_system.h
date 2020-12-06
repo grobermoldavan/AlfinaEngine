@@ -12,8 +12,8 @@
 
 #include "engine/config/engine_config.h"
 
+#include "engine/memory/memory_manager.h"
 #include "engine/debug/debug.h"
-#include "engine/memory/allocator_base.h"
 
 #include "utilities/concepts.h"
 #include "utilities/non_copyable.h"
@@ -76,7 +76,7 @@ namespace al::engine
     class JobSystem : NonCopyable
     {
     public:
-        JobSystem(std::size_t numThreads, AllocatorBase* allocator) noexcept;
+        JobSystem(std::size_t numThreads) noexcept;
         ~JobSystem() noexcept;
 
         void add_job(Job* job) noexcept;
@@ -183,8 +183,8 @@ namespace al::engine
         return jobSystem->get_job();
     }
 
-    JobSystem::JobSystem(std::size_t numThreads, AllocatorBase* allocator) noexcept
-        : threads{ reinterpret_cast<JobSystemThread*>(allocator->allocate(sizeof(JobSystemThread) * numThreads)), numThreads }
+    JobSystem::JobSystem(std::size_t numThreads) noexcept
+        : threads{ reinterpret_cast<JobSystemThread*>(MemoryManager::get()->get_stack()->allocate(sizeof(JobSystemThread) * numThreads)), numThreads }
         , jobs{ }
     {
         for (JobSystemThread& thread : threads)

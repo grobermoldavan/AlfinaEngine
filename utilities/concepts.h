@@ -20,6 +20,9 @@ namespace al
 
     template<typename T>
     concept number = std::is_floating_point<T>::value || std::is_integral<T>::value;
+
+    template<typename T>
+    concept trivially_destructible = std::is_trivially_destructible<T>::value;
 }
 
 #endif

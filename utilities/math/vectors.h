@@ -181,6 +181,10 @@ namespace al
     using float2 = vec2<float>;
     using float3 = vec3<float>;
     using float4 = vec4<float>;
+
+    using int32_2 = vec2<int32_t>;
+    using int32_3 = vec3<int32_t>;
+    using int32_4 = vec4<int32_t>;
 }
 
 #endif

@@ -37,6 +37,9 @@ namespace al::engine
         const std::size_t get_block_count() const noexcept;
         const bool is_initialized() const noexcept;
 
+        const std::byte* get_ledger() const noexcept;
+        const std::size_t get_ledger_size_bytes() const noexcept;
+
     private:
 #if(POOL_ALLOCATOR_USE_LOCK)
         std::mutex memoryMutex;
@@ -87,7 +90,6 @@ namespace al::engine
 #if(POOL_ALLOCATOR_USE_LOCK)
         const std::lock_guard<std::mutex> lock{ memoryMutex };
 #endif
-
         const std::size_t blockNum = 1 + ((memorySizeBytes - 1) / blockSize);
         const std::size_t blockId = find_contiguous_blocks(blockNum);
         if (blockId == blockCount)
@@ -95,7 +97,6 @@ namespace al::engine
             return nullptr;
         }
         set_blocks_in_use(blockId, blockNum);
-
         return memory + blockId * blockSize;
     }
 
@@ -128,6 +129,16 @@ namespace al::engine
     const bool MemoryBucket::is_initialized() const noexcept
     {
         return blockCount != 0;
+    }
+
+    const std::byte* MemoryBucket::get_ledger() const noexcept
+    {
+        return ledger;
+    }
+
+    const std::size_t MemoryBucket::get_ledger_size_bytes() const noexcept
+    {
+        return ledgerSizeBytes;
     }
 
     std::size_t MemoryBucket::find_contiguous_blocks(std::size_t number) const noexcept
@@ -185,7 +196,7 @@ namespace al::engine
         for (std::size_t it = 0; it < number; it++)
         {
             std::size_t currentByte = (first + it) / 8;
-            std::size_t currentBit = 7 - (first + it) % 8; // "7 -" is used here to reverse bit order, so bit zero is the left-most bit of value
+            std::size_t currentBit = (first + it) % 8;
             std::byte* byte = ledger + currentByte;
             *byte = set_bit(*byte, currentBit);
         }
@@ -272,14 +283,19 @@ namespace al::engine
         // @TODO : replace std::sort mb
         std::sort(&comapreInfos[0], &comapreInfos[it - 1]);
 
+        std::byte* result = nullptr;
+
         for (std::size_t allocIt = 0; allocIt < it; allocIt++)
         {
             auto id = comapreInfos[allocIt].bucketId;
-            auto* ptr = buckets[id].allocate(memorySizeBytes);
-            if (ptr) return ptr;
+            result = buckets[id].allocate(memorySizeBytes);
+            if (result)
+            {
+                break;
+            }
         }
 
-        return nullptr;
+        return result;
     }
 
     void PoolAllocator::deallocate(std::byte* ptr, std::size_t memorySizeBytes) noexcept

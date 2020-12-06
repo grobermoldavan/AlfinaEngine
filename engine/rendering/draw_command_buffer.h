@@ -7,15 +7,17 @@
 
 #include "command_buffer.h"
 
+#include "utilities/math.h"
+
 namespace al::engine
 {
     using DrawCommandKey = uint32_t;
 
-    struct DrawCommandData
+    struct DrawCommandData : public CommandDataBase<DrawCommandKey>
     {
-        // geometry
-        // material
-        // position
+        Transform trf;
+        class VertexArray* va;
+        class Shader* shader;
     };
 
     using DrawCommandBuffer = CommandBuffer<DrawCommandKey, DrawCommandData, EngineConfig::DRAW_COMMAND_BUFFER_SIZE>;

@@ -1,32 +1,47 @@
 #ifndef AL_COMMAND_BUFFER_H
 #define AL_COMMAND_BUFFER_H
 
-#include <cstdint>
-#include <atomic>
+#include <cstddef>
+#include <concepts>
 
 #include "engine/debug/debug.h"
 
 #include "utilities/function.h"
+#include "utilities/concepts.h"
+#include "utilities/thread_safe/thread_safe_only_growing_stack.h"
 
 namespace al::engine
 {
-    template<typename CommandKey, typename CommandData, std::size_t BufferSize>
+    template<al::pod Key>
+    struct CommandDataBase
+    {
+        Key key;
+    };
+
+    template<al::pod CommandKey, std::derived_from<CommandDataBase<CommandKey>> CommandData, std::size_t BufferSize>
     class CommandBuffer
     {
     public:
-        CommandData* add_command(CommandKey key) noexcept
+        CommandBuffer() = default;
+
+        ~CommandBuffer() noexcept
         {
-            CommandData* result = nullptr;
+            clear();
+        }
+
+        [[nodiscard]] CommandData* add_command(CommandKey key) noexcept
+        {
             std::size_t index;
-            bool allocationResult = allocate_buffer(&index);
-            al_assert(allocationResult);
-            result = data[index];
+            CommandData* result = stack.get();
+            al_assert(result);
+            result->key = key;
+
             return result;
         }
 
         void clear() noexcept
         {
-            bufferPtr = 0;
+            stack.clear();
         }
 
         void sort() noexcept
@@ -34,42 +49,18 @@ namespace al::engine
             // @TODO : sort
         }
 
-        void for_each(Function<void(CommandData*)> func)
+        void for_each(Function<void(CommandData*)> func) noexcept
         {
-            for (std::size_t it = 0; it < bufferPtr; it++)
-            {
-                func(&data[it]);
-            }
+            stack.for_each(func);
+        }
+
+        std::size_t size() const noexcept
+        {
+            return stack.size();
         }
 
     private:
-        CommandKey keys[BufferSize];
-        CommandData data[BufferSize];
-        std::atomic<std::size_t> bufferPtr;
-
-        bool allocate_buffer(std::size_t* value) noexcept
-        {
-            bool result = false;
-
-            while (true)
-            {
-                std::size_t currentTop = bufferPtr;
-                if (currentTop == (BufferSize - 1))
-                {
-                    break;
-                }
-
-                const bool casResult = bufferPtr.compare_exchange_strong(currentTop, currentTop + 1);
-                if (casResult)
-                {
-                    *value = currentTop;
-                    result = true;
-                    break;
-                }
-            }
-
-            return result;
-        }
+        ThreadSafeOnlyGrowingStack<CommandData, BufferSize> stack;
     };
 }
 

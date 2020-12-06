@@ -98,6 +98,7 @@ namespace al::engine::debug
         template<typename ... Args>
         void printf_log(Level level, const char* category, const char* format, Args ... args) noexcept
         {
+            // @TODO : print level with the log
             if (!is_bit_set(levelFlags, level))
             {
                 return;
@@ -213,6 +214,9 @@ namespace al::engine::debug
 
     void assert_implementation(const char* file, const char* function, const std::size_t line, const char* condition) noexcept
     {
+        // @TODO :  Currently asserts freeze program if they get fired in the render thread.
+        //          This happends because after assert renderer does not fire onFrameProcessEnd event
+        //          and main thread just keeps waiting for this event forever.
         al_log_error("assert", "Assertion failed. File : %s, function %s, line : %d, condition : %s", file, function, line, condition);
         globalLogger->print_log_buffer();
         globalLogger->print_profile_buffer();

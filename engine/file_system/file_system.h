@@ -7,7 +7,7 @@
 #include "engine/config/engine_config.h"
 
 #include "file_load.h"
-#include "engine/memory/allocator_base.h"
+#include "engine/memory/memory_manager.h"
 #include "engine/job_system/job_system.h"
 #include "engine/debug/debug.h"
 
@@ -52,7 +52,7 @@ namespace al::engine
     class FileSystem
     {
     public:
-        FileSystem(JobSystem* jobSystem, AllocatorBase* allocator);
+        FileSystem(JobSystem* jobSystem);
         ~FileSystem();
 
         [[nodiscard]] FileHandle* sync_load(std::string_view file, FileLoadMode mode) noexcept;
@@ -76,9 +76,9 @@ namespace al::engine
         AsyncFileReadJob* get_file_load_job() noexcept;
     };
 
-    FileSystem::FileSystem(JobSystem* jobSystem, AllocatorBase* allocator)
+    FileSystem::FileSystem(JobSystem* jobSystem)
         : handles{ }
-        , allocator{ allocator }
+        , allocator{ MemoryManager::get()->get_pool() }
         , jobSystem{ jobSystem }
     { }
 
