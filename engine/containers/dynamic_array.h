@@ -1,6 +1,9 @@
 #ifndef AL_DYNAMIC_ARRAY_H
 #define AL_DYNAMIC_ARRAY_H
 
+// @NOTE :  This is basic dynamic array class. This class uses pool allocator instead of default heap allocation.
+//          Currently there is no way to remove elements from the array
+
 #include <cstddef>
 #include <type_traits>
 #include <cstring>

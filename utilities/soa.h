@@ -15,7 +15,7 @@
 //          For example, full correct type with reflection info for vector of three float elements will look like this :
 //          struct vec3
 //          {
-//              al_declare_reflection(name) // creates initial reflection info
+//              al_declare_reflection(vec3) // creates initial reflection info
 //
 //              al_reflective(float, x)     // creates float x member with corresponding reflection info
 //              al_reflective(float, y)     // creates float y member with corresponding reflection info
@@ -179,7 +179,7 @@ namespace al
     template<typename ... Elements>
     class Soa
     {
-    public:
+    private:
         template<std::size_t It, typename T, typename ... OtherElements>
         struct NthElementInner : NthElementInner<It - 1, OtherElements...>
         { };
@@ -189,10 +189,6 @@ namespace al
         {
             using type = T;
         };
-
-        template<std::size_t It>
-        struct NthElement : NthElementInner<It, Elements...>
-        { };
 
         template<std::size_t It, std::size_t CurrentSize, typename T, typename ... OtherElements>
         struct ElementsSize : ElementsSize<It - 1, CurrentSize + sizeof(T), OtherElements...>
@@ -205,6 +201,10 @@ namespace al
         };
 
     public:
+        template<std::size_t It>
+        struct NthElement : NthElementInner<It, Elements...>
+        { };
+
         Soa()
             : memory{ nullptr }
             , memorySizeBytes{ 0 }
@@ -248,7 +248,7 @@ namespace al
             set_as_inner(value, index);
         }
 
-    public:
+    private:
         static constexpr std::size_t NUMBER_OF_ELEMENTS = sizeof...(Elements);
         static constexpr std::size_t SIZE_OF_ELEMENTS = ElementsSize<NUMBER_OF_ELEMENTS, 0, Elements...>::SIZE;
 

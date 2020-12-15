@@ -38,7 +38,6 @@ namespace al::engine
 
     FileHandle sync_load(std::string_view name, AllocatorBase* allocator, FileLoadMode mode)
     {
-        // @TODO : add ability to change open mode
         std::FILE* file = std::fopen(name.data(), SYNC_LOAD_MODE_TO_STR[static_cast<int>(mode)]);   
         al_assert(file);
 

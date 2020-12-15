@@ -1,6 +1,9 @@
 #ifndef AL_DEBUG_OUTPUT_H
 #define AL_DEBUG_OUTPUT_H
 
+// @NOTE :  this header contains wrapping over std output streams which is used
+//          by Logger to print information
+
 #include <iostream>
 #include <fstream>
 

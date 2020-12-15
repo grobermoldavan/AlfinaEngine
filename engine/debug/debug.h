@@ -1,6 +1,18 @@
 #ifndef AL_DEBUG_H
 #define AL_DEBUG_H
 
+// @NOTE :  This header contains Logger class, ScopeProfiler class and assert_implementation function
+//          as well as macros for calling logger, creating scope profilers and assertions.
+//          Logging is done by three macros : 
+//              al_log_message(format, ...)
+//              al_log_warning(format, ...)
+//              al_log_error(format, ...)
+//              'format' and following argumets work the same way as printf format and arguments.
+//          Asserting is done via al_assert(condition) macro.
+//          Profiling is done via al_profile_function() and al_profile_scope(name) macros.
+//              al_profile_function automatically uses function signature as a scope name
+//              al_profile_scope uses user-provided name for the scope
+
 #include <cstddef>
 #include <cstdint>
 #include <chrono>

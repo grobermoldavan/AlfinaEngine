@@ -1,6 +1,9 @@
 #ifndef AL_ENGINE_CONFIG_H
 #define AL_ENGINE_CONFIG_H
 
+// @NOTE :  This header contains config invormation for engine.
+//          Values can be changed by user if needed.
+
 #include <cstddef>
 #include <chrono>
 
