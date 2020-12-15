@@ -6,6 +6,7 @@
 #include <chrono>
 #include <atomic>
 #include <thread>
+#include <mutex>
 
 #include "engine/config/engine_config.h"
 
@@ -117,6 +118,11 @@ namespace al::engine::debug
         template<typename ... Args>
         void printf_profile(const char* format, Args ... args) noexcept
         {
+            // @NOTE :  Without a mutex profiling seems to be messed up sometimes.
+            //          Don't know the reason, tbh.
+            // @TODO :  Find a way to profile data without mutex.
+            std::unique_lock<std::mutex> lock{ profileMutex };
+
             int size = std::snprintf(nullptr, 0, format, args...);
             if (size >= 0)
             {
@@ -137,6 +143,11 @@ namespace al::engine::debug
 
         void print_profile_buffer() noexcept
         {
+            // @NOTE :  Without a mutex profiling seems to be messed up sometimes.
+            //          Don't know the reason, tbh.
+            // @TODO :  Find a way to profile data without mutex.
+            std::unique_lock<std::mutex> lock{ profileMutex };
+
             profileBuffer[profileBufferPtr] = 0;
             al_exception_wrap_no_assert(*GLOBAL_PROFILE_OUTPUT << profileBuffer);
             al_exception_wrap_no_assert(GLOBAL_PROFILE_OUTPUT->flush());
@@ -159,6 +170,8 @@ namespace al::engine::debug
 
         char profileBuffer[EngineConfig::PROFILE_BUFFER_SIZE + 1];
         std::atomic<std::size_t> profileBufferPtr;
+
+        std::mutex profileMutex;
 
         uint32_t levelFlags;
 

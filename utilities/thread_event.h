@@ -4,6 +4,7 @@
 #include <atomic>
 #include <mutex>
 #include <condition_variable>
+#include <chrono>
 
 #define exception_wrap(code) try { code; } catch (const std::exception& e) { int* crash = nullptr; crash = 0; } // @TODO : add exception handling
 
@@ -25,6 +26,17 @@ namespace al
                 std::unique_lock<std::mutex> lock{ eventMutex };
                 exception_wrap( eventCv.wait(lock, [this]() -> bool { return isValid; }) );
             }
+        }
+
+        template <typename Rep, typename Period>
+        bool wait_for(const std::chrono::duration<Rep, Period>& time) noexcept
+        {
+            if (!isValid)
+            {
+                std::unique_lock<std::mutex> lock{ eventMutex };
+                exception_wrap( eventCv.wait_for(lock, time, [this]() -> bool { return isValid; }) );
+            }
+            return isValid;
         }
 
         void invoke() noexcept

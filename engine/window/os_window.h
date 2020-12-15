@@ -88,6 +88,11 @@ namespace al::engine
         virtual bool is_quit() noexcept = 0;
         virtual OsWindowInput get_input() noexcept = 0;
 
+        const OsWindowParams* get_params() const noexcept
+        {
+            return &params;
+        }
+
     protected:
         OsWindowParams params;
     };

@@ -44,6 +44,9 @@ void UserApplication::terminate_components() noexcept
 {
     al_log_message(LOG_CATEGORY_USER_APPLICATION, "Terminating user application components");
 
+    onKeyboardButtonPressed.unsubscribe(this);
+    onMouseButtonPressed.unsubscribe(this);
+
     al::engine::AlfinaEngineApplication::terminate_components();
 }
 

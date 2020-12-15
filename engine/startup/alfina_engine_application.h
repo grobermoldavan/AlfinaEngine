@@ -9,12 +9,10 @@
 #include "engine/file_system/file_system.h"
 #include "engine/debug/debug.h"
 #include "engine/rendering/renderer.h"
-#include "engine/containers/dynamic_array.h"
 #include "engine/rendering/camera/perspective_render_camera.h"
+#include "engine/game_cameras/fly_camera.h"
 
 #include "utilities/event.h"
-#include "utilities/toggle.h"
-#include "utilities/math.h"
 #include "utilities/smooth_average.h"
 
 namespace al::engine
@@ -48,7 +46,9 @@ namespace al::engine
         Renderer* renderer;
 
         Toggle<OsWindowInput> inputState;
-        std::size_t frameCount;
+        std::uint64_t frameCount;
+
+        FlyCamera dbgFlyCamera;
 
         Event<void(OsWindowInput::KeyboardInputFlags)> onKeyboardButtonPressed;
         Event<void(OsWindowInput::KeyboardInputFlags)> onKeyboardButtonReleased;
@@ -77,6 +77,8 @@ namespace al::engine
 
         renderer = create_renderer<EngineConfig::DEFAULT_RENDERER_TYPE>(window);
 
+        renderer->set_camera(dbgFlyCamera.get_render_camera());
+
         al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Initialized engine components");
     }
 
@@ -86,7 +88,7 @@ namespace al::engine
 
         MemoryManager* memoryManager = MemoryManager::get();
 
-        destroy_renderer<RendererType::OPEN_GL>(renderer);
+        destroy_renderer<EngineConfig::DEFAULT_RENDERER_TYPE>(renderer);
         destroy_window(window);
         fileSystem->~FileSystem();
         jobSystem->~JobSystem();
@@ -122,10 +124,11 @@ namespace al::engine
             update_input();
             simulate(dt);
             renderer->wait_for_command_buffers_toggled();
-            dbg_render_cube();
+            dbg_render_cube();;
             renderer->wait_for_render_finish();
             process_end_frame();
         }
+
     }
 
     void AlfinaEngineApplication::update_input() noexcept
@@ -172,10 +175,14 @@ namespace al::engine
         static SmoothAverage<float> fps;
         fps.push(dt);
         al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Fps : %f", 1.0f / fps.get());
+
+        dbgFlyCamera.process_inputs(&inputState.get_current(), dt);
     }
 
     void AlfinaEngineApplication::dbg_render_cube() noexcept
     {
+        al_profile_function();
+
         static VertexBuffer* vb = nullptr;
         static IndexBuffer* ib = nullptr;
         static VertexArray* va = nullptr;
@@ -187,7 +194,7 @@ namespace al::engine
             1, 5, 2,
             2, 5, 6,
             5, 4, 6,
-            6, 5, 7,
+            6, 4, 7,
             4, 0, 7,
             7, 0, 3,
             3, 2, 7,
@@ -208,7 +215,6 @@ namespace al::engine
         };
 
         static bool isInited = false;
-        static PerspectiveRenderCamera cam;
         static float time = 0.0f;
         static Transform cubeTransform{ IDENTITY4 };
 
@@ -216,7 +222,7 @@ namespace al::engine
         static FileHandle* fragSrc = fileSystem->async_load("assets\\shaders\\fragment.frag", FileLoadMode::READ);
         static bool isShadersLoadedChache = false;
 
-        static Function<bool()> isShadersLoaded{ [&]() -> bool
+        static auto isShadersLoaded = [&]() -> bool
         {
             if (isShadersLoadedChache)
             {
@@ -224,19 +230,13 @@ namespace al::engine
             }
             else
             {
-                bool res = (vertSrc->state == FileHandle::State::LOADED) && (fragSrc->state == FileHandle::State::LOADED);
-                isShadersLoadedChache = res;
-                return res;
+                isShadersLoadedChache = (vertSrc->state == FileHandle::State::LOADED) && (fragSrc->state == FileHandle::State::LOADED);
+                return isShadersLoadedChache;
             }
-        }};
-
-        time += 0.01f;
-        cam.get_transform().set_position({ std::sin(time) * 6, 0, std::cos(time) * 6 });
-        cam.look_at({ 0, 0, 0 }, { 0, 1, 0 });
+        };
 
         if (!isInited && isShadersLoaded())
         {
-            renderer->set_camera(&cam);
             renderer->add_render_command([&]()
             {
                 vb = create_vertex_buffer<RendererType::OPEN_GL>(vertices, sizeof(vertices));
@@ -273,15 +273,12 @@ namespace al::engine
 
         fileSystem->remove_finished_jobs();
         {
-            al_profile_scope("Print log and profile buffers");
-            {
-                al_profile_scope("Print log buffer");
-                debug::globalLogger->print_log_buffer();
-            }
-            {
-                al_profile_scope("Print profile buffer");
-                debug::globalLogger->print_profile_buffer();
-            }
+            al_profile_scope("Print log buffer");
+            debug::globalLogger->print_log_buffer();
+        }
+        {
+            al_profile_scope("Print profile buffer");
+            debug::globalLogger->print_profile_buffer();
         }
         frameCount++;
     }

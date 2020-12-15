@@ -28,9 +28,9 @@ namespace al::engine
 
         ~PerspectiveRenderCamera() = default;
 
-        virtual Transform& get_transform() noexcept override
+        virtual Transform* get_transform() noexcept override
         {
-            return transform;
+            return &transform;
         }
 
         virtual float4x4 get_projection() const noexcept override
@@ -71,6 +71,26 @@ namespace al::engine
             rotation.m[2][2] = forward.z;
 
             transform.rotation = rotation;
+        }
+
+        void set_fov(float fov) noexcept
+        {
+            fovDeg = fov;
+        }
+
+        float get_fov() const noexcept
+        {
+            return fovDeg;
+        }
+
+        void set_aspect_ratio(float ratio) noexcept
+        {
+            aspectRatio = ratio;
+        }
+
+        float get_aspect_ratio() const noexcept
+        {
+            return aspectRatio;
         }
 
     private:

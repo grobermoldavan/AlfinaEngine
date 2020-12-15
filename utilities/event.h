@@ -18,38 +18,55 @@ namespace al
     //         is fired.
     //         Function can be unsubscribed from event only via host object.
 
+    using EventHandle = uint64_t;
+
     template<typename ... Args, std::size_t SubscribersNum>
     class Event<void(Args...), SubscribersNum>
     {
     public:
         using FunctionT = al::Function<void(Args...)>;
 
+        struct EventEntry
+        {
+            FunctionT func;
+            EventHandle handle;
+        };
+
         Event() noexcept
             : subscribers{ }
         { }
 
-        inline void invoke(const Args&... args) noexcept
+        void invoke(const Args&... args) noexcept
         {
-            subscribers.for_each([&](FunctionT* func)
+            subscribers.for_each([&](EventEntry* entry)
             {
-                (*func)(args...);
+                entry->func(args...);
             });
         }
 
-        inline void subscribe(const FunctionT& func) noexcept
+        EventHandle subscribe(const FunctionT& func) noexcept
         {
-            FunctionT* freeFunction = subscribers.get();
-            *freeFunction = func;
+            EventEntry* freeEntry = subscribers.get();
+            freeEntry->func = func;
+            freeEntry->handle = get_next_handle();
+            return freeEntry->handle;
         }
 
-        // @NOTE : currently usubscription works only by removing all
-        //         subscriptions of a given object
-        // @TODO : add a way to unsubscribe any function
-        inline void unsubscribe(void* host) noexcept
+        // @NOTE : unsubscribe by host object
+        void unsubscribe(void* host) noexcept
         {
-            subscribers.remove_by_condition([&](FunctionT* other) -> bool
+            subscribers.remove_by_condition([&](EventEntry* other) -> bool
             {
-                return host == other->get_host_object();
+                return host == other->func.get_host_object();
+            });
+        }
+
+        // @NOTE : unsubscribe by handle
+        void unsubscribe(EventHandle handle) noexcept
+        {
+            subscribers.remove_by_condition([&](EventEntry* other) -> bool
+            {
+                return handle == other->handle;
             });
         }
 
@@ -59,7 +76,13 @@ namespace al
         }
 
     private:
-        SuList<FunctionT, SubscribersNum> subscribers;
+        SuList<EventEntry, SubscribersNum> subscribers;
+
+        EventHandle get_next_handle() const noexcept
+        {
+            static EventHandle handle = 0;
+            return handle++;
+        }
     };
 
 }

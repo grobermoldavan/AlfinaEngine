@@ -76,13 +76,17 @@ namespace al::engine
         void wait_for_render_finish() noexcept
         {
             al_profile_function();
-            onFrameProcessEnd.wait();
+
+            const bool waitResult = onFrameProcessEnd.wait_for(std::chrono::seconds{ 1 });
+            al_assert(waitResult); // Event was not fired. Probably something happend to render thread
         }
 
         void wait_for_command_buffers_toggled() noexcept
         {
             al_profile_function();
-            onCommandBufferToggled.wait();
+            
+            const bool waitResult = onCommandBufferToggled.wait_for(std::chrono::seconds{ 1 });
+            al_assert(waitResult); // Event was not fired. Probably something happend to render thread
             onCommandBufferToggled.reset();
         }
 
@@ -180,7 +184,7 @@ namespace al::engine
                         });
                         current.clear();
                     }
-                    
+
                     {
                         al_profile_scope("Swap render buffers");
                         swap_buffers();
