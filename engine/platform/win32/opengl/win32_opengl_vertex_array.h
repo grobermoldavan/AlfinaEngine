@@ -5,7 +5,7 @@
 
 #include "win32_opengl_backend.h"
 
-#include "../vertex_array.h"
+#include "engine/rendering/vertex_array.h"
 #include "engine/memory/memory_manager.h"
 
 namespace al::engine

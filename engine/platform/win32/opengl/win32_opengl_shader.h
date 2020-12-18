@@ -3,9 +3,9 @@
 
 #include "win32_opengl_backend.h"
 
-#include "../shader.h"
+#include "engine/rendering/shader.h"
 #include "engine/debug/debug.h"
-#include "engine/containers/dynamic_array.h"
+#include "engine/containers/containers.h"
 #include "engine/memory/memory_manager.h"
 
 namespace al::engine

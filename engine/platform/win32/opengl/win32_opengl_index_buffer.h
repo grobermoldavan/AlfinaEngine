@@ -6,7 +6,7 @@
 
 #include "win32_opengl_backend.h"
 
-#include "../index_buffer.h"
+#include "engine/rendering/index_buffer.h"
 #include "engine/memory/memory_manager.h"
 
 namespace al::engine

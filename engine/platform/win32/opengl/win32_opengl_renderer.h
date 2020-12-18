@@ -4,15 +4,14 @@
 #include "engine/config/engine_config.h"
 #include "win32_opengl_backend.h"
 
-#include "../renderer.h"
+#include "engine/rendering/renderer.h"
 #include "win32_opengl_backend.h"
 #include "win32_opengl_vertex_buffer.h"
 #include "win32_opengl_index_buffer.h"
 #include "win32_opengl_vertex_array.h"
 #include "win32_opengl_shader.h"
 #include "engine/memory/memory_manager.h"
-#include "engine/window/os_window_win32.h"
-#include "engine/containers/dynamic_array.h"
+#include "engine/platform/win32/window/os_window_win32.h"
 
 namespace al::engine
 {

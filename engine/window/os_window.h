@@ -103,7 +103,7 @@ namespace al::engine
 }
 
 #ifdef AL_PLATFORM_WIN32
-#   include "os_window_win32.h"
+#   include "engine/platform/win32/window/os_window_win32.h"
 #else
 #   error Unsupported platform
 #endif

@@ -324,6 +324,53 @@ namespace al::engine
             buckets[it].initialize(bucketDescriptions[it].blockSize, bucketDescriptions[it].blockCount, allocator);
         }
     }
+
+    // ==========================================================================================================================================
+    // @NOTE : This is a wrapper over pool allocator which gives us an ability to use custom allocator with std containers
+    // ==========================================================================================================================================
+
+    template<typename T>
+    class PoolAllocatorStdWrap
+    {
+    public:
+        using value_type = T;
+
+        PoolAllocatorStdWrap() noexcept
+            : allocator { MemoryManager::get()->get_pool() }
+        { }
+
+        template<typename U>
+        PoolAllocatorStdWrap(const PoolAllocatorStdWrap<U>&) noexcept
+            : allocator { MemoryManager::get()->get_pool() }
+        { }
+
+        ~PoolAllocatorStdWrap() = default;
+
+        T* allocate(std::size_t n)
+        {
+            return reinterpret_cast<T*>(allocator->allocate(n * sizeof(T)));
+        }
+
+        void deallocate(T* ptr, std::size_t n) 
+        {
+            allocator->deallocate((std::byte*)ptr, n * sizeof(T));
+        }
+    
+    private:
+        PoolAllocator* allocator;
+    };
+
+    template <typename T, typename U>
+    constexpr bool operator == (const PoolAllocatorStdWrap<T>&, const PoolAllocatorStdWrap<U>&) noexcept
+    {
+        return true;
+    }
+
+    template <typename T, typename U>
+    constexpr bool operator != (const PoolAllocatorStdWrap<T>&, const PoolAllocatorStdWrap<U>&) noexcept
+    {
+        return false;
+    }
 }
 
 #endif

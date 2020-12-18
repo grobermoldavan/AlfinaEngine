@@ -2,6 +2,7 @@
 #define AL_ALFINA_ENGINE_APPLICATION_H
 
 #include <span>
+#include <vector>
 
 #include "engine/memory/memory_manager.h"
 #include "engine/job_system/job_system.h"
@@ -124,7 +125,7 @@ namespace al::engine
             update_input();
             simulate(dt);
             renderer->wait_for_command_buffers_toggled();
-            dbg_render_cube();;
+            dbg_render_cube();
             renderer->wait_for_render_finish();
             process_end_frame();
         }

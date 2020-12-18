@@ -15,9 +15,9 @@
 #include "camera/render_camera.h"
 #include "engine/debug/debug.h"
 #include "engine/window/os_window.h"
+#include "engine/platform/platform_thread_event.h"
 
 #include "utilities/toggle.h"
-#include "utilities/thread_event.h"
 #include "utilities/function.h"
 #include "utilities/thread_safe/thread_safe_only_growing_stack.h"
 #include "utilities/math.h"
@@ -84,7 +84,7 @@ namespace al::engine
         void wait_for_command_buffers_toggled() noexcept
         {
             al_profile_function();
-            
+
             const bool waitResult = onCommandBufferToggled.wait_for(std::chrono::seconds{ 1 });
             al_assert(waitResult); // Event was not fired. Probably something happend to render thread
             onCommandBufferToggled.reset();
@@ -217,7 +217,7 @@ namespace al::engine
 }
 
 #ifdef AL_PLATFORM_WIN32
-#   include "win32_opengl_rendering/win32_opengl_renderer.h"
+#   include "engine/platform/win32/opengl/win32_opengl_renderer.h"
 #else
 #   error Unsupported platform
 #endif

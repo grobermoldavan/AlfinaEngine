@@ -4,7 +4,7 @@
 #include <Windows.h>
 #include <Windowsx.h>
 
-#include "os_window.h"
+#include "engine/window/os_window.h"
 #include "engine/debug/debug.h"
 #include "engine/memory/memory_manager.h"
 
