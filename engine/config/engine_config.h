@@ -17,6 +17,8 @@ namespace al::engine
     {
         // Memory Manager settings
         static constexpr std::size_t                MEMORY_SIZE{ gigabytes<std::size_t>(1) };
+        static constexpr std::size_t                POOL_ALLOCATOR_MAX_BUCKETS{ 5 };
+        static constexpr std::size_t                POOL_ALLOCATOR_MAX_PTR_SIZE_PAIRS{ 64 };
 
         // File System settings
         static constexpr std::size_t                MAX_FILE_HANDLES{ 4096 };
@@ -25,7 +27,7 @@ namespace al::engine
 
         // Job System settings
         static constexpr std::size_t                MAX_JOBS{ 1024 };
-        static constexpr std::chrono::milliseconds  JOB_THREAD_SLEEP_TIME{ 5 };
+        static constexpr std::chrono::nanoseconds   JOB_THREAD_SLEEP_TIME{ 100000 }; // 0.1 of millisecond
 
         // Log System settings
         static constexpr std::size_t                LOG_BUFFER_SIZE{ megabytes<std::size_t>(1) };

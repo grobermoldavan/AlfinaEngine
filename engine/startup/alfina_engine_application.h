@@ -36,7 +36,7 @@ namespace al::engine
         void simulate(float dt) noexcept;
         void process_end_frame() noexcept;
 
-        void dbg_render_cube() noexcept;
+        void dbg_render() noexcept;
 
     protected:
         static constexpr const char* LOG_CATEGORY_BASE_APPLICATION = "Engine";
@@ -125,7 +125,7 @@ namespace al::engine
             update_input();
             simulate(dt);
             renderer->wait_for_command_buffers_toggled();
-            dbg_render_cube();
+            dbg_render();
             renderer->wait_for_render_finish();
             process_end_frame();
         }
@@ -180,7 +180,7 @@ namespace al::engine
         dbgFlyCamera.process_inputs(&inputState.get_current(), dt);
     }
 
-    void AlfinaEngineApplication::dbg_render_cube() noexcept
+    void AlfinaEngineApplication::dbg_render() noexcept
     {
         al_profile_function();
 
@@ -188,31 +188,39 @@ namespace al::engine
         static IndexBuffer* ib = nullptr;
         static VertexArray* va = nullptr;
         static Shader* shader = nullptr;
+        static Texture2d* texture = nullptr;
 
         static uint32_t indices[] = {
+            // 0, 1, 3,
+            // 3, 1, 2,
+            // 1, 5, 2,
+            // 2, 5, 6,
+            // 5, 4, 6,
+            // 6, 4, 7,
+            // 4, 0, 7,
+            // 7, 0, 3,
+            // 3, 2, 7,
+            // 7, 2, 6,
+            // 4, 5, 0,
+            // 0, 5, 1
             0, 1, 3,
-            3, 1, 2,
-            1, 5, 2,
-            2, 5, 6,
-            5, 4, 6,
-            6, 4, 7,
-            4, 0, 7,
-            7, 0, 3,
-            3, 2, 7,
-            7, 2, 6,
-            4, 5, 0,
-            0, 5, 1
+            3, 1, 2
         };
 
         static float vertices[] =  {
-            -1.0f, -1.0f, -1.0f,
-            1.0f, -1.0f, -1.0f,
-            1.0f,  1.0f, -1.0f,
-            -1.0f,  1.0f, -1.0f,
-            -1.0f, -1.0f,  1.0f,
-            1.0f, -1.0f,  1.0f,
-            1.0f,  1.0f,  1.0f,
-            -1.0f,  1.0f,  1.0f
+            // -1.0f, -1.0f, -1.0f,
+            // 1.0f, -1.0f, -1.0f,
+            // 1.0f,  1.0f, -1.0f,
+            // -1.0f,  1.0f, -1.0f,
+            // -1.0f, -1.0f,  1.0f,
+            // 1.0f, -1.0f,  1.0f,
+            // 1.0f,  1.0f,  1.0f,
+            // -1.0f,  1.0f,  1.0f
+
+            -1.0f, -1.0f, 4.0f, 0.0f, 0.0f,
+             1.0f, -1.0f, 4.0f, 1.0f, 0.0f,
+             1.0f,  1.0f, 4.0f, 1.0f, 1.0f,
+            -1.0f,  1.0f, 4.0f, 0.0f, 1.0f
         };
 
         static bool isInited = false;
@@ -240,16 +248,18 @@ namespace al::engine
         {
             renderer->add_render_command([&]()
             {
-                vb = create_vertex_buffer<RendererType::OPEN_GL>(vertices, sizeof(vertices));
-                vb->set_layout(BufferLayout::ElementContainer{ BufferElement{ ShaderDataType::Float3, false } });
-                ib = create_index_buffer<RendererType::OPEN_GL>(indices, sizeof(indices) / sizeof(uint32_t));
-                va = create_vertex_array<RendererType::OPEN_GL>();
+                vb = create_vertex_buffer<EngineConfig::DEFAULT_RENDERER_TYPE>(vertices, sizeof(vertices));
+                vb->set_layout(BufferLayout::ElementContainer{ BufferElement{ ShaderDataType::Float3, false }, BufferElement{ ShaderDataType::Float2, false } });
+                ib = create_index_buffer<EngineConfig::DEFAULT_RENDERER_TYPE>(indices, sizeof(indices) / sizeof(uint32_t));
+                va = create_vertex_array<EngineConfig::DEFAULT_RENDERER_TYPE>();
                 va->set_vertex_buffer(vb);
                 va->set_index_buffer(ib);
 
                 const char* v = reinterpret_cast<const char*>(vertSrc->memory);
                 const char* f = reinterpret_cast<const char*>(fragSrc->memory);
-                shader = create_shader<RendererType::OPEN_GL>(v, f);
+                shader = create_shader<EngineConfig::DEFAULT_RENDERER_TYPE>(v, f);
+
+                texture = create_texture_2d<EngineConfig::DEFAULT_RENDERER_TYPE>("assets\\textures\\test.png");
 
                 fileSystem->free_handle(vertSrc);
                 fileSystem->free_handle(fragSrc);
@@ -265,6 +275,7 @@ namespace al::engine
             data->trf = cubeTransform;
             data->va = va;
             data->shader = shader;
+            data->texture = texture;
         }
     }
 

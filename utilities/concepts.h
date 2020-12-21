@@ -3,6 +3,7 @@
 
 #include <type_traits>
 #include <cstddef>
+#include <concepts>
 
 namespace al
 {

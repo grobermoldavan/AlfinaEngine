@@ -12,6 +12,7 @@
 #include "engine/debug/debug.h"
 
 #include "utilities/static_unordered_list.h"
+#include "utilities/array_container.h"
 
 /*
     @TODO : Main goal - add ability to async load files in file system.
@@ -62,9 +63,11 @@ namespace al::engine
         void remove_finished_jobs() noexcept;
 
     private:
-        SuList<FileHandle, EngineConfig::MAX_FILE_HANDLES> handles;
+        ArrayContainer<FileHandle, EngineConfig::MAX_FILE_HANDLES> handles;
         std::mutex handlesListMutex;
 
+        // @NOTE :  SuList does not copy objects from one place another, so it is
+        //          more suitable for storing Jobs because Jobs can't be copied
         SuList<AsyncFileReadJob, EngineConfig::MAX_ASYNC_FILE_READ_JOBS> jobs;
         std::mutex jobsListMutex;
 
@@ -137,7 +140,10 @@ namespace al::engine
         allocator->deallocate(handle->memory, handle->size);
         {
             std::lock_guard<std::mutex> lock{ handlesListMutex };
-            handles.remove(handle);
+            handles.remove_by_condition([&](FileHandle* containerHandle) -> bool
+            {
+                return containerHandle == handle;
+            });
         }
     }
 

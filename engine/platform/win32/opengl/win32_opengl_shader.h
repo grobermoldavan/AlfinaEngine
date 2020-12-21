@@ -126,7 +126,7 @@ namespace al::engine
         DynamicArray<GLchar> infoLog(infoLength);
         ::glGetShaderInfoLog(shaderId, infoLength, &infoLength, &infoLog[0]);
         ::glDeleteShader(shaderId);
-        al_log_error("Shader1", "%s", &infoLog[0]);
+        al_log_error("Shader", "%s", &infoLog[0]);
     }
 
     void Win32OpenglShader::handle_program_compile_error(GLuint programId, GLenum(&shaderIds)[ShaderType::__size], bool(&isShaderIdSpecified)[ShaderType::__size]) const noexcept
@@ -141,7 +141,7 @@ namespace al::engine
         {
             if(isShaderIdSpecified[it]) { ::glDeleteShader(shaderIds[it]); }
         }
-        al_log_error("Shader2", "%s", &infoLog[0]);
+        al_log_error("Shader", "%s", &infoLog[0]);
     }
 
     GLint Win32OpenglShader::get_uniform_location(const char* name) const noexcept
@@ -149,7 +149,7 @@ namespace al::engine
         GLint location = ::glGetUniformLocation(rendererId, name);
         if (location == -1)
         {
-            al_log_error("Shader3", "Unable to find uniform location. Uniform name is %s", name);
+            al_log_error("Shader", "Unable to find uniform location. Uniform name is %s", name);
             al_assert(location != -1);
         }
         return location;

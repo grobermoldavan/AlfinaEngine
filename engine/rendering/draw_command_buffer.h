@@ -18,6 +18,7 @@ namespace al::engine
         Transform trf;
         class VertexArray* va;
         class Shader* shader;
+        class Texture2d* texture;
     };
 
     using DrawCommandBuffer = CommandBuffer<DrawCommandKey, DrawCommandData, EngineConfig::DRAW_COMMAND_BUFFER_SIZE>;

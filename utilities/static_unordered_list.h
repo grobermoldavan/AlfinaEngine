@@ -11,16 +11,25 @@
 
 namespace al
 {
-    // @NOTE : This is a custom data structure that acts mostly like a linked list.
-    //         New elements can be inserted reasonably fast (only few pointers must 
-    //         be updated), but unlike most list implementations, this one does not
-    //         dynamically allocate any memory when inserting elements - all nodes
-    //         are pre-allocated and stored in a single block of memory.
-    //         Time complexity of find_free_node method is O(n) in worst case, where
-    //         "n" is a number of nodes in list, so whole insertion operation takes O(n).
-    //         Removing elements also has O(n) time complexity in worst case
-    //         (because of find_prev_node method).
-    
+    // @NOTE :  This is a custom data structure that acts mostly like a linked list.
+    //          New elements can be inserted reasonably fast (only few pointers must 
+    //          be updated), but unlike most list implementations, this one does not
+    //          dynamically allocate any memory when inserting elements - all nodes
+    //          are pre-allocated and stored in a single block of memory.
+    //          Time complexity of find_free_node method is O(n) in worst case, where
+    //          "n" is a number of nodes in list, so whole insertion operation takes O(n).
+    //          Removing elements also has O(n) time complexity in worst case
+    //          (because of find_prev_node method).
+
+    // @NOTE :  This structure is most useful if you want to store objects somwhere,
+    //          but the order of them does not matter, and also if you want to do it
+    //          somewhat fast, without dynamic allocations and with an ability to iterate
+    //          and remove objects in more or less cache-friendly way.
+    //          SuList is similar to ArrayContainer in terms of functionality, but it is
+    //          slower. SuList is preferable when you want to store non-copyable objects
+    //          (ArrayContainer won't work in this case because it copies elements from
+    //          one place to the other).
+
     template<std::default_initializable T, std::size_t Size>
     class SuList
     {

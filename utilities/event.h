@@ -5,7 +5,7 @@
 #include <tuple>
 
 #include "function.h"
-#include "static_unordered_list.h"
+#include "array_container.h"
 
 namespace al
 {
@@ -76,7 +76,7 @@ namespace al
         }
 
     private:
-        SuList<EventEntry, SubscribersNum> subscribers;
+        ArrayContainer<EventEntry, SubscribersNum> subscribers;
 
         EventHandle get_next_handle() const noexcept
         {

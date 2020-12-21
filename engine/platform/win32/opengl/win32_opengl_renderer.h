@@ -10,6 +10,7 @@
 #include "win32_opengl_index_buffer.h"
 #include "win32_opengl_vertex_array.h"
 #include "win32_opengl_shader.h"
+#include "win32_opengl_texture_2d.h"
 #include "engine/memory/memory_manager.h"
 #include "engine/platform/win32/window/os_window_win32.h"
 
@@ -41,14 +42,20 @@ namespace al::engine
             ::SwapBuffers(deviceContext);
         }
 
-        virtual void draw(VertexArray* va, Shader* shader, Transform* trf) noexcept override
+        virtual void draw(DrawCommandData* data) noexcept override
         {
-            va->bind();
-            shader->bind();
+            data->va->bind();
+            data->shader->bind();
 
-            shader->set_mat4(EngineConfig::SHADER_MODEL_MATRIX_UNIFORM_NAME, trf->get_full_transform().transposed());
-            shader->set_mat4(EngineConfig::SHADER_VIEW_PROJECTION_MATRIX_UNIFORM_NAME, (renderCamera->get_projection() * renderCamera->get_view()).transposed());
-            ::glDrawElements(GL_TRIANGLES, va->get_index_buffer()->get_count(), GL_UNSIGNED_INT, nullptr);
+            // For debug. Will be removed later
+            uint32_t textureSlot = 0;
+            data->texture->bind(textureSlot);
+            data->shader->set_int("u_Texture", textureSlot);
+
+            data->shader->set_mat4(EngineConfig::SHADER_MODEL_MATRIX_UNIFORM_NAME, data->trf.get_full_transform().transposed());
+            data->shader->set_mat4(EngineConfig::SHADER_VIEW_PROJECTION_MATRIX_UNIFORM_NAME, (renderCamera->get_projection() * renderCamera->get_view()).transposed());
+
+            ::glDrawElements(GL_TRIANGLES, data->va->get_index_buffer()->get_count(), GL_UNSIGNED_INT, nullptr);
         }
 
         virtual void initialize_renderer() noexcept override

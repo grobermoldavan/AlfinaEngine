@@ -12,6 +12,7 @@
 #include "vertex_array.h"
 #include "shader.h"
 #include "draw_command_buffer.h"
+#include "texture_2d.h"
 #include "camera/render_camera.h"
 #include "engine/debug/debug.h"
 #include "engine/window/os_window.h"
@@ -125,7 +126,7 @@ namespace al::engine
 
         virtual void clear_buffers() noexcept = 0;
         virtual void swap_buffers() noexcept = 0;
-        virtual void draw(VertexArray* va, Shader* shader, Transform* trf) noexcept = 0;
+        virtual void draw(DrawCommandData* data) noexcept = 0;
         virtual void initialize_renderer() noexcept = 0;
         virtual void terminate_renderer() noexcept = 0;
 
@@ -180,7 +181,13 @@ namespace al::engine
                                 return;
                             }
 
-                            draw(data->va, data->shader, &data->trf);
+                            if (!data->texture)
+                            {
+                                al_log_error(LOG_CATEGORY_RENDERER, "Trying to process draw command, but texture is null");
+                                return;
+                            }
+
+                            draw(data);
                         });
                         current.clear();
                     }

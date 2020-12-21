@@ -12,8 +12,10 @@
 #endif
 
 #include "allocator_base.h"
+#include "engine/config/engine_config.h"
 
 #include "utilities/constexpr_functions.h"
+#include "utilities/array_container.h"
 
 // @NOTE :  This allocator is thread-safe if POOL_ALLOCATOR_USE_LOCK is true
 
@@ -239,26 +241,43 @@ namespace al::engine
     class PoolAllocator : public AllocatorBase
     {
     public:
-        constexpr static std::size_t MAX_BUCKETS = 5;
-
         PoolAllocator() = default;
         ~PoolAllocator() = default;
 
         virtual [[nodiscard]] std::byte* allocate(std::size_t memorySizeBytes) noexcept override;
         virtual void deallocate(std::byte* ptr, std::size_t memorySizeBytes) noexcept override;
 
-        void initialize(std::array<BucketDescrition, MAX_BUCKETS> bucketDescriptions, AllocatorBase* allocator) noexcept;
+        void initialize(std::array<BucketDescrition, EngineConfig::POOL_ALLOCATOR_MAX_BUCKETS> bucketDescriptions, AllocatorBase* allocator) noexcept;
+
+        // @NOTE :  This methods allow user to deallocate and reallocate memory using only memory pointer without passing memory size.
+        //          This might be useful for connecting allocator to other API's. For example, this methods are currently used with stbi_image
+        //          (engine/platform/win32/opengl/win32_opengl_backend.h).
+        //          This methods use AllocationInfo struct to store ptr to allocated data as well as allocated size. All this info stored in
+        //          ptrSizePairs.
+        //          You CAN'T succsessfully use deallocate_using_allocation_info or reallocate_using_allocation_info if memory was not allocated
+        //          via allocate_using_allocation_info method.
+        [[nodiscard]] std::byte* allocate_using_allocation_info(std::size_t memorySizeBytes) noexcept;
+        void deallocate_using_allocation_info(std::byte* ptr) noexcept;
+        [[nodiscard]] std::byte* reallocate_using_allocation_info(std::byte* ptr, std::size_t newMemorySizeBytes) noexcept;
 
     private:
-        std::array<MemoryBucket, MAX_BUCKETS> buckets;
+        std::array<MemoryBucket, EngineConfig::POOL_ALLOCATOR_MAX_BUCKETS> buckets;
+
+        struct AllocationInfo
+        {
+            std::byte* ptr;
+            std::size_t size;
+        };
+
+        ArrayContainer<AllocationInfo, EngineConfig::POOL_ALLOCATOR_MAX_PTR_SIZE_PAIRS> ptrSizePairs;
     };
 
     [[nodiscard]] std::byte* PoolAllocator::allocate(std::size_t memorySizeBytes) noexcept
     {
-        BucketCompareInfo comapreInfos[MAX_BUCKETS];
+        BucketCompareInfo comapreInfos[EngineConfig::POOL_ALLOCATOR_MAX_BUCKETS];
         std::size_t it;
 
-        for (it = 0; it < MAX_BUCKETS; it++)
+        for (it = 0; it < EngineConfig::POOL_ALLOCATOR_MAX_BUCKETS; it++)
         {
             MemoryBucket& bucket = buckets[it];
             if (!bucket.is_initialized()) break;
@@ -300,7 +319,7 @@ namespace al::engine
 
     void PoolAllocator::deallocate(std::byte* ptr, std::size_t memorySizeBytes) noexcept
     {
-        for (std::size_t it = 0; it < MAX_BUCKETS; it++)
+        for (std::size_t it = 0; it < EngineConfig::POOL_ALLOCATOR_MAX_BUCKETS; it++)
         {
             MemoryBucket& bucket = buckets[it];
             if (!bucket.is_initialized()) break;
@@ -313,9 +332,9 @@ namespace al::engine
         }
     }
 
-    void PoolAllocator::initialize(std::array<BucketDescrition, MAX_BUCKETS> bucketDescriptions, AllocatorBase* allocator) noexcept
+    void PoolAllocator::initialize(std::array<BucketDescrition, EngineConfig::POOL_ALLOCATOR_MAX_BUCKETS> bucketDescriptions, AllocatorBase* allocator) noexcept
     {
-        for (std::size_t it = 0; it < MAX_BUCKETS; it++)
+        for (std::size_t it = 0; it < EngineConfig::POOL_ALLOCATOR_MAX_BUCKETS; it++)
         {
             if (bucketDescriptions[it].blockSize == 0 || bucketDescriptions[it].blockCount == 0)
             {
@@ -323,6 +342,47 @@ namespace al::engine
             }
             buckets[it].initialize(bucketDescriptions[it].blockSize, bucketDescriptions[it].blockCount, allocator);
         }
+    }
+    
+    [[nodiscard]] std::byte* PoolAllocator::allocate_using_allocation_info(std::size_t memorySizeBytes) noexcept
+    {
+        std::byte* ptr = allocate(memorySizeBytes);
+        ptrSizePairs.push({
+            .ptr = ptr,
+            .size = memorySizeBytes
+        });
+
+        return ptr;
+    }
+
+    void PoolAllocator::deallocate_using_allocation_info(std::byte* ptr) noexcept
+    {
+        ptrSizePairs.remove_by_condition([&](AllocationInfo* allocationInfo) -> bool
+        {
+            if (allocationInfo->ptr == ptr)
+            {
+                deallocate(allocationInfo->ptr, allocationInfo->size);
+                return true;
+            }
+            return false;
+        });
+    }
+
+    [[nodiscard]] std::byte* PoolAllocator::reallocate_using_allocation_info(std::byte* ptr, std::size_t newMemorySizeBytes) noexcept
+    {
+        std::byte* newMemory = allocate_using_allocation_info(newMemorySizeBytes);
+        ptrSizePairs.for_each_interruptible([&](AllocationInfo* allocationInfo) -> bool
+        {
+            if (allocationInfo->ptr == ptr)
+            {
+                std::memcpy(newMemory, allocationInfo->ptr, allocationInfo->size);
+                return false;
+            }
+            return true;
+        });
+        deallocate_using_allocation_info(ptr);
+
+        return newMemory;
     }
 
     // ==========================================================================================================================================
