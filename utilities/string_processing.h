@@ -35,23 +35,62 @@ namespace al::engine
         }
     }
 
-    std::string_view get_next_word(std::string_view text)
+    std::string_view get_next_word(std::string_view text, const char* additionalSeparators = "")
     {
         const std::size_t textSize = text.size();
 
-        // Skip all spaces before the word
+        auto isSeparatedByMainSeparators = [](const char symbol) -> bool
+        {
+            return (symbol == '\0') || (symbol == ' ');
+        };
+
+        auto isSeparatedByAdditionalSeparators = [](const char symbol, const char* additionalSeparators) -> bool
+        {
+            bool result = false;
+            const char* ptr = additionalSeparators;
+            while (*ptr != '\0')
+            {
+                if (symbol == *ptr)
+                {
+                    result = true;
+                    break;
+                }
+                ptr++;
+            }
+            return result;
+        };
+
+        // Skip all spaces and additional separators before the word
         const char* textPtr = text.data();
-        while (*textPtr == ' ') ++textPtr;
+        while ( ((*textPtr == ' ') || isSeparatedByAdditionalSeparators(*textPtr, additionalSeparators)) && (*textPtr != '\0') )
+        {
+            ++textPtr;
+        }
 
         const char* wordBeginning = textPtr;
         std::size_t wordLength = 0;
-        while ((*textPtr != ' ') && (wordLength < textSize))
+        while (!isSeparatedByAdditionalSeparators(*textPtr, additionalSeparators) && !isSeparatedByMainSeparators(*textPtr) && (wordLength < textSize))
         {
             ++textPtr;
             ++wordLength;
         }
 
         return { wordBeginning, wordLength };
+    }
+
+    void for_each_word(std::string_view text, al::Function<void(std::string_view)> processCb)
+    {
+        std::string_view line = text;
+        while (true)
+        {
+            std::string_view word = get_next_word(line);
+            if (word.empty())
+            {
+                break;
+            }
+            processCb(word);
+            line = std::string_view{ word.data() + word.length() };
+        }
     }
 }
 

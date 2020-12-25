@@ -221,7 +221,7 @@ namespace al
     template<std::unsigned_integral T>
     constexpr bool is_bit_set(T value, std::size_t bit) noexcept
     {
-        return ((value >> bit) % 2 == 1);
+        return (((value >> bit) & 1) == 1);
     }
 
     constexpr bool is_bit_set(std::byte value, std::size_t bit) noexcept

@@ -209,7 +209,7 @@ namespace al::engine
         for (std::size_t it = 0; it < number; it++)
         {
             std::size_t currentByte = (first + it) / 8;
-            std::size_t currentBit = 7 - (first + it) % 8;
+            std::size_t currentBit = (first + it) % 8;
             std::byte* byte = ledger + currentByte;
             *byte = remove_bit(*byte, currentBit);
         }

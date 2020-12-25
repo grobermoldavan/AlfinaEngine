@@ -70,7 +70,7 @@ namespace al
             return true;
         }
 
-        void remove_by_condition(al::Function<bool(T*)> isConditionSatisfied)
+        void remove_by_condition(al::Function<bool(T*)> isConditionSatisfied) noexcept
         {
             for (std::size_t it = 0; it < currentSize; it++)
             {
@@ -82,7 +82,7 @@ namespace al
             }
         }
 
-        void for_each(al::Function<void(T*)> userFunction)
+        void for_each(al::Function<void(T*)> userFunction) noexcept
         {
             for (std::size_t it = 0; it < currentSize; it++)
             {
@@ -90,7 +90,7 @@ namespace al
             }
         }
 
-        void for_each_interruptible(al::Function<bool(T*)> userFunction)
+        void for_each_interruptible(al::Function<bool(T*)> userFunction) noexcept
         {
             for (std::size_t it = 0; it < currentSize; it++)
             {
@@ -99,6 +99,11 @@ namespace al
                     break;
                 }
             }
+        }
+
+        std::size_t get_current_size() const noexcept
+        {
+            return currentSize;
         }
 
     private:

@@ -12,9 +12,11 @@
 #include "engine/rendering/renderer.h"
 #include "engine/rendering/camera/perspective_render_camera.h"
 #include "engine/game_cameras/fly_camera.h"
+#include "engine/rendering/geometry/geometry.h"
 
 #include "utilities/event.h"
 #include "utilities/smooth_average.h"
+#include "utilities/string_processing.h"
 
 namespace al::engine
 {
@@ -203,6 +205,7 @@ namespace al::engine
             // 7, 2, 6,
             // 4, 5, 0,
             // 0, 5, 1
+
             0, 1, 3,
             3, 1, 2
         };
@@ -225,12 +228,15 @@ namespace al::engine
 
         static bool isInited = false;
         static float time = 0.0f;
-        static Transform cubeTransform{ IDENTITY4 };
+        static Transform transform{ };
+        transform.set_scale({ 0.005f, 0.005f, 0.005f });
 
         static FileHandle* vertSrc = fileSystem->async_load("assets\\shaders\\vertex.vert", FileLoadMode::READ);
         static FileHandle* fragSrc = fileSystem->async_load("assets\\shaders\\fragment.frag", FileLoadMode::READ);
-        static bool isShadersLoadedChache = false;
 
+        static Geometry geom = load_geometry_from_obj(fileSystem->sync_load("assets\\geometry\\deer_smooth.obj", FileLoadMode::READ));
+
+        static bool isShadersLoadedChache = false;
         static auto isShadersLoaded = [&]() -> bool
         {
             if (isShadersLoadedChache)
@@ -248,15 +254,20 @@ namespace al::engine
         {
             renderer->add_render_command([&]()
             {
-                vb = create_vertex_buffer<EngineConfig::DEFAULT_RENDERER_TYPE>(vertices, sizeof(vertices));
-                vb->set_layout(BufferLayout::ElementContainer{ BufferElement{ ShaderDataType::Float3, false }, BufferElement{ ShaderDataType::Float2, false } });
-                ib = create_index_buffer<EngineConfig::DEFAULT_RENDERER_TYPE>(indices, sizeof(indices) / sizeof(uint32_t));
+                vb = create_vertex_buffer<EngineConfig::DEFAULT_RENDERER_TYPE>(geom.vertices.data(), geom.vertices.size() * sizeof(GeometryVertex));
+                vb->set_layout(BufferLayout::ElementContainer{
+                    BufferElement{ ShaderDataType::Float3, false }, // Position
+                    BufferElement{ ShaderDataType::Float3, false }, // Normal
+                    BufferElement{ ShaderDataType::Float2, false }  // UV
+                });
+                ib = create_index_buffer<EngineConfig::DEFAULT_RENDERER_TYPE>(geom.ids.data(), geom.ids.size());
                 va = create_vertex_array<EngineConfig::DEFAULT_RENDERER_TYPE>();
                 va->set_vertex_buffer(vb);
                 va->set_index_buffer(ib);
 
                 const char* v = reinterpret_cast<const char*>(vertSrc->memory);
                 const char* f = reinterpret_cast<const char*>(fragSrc->memory);
+
                 shader = create_shader<EngineConfig::DEFAULT_RENDERER_TYPE>(v, f);
 
                 texture = create_texture_2d<EngineConfig::DEFAULT_RENDERER_TYPE>("assets\\textures\\test.png");
@@ -272,7 +283,7 @@ namespace al::engine
             // @NOTE : Currently using dummy key
             DrawCommandKey key = 0;
             DrawCommandData* data = renderer->add_draw_command(key);
-            data->trf = cubeTransform;
+            data->trf = transform;
             data->va = va;
             data->shader = shader;
             data->texture = texture;

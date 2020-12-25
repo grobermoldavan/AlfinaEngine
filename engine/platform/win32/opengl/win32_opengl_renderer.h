@@ -50,7 +50,7 @@ namespace al::engine
             // For debug. Will be removed later
             uint32_t textureSlot = 0;
             data->texture->bind(textureSlot);
-            data->shader->set_int("u_Texture", textureSlot);
+            // data->shader->set_int("u_Texture", textureSlot);
 
             data->shader->set_mat4(EngineConfig::SHADER_MODEL_MATRIX_UNIFORM_NAME, data->trf.get_full_transform().transposed());
             data->shader->set_mat4(EngineConfig::SHADER_VIEW_PROJECTION_MATRIX_UNIFORM_NAME, (renderCamera->get_projection() * renderCamera->get_view()).transposed());
