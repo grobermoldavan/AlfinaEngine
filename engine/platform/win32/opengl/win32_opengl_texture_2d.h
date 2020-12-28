@@ -7,6 +7,7 @@
 
 #include "engine/rendering/texture_2d.h"
 #include "engine/debug/debug.h"
+#include "engine/memory/memory_manager.h"
 
 namespace al::engine
 {
@@ -24,7 +25,7 @@ namespace al::engine
         GLenum dataFormat;
         uint32_t width;
         uint32_t height;
-        uint32_t rendererId;
+        RendererId rendererId;
     };
 
     Win32OpenglTexure2d::Win32OpenglTexure2d(const char* path) noexcept

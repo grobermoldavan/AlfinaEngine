@@ -3,7 +3,7 @@
 
 #include <cstdint>
 
-#include "renderer_type.h"
+#include "render_core.h"
 #include "engine/debug/debug.h"
 
 #include "utilities/math.h"

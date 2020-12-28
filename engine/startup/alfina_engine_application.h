@@ -75,6 +75,7 @@ namespace al::engine
 
         fileSystem = memoryManager->get_stack()->allocate_as<FileSystem>();
         ::new(fileSystem) FileSystem{ jobSystem };
+        FileSystem::set_global_instance(fileSystem);
 
         window = create_window({ });
 
@@ -102,6 +103,15 @@ namespace al::engine
     {
         using ClockT = std::chrono::steady_clock;
         using DtDuration = std::chrono::duration<float>;
+
+        {
+            al_profile_scope("Print log buffer");
+            debug::globalLogger->print_log_buffer();
+        }
+        {
+            al_profile_scope("Print profile buffer");
+            debug::globalLogger->print_profile_buffer();
+        }
 
         al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Starting application");
         frameCount = 0;
@@ -177,7 +187,7 @@ namespace al::engine
     {
         static SmoothAverage<float> fps;
         fps.push(dt);
-        al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Fps : %f", 1.0f / fps.get());
+        // al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Fps : %f", 1.0f / fps.get());
 
         dbgFlyCamera.process_inputs(&inputState.get_current(), dt);
     }
@@ -229,12 +239,12 @@ namespace al::engine
         static bool isInited = false;
         static float time = 0.0f;
         static Transform transform{ };
-        transform.set_scale({ 0.005f, 0.005f, 0.005f });
+        transform.set_scale({ 1.0f, 1.0f, 1.0f });
 
         static FileHandle* vertSrc = fileSystem->async_load("assets\\shaders\\vertex.vert", FileLoadMode::READ);
         static FileHandle* fragSrc = fileSystem->async_load("assets\\shaders\\fragment.frag", FileLoadMode::READ);
 
-        static Geometry geom = load_geometry_from_obj(fileSystem->sync_load("assets\\geometry\\deer_smooth.obj", FileLoadMode::READ));
+        static Geometry geom = load_geometry_from_obj(fileSystem->sync_load("assets\\geometry\\monke\\monke.obj", FileLoadMode::READ));
 
         static bool isShadersLoadedChache = false;
         static auto isShadersLoaded = [&]() -> bool
@@ -270,7 +280,7 @@ namespace al::engine
 
                 shader = create_shader<EngineConfig::DEFAULT_RENDERER_TYPE>(v, f);
 
-                texture = create_texture_2d<EngineConfig::DEFAULT_RENDERER_TYPE>("assets\\textures\\test.png");
+                texture = create_texture_2d<EngineConfig::DEFAULT_RENDERER_TYPE>("assets\\geometry\\monke\\monke_diffuse.png");
 
                 fileSystem->free_handle(vertSrc);
                 fileSystem->free_handle(fragSrc);

@@ -26,6 +26,15 @@ namespace al
             , currentSize{ 0 }
         { }
 
+        ArrayContainer(std::initializer_list<T> args) noexcept
+            : ArrayContainer{ }
+        {
+            for (const T& arg : args)
+            {
+                push(arg);
+            }
+        }
+
         bool push(const T& element) noexcept
         {
             if (currentSize >= Size)

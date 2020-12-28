@@ -6,16 +6,18 @@
 #include <mutex>
 #include <condition_variable>
 
-#include "renderer_type.h"
+#include "render_core.h"
 #include "vertex_buffer.h"
 #include "index_buffer.h"
 #include "vertex_array.h"
 #include "shader.h"
+#include "framebuffer.h"
 #include "draw_command_buffer.h"
 #include "texture_2d.h"
 #include "camera/render_camera.h"
 #include "engine/debug/debug.h"
 #include "engine/window/os_window.h"
+#include "engine/file_system/file_system.h"
 #include "engine/platform/platform_thread_event.h"
 
 #include "utilities/toggle.h"
@@ -54,6 +56,7 @@ namespace al::engine
         Renderer(OsWindow* window) noexcept
             : renderThread{ &Renderer::render_update, this }
             , shouldRun{ true }
+            , window{ window }
         { }
 
         ~Renderer() = default;
@@ -122,7 +125,11 @@ namespace al::engine
         std::thread renderThread;
         std::atomic<bool> shouldRun;
 
+        OsWindow* window;
+
         const RenderCamera* renderCamera;
+
+        Framebuffer* defaultFramebuffer;
 
         virtual void clear_buffers() noexcept = 0;
         virtual void swap_buffers() noexcept = 0;
@@ -133,6 +140,17 @@ namespace al::engine
         void render_update() noexcept
         {
             initialize_renderer();
+
+            {
+                // al_profile_scope("Renderer post-init");
+
+                // FramebufferDescription desc;
+                // desc.attachments = { FramebufferAttachmentType::RGB_8, FramebufferAttachmentType::DEPTH_24_STENCIL_8 };
+                // desc.width = window->get_params()->width;
+                // desc.height = window->get_params()->height;
+                // defaultFramebuffer = create_framebuffer<EngineConfig::DEFAULT_RENDERER_TYPE>(desc);
+            }
+
             while (true)
             {
                 wait_for_render_start();

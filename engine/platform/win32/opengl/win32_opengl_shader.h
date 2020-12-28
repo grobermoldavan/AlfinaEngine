@@ -44,13 +44,19 @@ namespace al::engine
 
         static GLenum SHADER_TYPE_TO_GL_ENUM[ShaderType::__size];
 
-        uint32_t    rendererId;
+        RendererId  rendererId;
         const char* sources[ShaderType::__size];
 
         void compile() noexcept;
         void handle_shader_compile_error(GLuint shaderId) const noexcept;
         void handle_program_compile_error(GLuint programId, GLenum(&shaderIds)[ShaderType::__size], bool(&isShaderIdSpecified)[ShaderType::__size]) const noexcept;
-        GLint get_uniform_location(const char* name) const noexcept;
+
+        struct GetUniformLocationResult
+        {
+            bool isFound;
+            GLint location;
+        };
+        GetUniformLocationResult get_uniform_location(const char* name) const noexcept;
     };
 
     GLenum Win32OpenglShader::SHADER_TYPE_TO_GL_ENUM[] =
@@ -86,7 +92,7 @@ namespace al::engine
                 isShaderIdSpecified[it] = false;
                 continue;
             }
-            
+
             ShaderType type = static_cast<ShaderType>(it);
             GLuint shaderId = ::glCreateShader(SHADER_TYPE_TO_GL_ENUM[type]);
 
@@ -144,81 +150,81 @@ namespace al::engine
         al_log_error("Shader", "%s", &infoLog[0]);
     }
 
-    GLint Win32OpenglShader::get_uniform_location(const char* name) const noexcept
+    Win32OpenglShader::GetUniformLocationResult Win32OpenglShader::get_uniform_location(const char* name) const noexcept
     {
         GLint location = ::glGetUniformLocation(rendererId, name);
         if (location == -1)
         {
             al_log_error("Shader", "Unable to find uniform location. Uniform name is %s", name);
-            al_assert(location != -1);
+            return { false, 0 };
         }
-        return location;
+        return { true, location };
     }
 
     void Win32OpenglShader::set_int(const char* name, const int value) const noexcept
     {
-        GLint location = get_uniform_location(name);
-        ::glUniform1i(location, value);
+        auto [isFound, location] = get_uniform_location(name);
+        if (isFound) { ::glUniform1i(location, value); }
     }
 
     void Win32OpenglShader::set_int2(const char* name, const al::int32_2& value) const noexcept
     {
-        GLint location = get_uniform_location(name);
-        ::glUniform2i(location, value.x, value.y);
+        auto [isFound, location] = get_uniform_location(name);
+        if (isFound) { ::glUniform2i(location, value.x, value.y); }
     }
 
     void Win32OpenglShader::set_int3(const char* name, const al::int32_3& value) const noexcept
     {
-        GLint location = get_uniform_location(name);
-        ::glUniform3i(location, value.x, value.y, value.z);
+        auto [isFound, location] = get_uniform_location(name);
+        if (isFound) { ::glUniform3i(location, value.x, value.y, value.z); }
     }
 
     void Win32OpenglShader::set_int4(const char* name, const al::int32_4& value) const noexcept
     {
-        GLint location = get_uniform_location(name);
-        ::glUniform4i(location, value.x, value.y, value.z, value.w);
+        auto [isFound, location] = get_uniform_location(name);
+        if (isFound) { ::glUniform4i(location, value.x, value.y, value.z, value.w); }
     }
 
     void Win32OpenglShader::set_int_array(const char* name, const int* values, uint32_t count) const noexcept
     {
-        GLint location = get_uniform_location(name);
-        ::glUniform1iv(location, count, values);
+        auto [isFound, location] = get_uniform_location(name);
+        if (isFound) { ::glUniform1iv(location, count, values); }
     }
 
     void Win32OpenglShader::set_float(const char* name, const float value) const noexcept
     {
-        GLint location = get_uniform_location(name);
-        ::glUniform1f(location, value);
+        auto [isFound, location] = get_uniform_location(name);
+        if (isFound) { ::glUniform1f(location, value); }
     }
 
     void Win32OpenglShader::set_float2(const char* name, const al::float2& value) const noexcept
     {
-        GLint location = get_uniform_location(name);
-        ::glUniform2f(location, value.x, value.y);
+        auto [isFound, location] = get_uniform_location(name);
+        if (isFound) { ::glUniform2f(location, value.x, value.y); }
     }
 
     void Win32OpenglShader::set_float3(const char* name, const al::float3& value) const noexcept
     {
-        GLint location = get_uniform_location(name);
-        ::glUniform3f(location, value.x, value.y, value.z);
+        auto [isFound, location] = get_uniform_location(name);
+        if (isFound) { ::glUniform3f(location, value.x, value.y, value.z); }
     }
 
     void Win32OpenglShader::set_float4(const char* name, const al::float4& value) const noexcept
     {
-        GLint location = get_uniform_location(name);
-        ::glUniform4f(location, value.x, value.y, value.z, value.w);
+        auto [isFound, location] = get_uniform_location(name);
+        if (isFound) { ::glUniform4f(location, value.x, value.y, value.z, value.w); }
     }
 
     void Win32OpenglShader::set_float_array(const char* name, const float* values, uint32_t count) const noexcept
     {
-        GLint location = get_uniform_location(name);
-        ::glUniform1fv(location, count, values);
+        auto [isFound, location] = get_uniform_location(name);
+        if (isFound) { ::glUniform1fv(location, count, values); }
     }
 
     void Win32OpenglShader::set_mat4(const char* name, const al::float4x4& value) const noexcept
     {
-        GLint location = get_uniform_location(name);
-        ::glUniformMatrix4fv(location, 1, GL_FALSE, value.elements);
+        auto [isFound, location] = get_uniform_location(name);
+        if (isFound) { ::glUniformMatrix4fv(location, 1, GL_FALSE, value.elements); }
     }
 
     template<> [[nodiscard]] Shader* create_shader<RendererType::OPEN_GL>(const char* vertexShaderSrc, const char* fragmentShaderSrc) noexcept

@@ -62,7 +62,19 @@ namespace al::engine
 
         void remove_finished_jobs() noexcept;
 
+        static FileSystem* get() noexcept
+        {
+            return globalInstance;
+        }
+
+        static void set_global_instance(FileSystem* fs) noexcept
+        {
+            globalInstance = fs;
+        }
+
     private:
+        static FileSystem* globalInstance;
+
         ArrayContainer<FileHandle, EngineConfig::MAX_FILE_HANDLES> handles;
         std::mutex handlesListMutex;
 
@@ -78,6 +90,8 @@ namespace al::engine
         FileHandle* get_file_handle() noexcept;
         AsyncFileReadJob* get_file_load_job() noexcept;
     };
+
+    FileSystem* FileSystem::globalInstance{ nullptr };
 
     FileSystem::FileSystem(JobSystem* jobSystem)
         : handles{ }

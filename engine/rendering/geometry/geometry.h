@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstring>
 
+#include "engine/rendering/texture_2d.h"
 #include "engine/containers/containers.h"
 #include "engine/file_system/file_system.h"
 #include "engine/debug/debug.h"
@@ -105,11 +106,27 @@ namespace al::engine
                     });
                 }
             }
+            // else if (is_starts_with(line.data(), "mtllib "))
+            // {
+
+            // }
+            // else if (is_starts_with(line.data(), "usemtl "))
+            // {
+
+            // }
         });
 
+        // @NOTE :  Triangle is needed to invert indices of triangles
+        //          because opengl expects them the other way around.
+        //          I'm not shure if it is common for all OBJ files, but
+        //          it is the thing with files exported from blender
+        uint32_t triangleIt = 0;
         for (uint32_t it = 0; it < result.vertices.size(); it++)
         {
-            result.ids.push_back(result.ids.size());
+            // 0 : 2, 1 : 0, 2 : -2
+            int32_t additional = (triangleIt == 0) ? 2 : (triangleIt == 1) ? 0 : -2;
+            result.ids.push_back(result.ids.size() + additional);
+            triangleIt = (triangleIt + 1) % 3;
         }
 
         return result;

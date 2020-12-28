@@ -11,11 +11,30 @@
 #include "win32_opengl_vertex_array.h"
 #include "win32_opengl_shader.h"
 #include "win32_opengl_texture_2d.h"
+#include "win32_opengl_framebuffer.h"
 #include "engine/memory/memory_manager.h"
 #include "engine/platform/win32/window/os_window_win32.h"
 
 namespace al::engine
 {
+    void GLAPIENTRY OpenGlCallback( GLenum source,
+                                    GLenum type,
+                                    GLuint id,
+                                    GLenum severity,
+                                    GLsizei length,
+                                    const GLchar* message,
+                                    const void* userParam )
+    {
+        static constexpr const char* LOG_CATEGORY = "OpenGL";
+        switch (severity)
+        {
+            case GL_DEBUG_SEVERITY_HIGH         : al_log_error(LOG_CATEGORY, "%s", message); break;
+            case GL_DEBUG_SEVERITY_MEDIUM       : al_log_warning(LOG_CATEGORY, "%s", message); break;
+            case GL_DEBUG_SEVERITY_LOW          : al_log_warning(LOG_CATEGORY, "%s", message); break;
+            case GL_DEBUG_SEVERITY_NOTIFICATION : al_log_message(LOG_CATEGORY, "%s", message); break;
+        }
+    }
+
     class Win32OpenglRenderer : public Renderer
     {
     public:
@@ -50,7 +69,7 @@ namespace al::engine
             // For debug. Will be removed later
             uint32_t textureSlot = 0;
             data->texture->bind(textureSlot);
-            // data->shader->set_int("u_Texture", textureSlot);
+            data->shader->set_int("u_Texture", textureSlot);
 
             data->shader->set_mat4(EngineConfig::SHADER_MODEL_MATRIX_UNIFORM_NAME, data->trf.get_full_transform().transposed());
             data->shader->set_mat4(EngineConfig::SHADER_VIEW_PROJECTION_MATRIX_UNIFORM_NAME, (renderCamera->get_projection() * renderCamera->get_view()).transposed());
@@ -102,8 +121,14 @@ namespace al::engine
             ::glEnable(GL_DEPTH_TEST);
             ::glDepthFunc(GL_LESS);
 
+            ::glEnable(GL_CULL_FACE);
+            ::glCullFace(GL_BACK);
+
             // Vsync
             ::wglSwapIntervalEXT(1);
+
+            ::glEnable(GL_DEBUG_OUTPUT);
+            ::glDebugMessageCallback(OpenGlCallback, 0);
         }
 
         virtual void terminate_renderer() noexcept override

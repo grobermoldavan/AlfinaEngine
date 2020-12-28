@@ -1,7 +1,7 @@
 #ifndef AL_TEXTURE_2D_H
 #define AL_TEXTURE_2D_H
 
-#include "renderer_type.h"
+#include "render_core.h"
 
 namespace al::engine
 {

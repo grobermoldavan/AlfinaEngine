@@ -24,7 +24,7 @@ namespace al::engine
 
     private:
         BufferLayout layout;
-        uint32_t rendererId;
+        RendererId rendererId;
     };
 
     Win32OpenglVertexBuffer::Win32OpenglVertexBuffer(const void* data, uint32_t size) noexcept

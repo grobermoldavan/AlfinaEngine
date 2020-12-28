@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <cstddef>
 
-#include "renderer_type.h"
+#include "render_core.h"
 #include "engine/debug/debug.h"
 
 namespace al::engine

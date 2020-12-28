@@ -22,7 +22,7 @@ namespace al::engine
         virtual const   std::size_t     get_count   ()  const noexcept override { return count; }
 
     private:
-        uint32_t rendererId;
+        RendererId rendererId;
         std::size_t count;
     };
 

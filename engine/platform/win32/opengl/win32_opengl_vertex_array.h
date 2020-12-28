@@ -24,7 +24,7 @@ namespace al::engine
         virtual const IndexBuffer*  get_index_buffer    ()                                  const   noexcept override;
 
     private:
-        uint32_t            rendererId;
+        RendererId          rendererId;
         uint32_t            vertexBufferIndex;
         const VertexBuffer* vb;
         const IndexBuffer*  ib;

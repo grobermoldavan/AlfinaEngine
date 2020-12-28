@@ -6,7 +6,7 @@
 
 #include "engine/config/engine_config.h"
 
-#include "renderer_type.h"
+#include "render_core.h"
 #include "engine/debug/debug.h"
 
 namespace al::engine
