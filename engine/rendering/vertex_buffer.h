@@ -43,20 +43,8 @@ namespace al::engine
         bool            isNormalized;
         bool            isInitialized;
 
-        BufferElement() noexcept
-            : size{ 0 }
-            , offset{ 0 }
-            , isNormalized{ false }
-            , isInitialized{ false }
-        { }
-
-        BufferElement(ShaderDataType type, bool isNormalized = false) noexcept
-            : size          { ShaderDataTypeSize[static_cast<uint32_t>(type)] }
-            , offset        { 0 }
-            , type          { type }
-            , isNormalized  { isNormalized }
-            , isInitialized { true }
-        { }
+        BufferElement() noexcept;
+        BufferElement(ShaderDataType type, bool isNormalized = false) noexcept;
     };
 
     class BufferLayout
@@ -65,33 +53,18 @@ namespace al::engine
         using ElementContainer = std::array<BufferElement, EngineConfig::MAX_BUFFER_LAYOUT_ELEMENTS>;
 
         BufferLayout() = default;
+        BufferLayout(const ElementContainer& elements) noexcept;
 
-        BufferLayout(const ElementContainer& elements) noexcept
-            : elements{ elements }
-        {
-            calculate_offset_and_stride();
-        }
+        const std::size_t       get_stride()        const noexcept;
+        const ElementContainer& get_elements()      const noexcept;
 
-        const std::size_t       get_stride()        const noexcept  { return stride; }
-        const ElementContainer& get_elements()      const noexcept  { return elements; }
-
-        ElementContainer::iterator       begin()          noexcept  { return elements.begin(); }
-        ElementContainer::iterator       end()            noexcept  { return elements.end(); }
-        ElementContainer::const_iterator begin()    const noexcept  { return elements.begin(); }
-        ElementContainer::const_iterator end()      const noexcept  { return elements.end(); }
+        ElementContainer::iterator       begin()          noexcept;
+        ElementContainer::iterator       end()            noexcept;
+        ElementContainer::const_iterator begin()    const noexcept;
+        ElementContainer::const_iterator end()      const noexcept;
 
     private:
-        void calculate_offset_and_stride() noexcept
-        {
-            std::size_t offset = 0;
-            for (auto& element : elements)
-            {
-                if (!element.isInitialized) { break; }
-                element.offset = offset;
-                offset += element.size;
-            }
-            stride = offset;
-        }
+        void calculate_offset_and_stride() noexcept;
 
         ElementContainer    elements;
         std::size_t         stride;
@@ -108,9 +81,6 @@ namespace al::engine
         virtual void                set_layout  (const BufferLayout& layout)                    noexcept = 0;
         virtual const BufferLayout* get_layout  ()                                      const   noexcept = 0;
     };
-
-    template<RendererType type> [[nodiscard]] VertexBuffer* create_vertex_buffer(const void* data, uint32_t size) noexcept;
-    template<RendererType type> void destroy_vertex_buffer(VertexBuffer* vb) noexcept;
 
     template<RendererType type> [[nodiscard]] VertexBuffer* create_vertex_buffer(const void* data, uint32_t size) noexcept
     {

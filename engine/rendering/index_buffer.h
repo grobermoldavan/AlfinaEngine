@@ -19,9 +19,6 @@ namespace al::engine
         virtual const   std::size_t     get_count   ()  const noexcept = 0;
     };
 
-    template<RendererType type> [[nodiscard]] IndexBuffer* create_index_buffer(uint32_t* indices, std::size_t count) noexcept;
-    template<RendererType type> void destroy_index_buffer(IndexBuffer* ib) noexcept;
-
     template<RendererType type> [[nodiscard]] IndexBuffer* create_index_buffer(uint32_t* indices, std::size_t count) noexcept
     {
         al_log_error("Renderer", "Unsupported rendering API");

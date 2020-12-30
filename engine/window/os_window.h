@@ -88,24 +88,11 @@ namespace al::engine
         virtual bool is_quit() noexcept = 0;
         virtual OsWindowInput get_input() noexcept = 0;
 
-        const OsWindowParams* get_params() const noexcept
-        {
-            return &params;
-        }
+        const OsWindowParams* get_params() const noexcept;
 
     protected:
         OsWindowParams params;
     };
-
-    OsWindow::OsWindow(const OsWindowParams& params) noexcept
-        : params{ params }
-    { }
 }
-
-#ifdef AL_PLATFORM_WIN32
-#   include "engine/platform/win32/window/os_window_win32.h"
-#else
-#   error Unsupported platform
-#endif
 
 #endif

@@ -1,10 +1,30 @@
 #ifndef AL_PLATFORM_THREAD_EVENT_H
 #define AL_PLATFORM_THREAD_EVENT_H
 
-#ifdef AL_PLATFORM_WIN32
-#   include "win32/platform_thread_event_win32.h"
-#else
-#   error Unsupported platform
-#endif
+#include <chrono>
+
+namespace al::engine
+{
+    class ThreadEvent
+    {
+    public:
+        virtual ~ThreadEvent() = default;
+
+        virtual void wait       ()                                      noexcept = 0;
+        virtual bool wait_for   (const std::chrono::milliseconds time)  noexcept = 0;
+        virtual void invoke     ()                                      noexcept = 0;
+        virtual void reset      ()                                      noexcept = 0;
+        virtual bool is_invoked ()                                      noexcept = 0;
+    };
+
+    [[nodiscard]] ThreadEvent* create_thread_event();
+    void destroy_thread_event(ThreadEvent*);
+}
+
+// #ifdef AL_PLATFORM_WIN32
+// #   include "win32/platform_thread_event_win32.h"
+// #else
+// #   error Unsupported platform
+// #endif
 
 #endif

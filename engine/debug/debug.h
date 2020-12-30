@@ -20,9 +20,11 @@
 #include <thread>
 #include <mutex>
 
-#include "engine/config/engine_config.h"
+// For debug output
+#include <iostream>
+#include <fstream>
 
-#include "debug_output.h"
+#include "engine/config/engine_config.h"
 
 #ifndef __UNIQUE_NAME
 #   define __PP_CAT(a, b) __PP_CAT_I(a, b)
@@ -67,6 +69,20 @@ namespace al::engine::debug
 {
     class Logger* globalLogger = nullptr;
 
+    using DebugOutput = std::ostream;
+    using DebugFileOutput = std::ofstream;
+
+    DebugOutput* GLOBAL_LOG_OUTPUT{ &std::cout };
+    DebugOutput* GLOBAL_PROFILE_OUTPUT{ &std::cout };
+
+    DebugFileOutput USER_FILE_LOG_OUTPUT;
+    DebugFileOutput USER_FILE_PROFILE_OUTPUT;
+
+    void close_log_output();
+    void override_log_output(const char* filename);
+    void close_profile_output();
+    void override_profile_output(const char* filename);
+
     class Logger
     {
     public:
@@ -77,36 +93,8 @@ namespace al::engine::debug
             _ERROR
         };
 
-        Logger(uint32_t levelFlags = set_bit(0u, _MESSAGE) | set_bit(0u, _WARNING) | set_bit(0u, _ERROR)) noexcept
-            : logBufferPtr{ 0 }
-            , profileBufferPtr{ 0 }
-            , levelFlags{ levelFlags }
-        {
-            if (!EngineConfig::LOG_USE_DEFAULT_OUTPUT)
-            {
-                override_log_output(EngineConfig::LOG_OUTPUT_FILE);
-            }
-
-            if (!EngineConfig::PROFILE_USE_DEFAULT_OUTPUT)
-            {
-                override_profile_output(EngineConfig::PROFILE_OUTPUT_FILE);
-            }
-
-            // Write profile header
-            printf_profile("{\"otherData\": {},\"traceEvents\":[{}");
-        }
-
-        ~Logger() noexcept
-        {
-            print_log_buffer();
-            close_log_output();
-
-            // Write profile footer
-            printf_profile("]}");
-
-            print_profile_buffer();
-            close_profile_output();
-        }
+        Logger(uint32_t levelFlags = set_bit(0u, _MESSAGE) | set_bit(0u, _WARNING) | set_bit(0u, _ERROR)) noexcept;
+        ~Logger() noexcept;
 
         template<typename ... Args>
         void printf_log(Level level, const char* category, const char* format, Args ... args) noexcept
@@ -145,36 +133,11 @@ namespace al::engine::debug
             else { /* @TODO : handle negative return value */ }
         }
 
-        void print_log_buffer() noexcept
-        {
-            logBuffer[logBufferPtr] = 0;
-            al_exception_wrap_no_assert(*GLOBAL_LOG_OUTPUT << logBuffer);
-            al_exception_wrap_no_assert(GLOBAL_LOG_OUTPUT->flush());
-            logBufferPtr = 0;
-        }
+        void print_log_buffer() noexcept;
+        void print_profile_buffer() noexcept;
 
-        void print_profile_buffer() noexcept
-        {
-            // @NOTE :  Without a mutex profiling seems to be messed up sometimes.
-            //          Don't know the reason, tbh.
-            // @TODO :  Find a way to profile data without mutex.
-            std::unique_lock<std::mutex> lock{ profileMutex };
-
-            profileBuffer[profileBufferPtr] = 0;
-            al_exception_wrap_no_assert(*GLOBAL_PROFILE_OUTPUT << profileBuffer);
-            al_exception_wrap_no_assert(GLOBAL_PROFILE_OUTPUT->flush());
-            profileBufferPtr = 0;
-        }
-
-        inline void enable_log_level(Level level) noexcept
-        {
-            levelFlags = set_bit(levelFlags, level);
-        }
-
-        inline void disable_log_level(Level level) noexcept
-        {
-            levelFlags = remove_bit(levelFlags, level);
-        }
+        inline void enable_log_level(Level level) noexcept;
+        inline void disable_log_level(Level level) noexcept;
 
     private:
         char logBuffer[EngineConfig::LOG_BUFFER_SIZE + 1];
@@ -184,32 +147,9 @@ namespace al::engine::debug
         std::atomic<std::size_t> profileBufferPtr;
 
         std::mutex profileMutex;
-
         uint32_t levelFlags;
 
-        char* allocate_buffer(char* buffer, std::atomic<std::size_t>* bufferPtr, std::size_t bufferSize, std::size_t sizeToAllocate) noexcept
-        {
-            char* result = nullptr;
-
-            while (true)
-            {
-                std::size_t currentTop = *bufferPtr;
-                if ((bufferSize - currentTop) < sizeToAllocate)
-                {
-                    break;
-                }
-
-                std::size_t newTop = currentTop + sizeToAllocate;
-                const bool casResult = bufferPtr->compare_exchange_strong(currentTop, newTop);
-                if (casResult)
-                {
-                    result = buffer + currentTop;
-                    break;
-                }
-            }
-
-            return result;
-        }
+        char* allocate_buffer(char* buffer, std::atomic<std::size_t>* bufferPtr, std::size_t bufferSize, std::size_t sizeToAllocate) noexcept;
     };
 
     struct ScopeProfiler
@@ -221,33 +161,11 @@ namespace al::engine::debug
         TimeType beginScopeTime;
         std::size_t threadId;
 
-        ScopeProfiler(const char* name) noexcept
-            : name{ name }
-            , beginScopeTime{ ClockType::now() }
-            , threadId{ std::hash<std::thread::id>{}(std::this_thread::get_id()) }
-        { }
-
-        ~ScopeProfiler() noexcept
-        {
-            TimeType endScopeTime = ClockType::now();
-            std::chrono::duration<double, std::micro> scopeTime = endScopeTime - beginScopeTime;
-            std::chrono::duration<double, std::micro> beginTime = beginScopeTime.time_since_epoch();
-            
-            globalLogger->printf_profile(",{\"name\":\"%s\",\"cat\":\"profile\",\"ph\":\"X\",\"pid\":0,\"tid\":%d,\"ts\":%.03f,\"dur\":%.03f}", name, threadId, beginTime.count(), scopeTime.count());
-        }
+        ScopeProfiler(const char* name) noexcept;
+        ~ScopeProfiler() noexcept;
     };
 
-    void assert_implementation(const char* file, const char* function, const std::size_t line, const char* condition) noexcept
-    {
-        // @TODO :  Currently asserts freeze program if they get fired in the render thread.
-        //          This happends because after assert renderer does not fire onFrameProcessEnd event
-        //          and main thread just keeps waiting for this event forever.
-        al_log_error("assert", "Assertion failed. File : %s, function %s, line : %d, condition : %s", file, function, line, condition);
-        globalLogger->print_log_buffer();
-        globalLogger->print_profile_buffer();
-        al_debug_break();
-        al_crash_impl;
-    }
+    void assert_implementation(const char* file, const char* function, const std::size_t line, const char* condition) noexcept;
 }
 
 #endif

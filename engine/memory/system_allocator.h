@@ -15,17 +15,6 @@ namespace al::engine
         virtual [[nodiscard]] std::byte* allocate(std::size_t memorySizeBytes) noexcept override;
         virtual void deallocate(std::byte* ptr, std::size_t memorySizeBytes) noexcept override;
     };
-
-    [[nodiscard]] std::byte* SystemAllocator::allocate(std::size_t memorySizeBytes) noexcept
-    {
-        std::byte* result = static_cast<std::byte*>(malloc(memorySizeBytes));
-        return result;
-    }
-
-    void SystemAllocator::deallocate(std::byte* ptr, std::size_t memorySizeBytes) noexcept
-    {
-        free(ptr);
-    }
 }
 
 #endif

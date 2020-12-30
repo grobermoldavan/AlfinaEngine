@@ -13,6 +13,8 @@ int main(int argc, const char* argv[])
     application->run();
     application->terminate_components();
     destroy_application(application);
+
+    return 0;
 }
 
 #endif

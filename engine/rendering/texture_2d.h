@@ -14,9 +14,6 @@ namespace al::engine
         virtual void unbind() const noexcept = 0;
     };
 
-    template<RendererType type> [[nodiscard]] Texture2d* create_texture_2d() noexcept;
-    template<RendererType type> void destroy_texture_2d(Texture2d* tex) noexcept;
-
     template<RendererType type> [[nodiscard]] Texture2d* create_texture_2d(const char* path) noexcept
     {
         al_log_error("Renderer", "Unsupported rendering API");

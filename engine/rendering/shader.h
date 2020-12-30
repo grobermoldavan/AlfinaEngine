@@ -35,9 +35,6 @@ namespace al::engine
         virtual void set_mat4        (const char* name, const float4x4& value)              const noexcept = 0;
     };
 
-    template<RendererType type> [[nodiscard]] Shader* create_shader(const char* vertexShaderSrc, const char* fragmentShaderSrc) noexcept;
-    template<RendererType type> void destroy_shader(Shader* shader) noexcept;
-
     template<RendererType type> [[nodiscard]] Shader* create_shader(const char* vertexShaderSrc, const char* fragmentShaderSrc) noexcept
     {
         al_log_error("Renderer", "Unsupported rendering API");

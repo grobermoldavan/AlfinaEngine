@@ -229,9 +229,10 @@ namespace al
         return is_bit_set(std::to_integer<uint8_t>(value), bit);
     }
 
-    constexpr bool is_power_of_two(std::size_t value) noexcept
+    template<std::unsigned_integral T>
+    constexpr bool is_power_of_two(T value) noexcept
     {
-        return (value & (value - 1)) == 0;
+        return (value & (value - T{1})) == 0;
     }
 }
 

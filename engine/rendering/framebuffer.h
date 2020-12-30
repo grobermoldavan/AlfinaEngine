@@ -24,14 +24,7 @@ namespace al::engine
         __end
     };
 
-    constexpr bool is_depth_attachment(FramebufferAttachmentType type)
-    {
-        return  (type == FramebufferAttachmentType::DEPTH_16)           || 
-                (type == FramebufferAttachmentType::DEPTH_24)           || 
-                (type == FramebufferAttachmentType::DEPTH_32F)          ||
-                (type == FramebufferAttachmentType::DEPTH_24_STENCIL_8) ||
-                (type == FramebufferAttachmentType::DEPTH_32F_STENCIL_8);
-    }
+    bool is_depth_attachment(FramebufferAttachmentType type);
 
     struct FramebufferDescription
     {
@@ -53,9 +46,6 @@ namespace al::engine
 
         virtual FramebufferDescription* get_description() = 0;
     };
-
-    template<RendererType type> [[nodiscard]] Framebuffer* create_framebuffer(const FramebufferDescription& description) noexcept;
-    template<RendererType type> void destroy_framebuffer(Framebuffer* fb) noexcept;
 
     template<RendererType type> [[nodiscard]] Framebuffer* create_framebuffer(const FramebufferDescription& description) noexcept
     {
