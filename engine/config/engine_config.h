@@ -45,6 +45,17 @@ namespace al::engine
         static constexpr RendererType               DEFAULT_RENDERER_TYPE{ RendererType::OPEN_GL };
         static constexpr const char*                SHADER_MODEL_MATRIX_UNIFORM_NAME{ "al_modelMatrix" };
         static constexpr const char*                SHADER_VIEW_PROJECTION_MATRIX_UNIFORM_NAME{ "al_vpMatrix" };
+
+        static constexpr const char*                DRAW_FRAMEBUFFER_TO_SCREEN_VERT_SHADER_PATH{ "assets\\shaders\\draw_framebuffer_to_screen.vert" };
+        static constexpr const char*                DRAW_FRAMEBUFFER_TO_SCREEN_FRAG_SHADER_PATH{ "assets\\shaders\\draw_framebuffer_to_screen.frag" };
+
+        static constexpr const char*                DEFFERED_GEOMETRY_PASS_VERT_SHADER_PATH{ "assets\\shaders\\deffered_geometry_pass.vert" };
+        static constexpr const char*                DEFFERED_GEOMETRY_PASS_FRAG_SHADER_PATH{ "assets\\shaders\\deffered_geometry_pass.frag" };
+        static constexpr uint32_t                   DEFFERED_GEOMETRY_PASS_DIFFUSE_TEXTURE_LOCATION{ 0 };
+        static constexpr const char*                DEFFERED_GEOMETRY_PASS_DIFFUSE_TEXTURE_NAME{ "texDiffuse" };
+
+        static constexpr uint32_t                   SCREEN_PASS_SOURCE_BUFFER_TEXTURE_LOCATION{ 0 };
+        static constexpr const char*                SCREEN_PASS_SOURCE_BUFFER_TEXTURE_NAME{ "texScreen" };
     };
 }
 

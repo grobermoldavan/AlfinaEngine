@@ -33,6 +33,9 @@ namespace al::engine
         al_log_error("Renderer", "Unsupported rendering API");
         al_assert(false);
     }
+
+    [[nodiscard]] VertexArray* create_vertex_array(RendererType type) noexcept;
+    void destroy_vertex_array(RendererType type, VertexArray* va) noexcept;
 }
 
 #endif

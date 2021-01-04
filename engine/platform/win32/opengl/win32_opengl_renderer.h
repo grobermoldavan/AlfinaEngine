@@ -31,9 +31,11 @@ namespace al::engine
 
         virtual void clear_buffers() noexcept override;
         virtual void swap_buffers() noexcept override;
-        virtual void draw(DrawCommandData* data) noexcept override;
+        virtual void draw(VertexArray* va) noexcept override;
         virtual void initialize_renderer() noexcept override;
         virtual void terminate_renderer() noexcept override;
+        virtual void bind_screen_framebuffer() noexcept override;
+        virtual void set_depth_test_state(bool isEnabled) noexcept override;
     };
 }
 

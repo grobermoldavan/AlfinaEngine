@@ -3,6 +3,7 @@
 
 #include "engine/memory/memory_manager.h"
 #include "engine/debug/debug.h"
+#include "engine/containers/containers.h"
 
 namespace al::engine
 {
@@ -17,6 +18,13 @@ namespace al::engine
     {
         fb->~Framebuffer();
         MemoryManager::get()->get_pool()->deallocate(reinterpret_cast<std::byte*>(fb), sizeof(Win32OpenglFramebuffer));
+    }
+
+    GLint Win32OpenglFramebuffer::get_max_color_attachments()
+    {
+        GLint result;
+        ::glGetIntegerv(GL_MAX_COLOR_ATTACHMENTS, &result);
+        return result;
     }
 
     GLint Win32OpenglFramebuffer::color_attachment_type_to_internal_format(FramebufferAttachmentType type)
@@ -85,8 +93,9 @@ namespace al::engine
 
     Win32OpenglFramebuffer::Win32OpenglFramebuffer(const FramebufferDescription& description)
         : description{ description }
-        , attachmentIds{ }
+        , attachmentLocations{ }
         , rendererId{ 0 }
+        , colorAttachmentsCount{ 0 }
     {
         recreate();
     }
@@ -98,13 +107,15 @@ namespace al::engine
             ::glDeleteFramebuffers(1, &rendererId);
             for (std::uint32_t it = 0; it < description.attachments.get_current_size(); it++)
             {
-                ::glDeleteTextures(1, &attachmentIds[it]);
+                ::glDeleteTextures(1, &attachmentLocations[it]);
             }
         }
     }
 
     void Win32OpenglFramebuffer::bind() noexcept
     {
+        // GL_READ_FRAMEBUFFER;
+        // GL_DRAW_FRAMEBUFFER;
         ::glBindFramebuffer(GL_FRAMEBUFFER, rendererId);
         ::glViewport(0, 0, description.width, description.height);
     }
@@ -116,13 +127,16 @@ namespace al::engine
 
     void Win32OpenglFramebuffer::recreate() noexcept
     {
+        al_profile_function();
+
         if (rendererId)
         {
             ::glDeleteFramebuffers(1, &rendererId);
             for (uint32_t it = 0; it < description.attachments.get_current_size(); it++)
             {
-                ::glDeleteTextures(1, &attachmentIds[it]);
+                ::glDeleteTextures(1, &attachmentLocations[it]);
             }
+            reset_color_attachment_counter();
         }
 
         ::glCreateFramebuffers(1, &rendererId);
@@ -131,7 +145,7 @@ namespace al::engine
         for (uint32_t it = 0; it < description.attachments.get_current_size(); it++)
         {
             FramebufferAttachmentType attachment = description.attachments[it];
-            RendererId* attachmentId = &attachmentIds[it];
+            RendererId* attachmentId = &attachmentLocations[it];
             if (is_depth_attachment(attachment))
             {
                 GLenum internalFormat = depth_attachment_type_to_internal_format(attachment);
@@ -147,13 +161,15 @@ namespace al::engine
                 GLint internalFormat = color_attachment_type_to_internal_format(attachment);
                 GLenum format = color_attachment_type_to_format(attachment);
                 GLenum type = color_attachment_type_to_tex_image_type(attachment);
+                GLenum colorAttachment = get_next_color_attachment();
 
                 ::glCreateTextures(GL_TEXTURE_2D, 1, attachmentId);
                 ::glBindTexture(GL_TEXTURE_2D, *attachmentId);
                 ::glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, description.width, description.height, 0, format, type, nullptr);
                 ::glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
                 ::glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-                ::glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, *attachmentId, 0);
+
+                ::glFramebufferTexture2D(GL_FRAMEBUFFER, colorAttachment, GL_TEXTURE_2D, *attachmentId, 0);
             }
         }
 
@@ -161,6 +177,15 @@ namespace al::engine
         if (!isFramebufferComplete)
         {
             al_log_error("OpenGL Framebuffer", "Framebuffer is not complete.");
+        }
+
+        {
+            DynamicArray<GLenum> colorAttachments;
+            for (uint32_t it = 0; it < colorAttachmentsCount; it++)
+            {
+                colorAttachments.push_back(GL_COLOR_ATTACHMENT0 + it);
+            }
+            ::glDrawBuffers(colorAttachmentsCount, colorAttachments.data());
         }
 
         ::glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -173,8 +198,29 @@ namespace al::engine
         recreate();
     }
 
+    void Win32OpenglFramebuffer::bind_attachment_to_slot(uint32_t attachmentId, uint32_t slot) noexcept
+    {
+        ::glBindTextureUnit(slot, attachmentLocations[attachmentId]);
+    }
+
     FramebufferDescription* Win32OpenglFramebuffer::get_description() noexcept
     {
         return &description;
+    }
+
+    const RendererId Win32OpenglFramebuffer::get_attachment(uint32_t attachmentId) const noexcept
+    {
+        return attachmentLocations[attachmentId];
+    }
+
+    GLenum Win32OpenglFramebuffer::get_next_color_attachment()
+    {
+        al_assert(colorAttachmentsCount <= static_cast<uint32_t>(get_max_color_attachments()));
+        return GL_COLOR_ATTACHMENT0 + (colorAttachmentsCount++);
+    }
+
+    void Win32OpenglFramebuffer::reset_color_attachment_counter()
+    {
+        colorAttachmentsCount = 0;
     }
 }

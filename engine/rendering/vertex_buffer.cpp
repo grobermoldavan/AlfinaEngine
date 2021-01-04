@@ -43,4 +43,25 @@ namespace al::engine
         }
         stride = offset;
     }
+
+    [[nodiscard]] VertexBuffer* create_vertex_buffer(RendererType type, const void* data, uint32_t size) noexcept
+    {
+        switch (type)
+        {
+            case RendererType::OPEN_GL: return create_vertex_buffer<RendererType::OPEN_GL>(data, size);
+        }
+        // Unknown RendererType
+        al_assert(false);
+        return nullptr;
+    }
+
+    void destroy_vertex_buffer(RendererType type, VertexBuffer* vb) noexcept
+    {
+        switch (type)
+        {
+            case RendererType::OPEN_GL: destroy_vertex_buffer<RendererType::OPEN_GL>(vb); return;
+        }
+        // Unknown RendererType
+        al_assert(false);
+    }
 }

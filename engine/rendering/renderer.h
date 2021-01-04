@@ -12,12 +12,11 @@
 #include "vertex_array.h"
 #include "shader.h"
 #include "framebuffer.h"
-#include "draw_command_buffer.h"
+#include "geometry_command_buffer.h"
 #include "texture_2d.h"
-#include "camera/render_camera.h"
+#include "engine/rendering/camera/render_camera.h"
 #include "engine/debug/debug.h"
 #include "engine/window/os_window.h"
-#include "engine/file_system/file_system.h"
 #include "engine/platform/platform_thread_event.h"
 
 #include "utilities/toggle.h"
@@ -42,13 +41,13 @@ namespace al::engine
         void wait_for_command_buffers_toggled() noexcept;
         void set_camera(const RenderCamera* camera) noexcept;
         void add_render_command(const RenderCommand& command) noexcept;
-        [[nodiscard]] DrawCommandData* add_draw_command(DrawCommandKey key) noexcept;
+        [[nodiscard]] GeometryCommandData* add_geometry(GeometryCommandKey key) noexcept;
 
     protected:
         static constexpr const char* LOG_CATEGORY_RENDERER = "Renderer";
 
         Toggle<RenderCommandBuffer> renderCommandBuffer;
-        Toggle<DrawCommandBuffer> drawCommandBuffer;
+        Toggle<GeometryCommandBuffer> geometryCommandBuffer;
 
         ThreadEvent* onFrameProcessStart;
         ThreadEvent* onFrameProcessEnd;
@@ -61,13 +60,21 @@ namespace al::engine
 
         const RenderCamera* renderCamera;
 
-        Framebuffer* defaultFramebuffer;
+        Shader* gpassShader;
+        Framebuffer* gbuffer;        
+
+        Shader* drawFramebufferToScreenShader;
+        VertexBuffer* screenRectangleVb;
+        IndexBuffer* screenRectangleIb;
+        VertexArray* screenRectangleVa;
 
         virtual void clear_buffers() noexcept = 0;
         virtual void swap_buffers() noexcept = 0;
-        virtual void draw(DrawCommandData* data) noexcept = 0;
+        virtual void draw(VertexArray* va) noexcept = 0;
         virtual void initialize_renderer() noexcept = 0;
         virtual void terminate_renderer() noexcept = 0;
+        virtual void bind_screen_framebuffer() noexcept = 0;
+        virtual void set_depth_test_state(bool isEnabled) noexcept = 0;
 
         void render_update() noexcept;
         void wait_for_render_start() noexcept;

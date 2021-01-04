@@ -94,6 +94,9 @@ namespace al::engine
         al_log_error("Renderer", "Unsupported rendering API");
         al_assert(false);
     }
+
+    [[nodiscard]] VertexBuffer* create_vertex_buffer(RendererType type, const void* data, uint32_t size) noexcept;
+    void destroy_vertex_buffer(RendererType type, VertexBuffer* vb) noexcept;
 }
 
 #endif

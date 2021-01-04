@@ -46,7 +46,6 @@ namespace al::engine
 
     void Win32OpenglRenderer::clear_buffers() noexcept
     {
-        ::glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         ::glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     }
 
@@ -55,20 +54,10 @@ namespace al::engine
         ::SwapBuffers(deviceContext);
     }
 
-    void Win32OpenglRenderer::draw(DrawCommandData* data) noexcept
+    void Win32OpenglRenderer::draw(VertexArray* va) noexcept
     {
-        data->va->bind();
-        data->shader->bind();
-
-        // For debug. Will be removed later
-        uint32_t textureSlot = 0;
-        data->texture->bind(textureSlot);
-
-        data->shader->set_int("u_Texture", textureSlot);
-        data->shader->set_mat4(EngineConfig::SHADER_MODEL_MATRIX_UNIFORM_NAME, data->trf.get_full_transform().transposed());
-        data->shader->set_mat4(EngineConfig::SHADER_VIEW_PROJECTION_MATRIX_UNIFORM_NAME, (renderCamera->get_projection() * renderCamera->get_view()).transposed());
-
-        ::glDrawElements(GL_TRIANGLES, data->va->get_index_buffer()->get_count(), GL_UNSIGNED_INT, nullptr);
+        va->bind();
+        ::glDrawElements(GL_TRIANGLES, va->get_index_buffer()->get_count(), GL_UNSIGNED_INT, nullptr);
     }
 
     void Win32OpenglRenderer::initialize_renderer() noexcept
@@ -123,6 +112,8 @@ namespace al::engine
 
         ::glEnable(GL_DEBUG_OUTPUT);
         ::glDebugMessageCallback(OpenGlCallback, 0);
+
+        ::glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
     }
 
     void Win32OpenglRenderer::terminate_renderer() noexcept
@@ -135,5 +126,22 @@ namespace al::engine
 
         bool releaseDcResult = ::ReleaseDC(win32window->get_handle(), deviceContext);
         al_assert(releaseDcResult);
+    }
+
+    void Win32OpenglRenderer::bind_screen_framebuffer() noexcept
+    {
+        ::glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    }
+
+    void Win32OpenglRenderer::set_depth_test_state(bool isEnabled) noexcept
+    {
+        if (isEnabled)
+        {
+            ::glEnable(GL_DEPTH_TEST);
+        }
+        else
+        {
+            ::glDisable(GL_DEPTH_TEST);
+        }
     }
 }

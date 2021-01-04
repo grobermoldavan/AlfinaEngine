@@ -145,68 +145,28 @@ namespace al::engine
         static VertexBuffer* vb = nullptr;
         static IndexBuffer* ib = nullptr;
         static VertexArray* va = nullptr;
-        static Shader* shader = nullptr;
-        static Texture2d* texture = nullptr;
+        static Texture2d* diffuseTexture = nullptr;
 
-        static uint32_t indices[] = {
-            // 0, 1, 3,
-            // 3, 1, 2,
-            // 1, 5, 2,
-            // 2, 5, 6,
-            // 5, 4, 6,
-            // 6, 4, 7,
-            // 4, 0, 7,
-            // 7, 0, 3,
-            // 3, 2, 7,
-            // 7, 2, 6,
-            // 4, 5, 0,
-            // 0, 5, 1
+        // static uint32_t indices[] = {
+        //     0, 1, 3,
+        //     3, 1, 2
+        // };
 
-            0, 1, 3,
-            3, 1, 2
-        };
-
-        static float vertices[] =  {
-            // -1.0f, -1.0f, -1.0f,
-            // 1.0f, -1.0f, -1.0f,
-            // 1.0f,  1.0f, -1.0f,
-            // -1.0f,  1.0f, -1.0f,
-            // -1.0f, -1.0f,  1.0f,
-            // 1.0f, -1.0f,  1.0f,
-            // 1.0f,  1.0f,  1.0f,
-            // -1.0f,  1.0f,  1.0f
-
-            -1.0f, -1.0f, 4.0f, 0.0f, 0.0f,
-             1.0f, -1.0f, 4.0f, 1.0f, 0.0f,
-             1.0f,  1.0f, 4.0f, 1.0f, 1.0f,
-            -1.0f,  1.0f, 4.0f, 0.0f, 1.0f
-        };
+        // static float vertices[] =  {
+        //     -1.0f, -1.0f, 4.0f, 0.0f, 0.0f,
+        //      1.0f, -1.0f, 4.0f, 1.0f, 0.0f,
+        //      1.0f,  1.0f, 4.0f, 1.0f, 1.0f,
+        //     -1.0f,  1.0f, 4.0f, 0.0f, 1.0f
+        // };
 
         static bool isInited = false;
         static float time = 0.0f;
         static Transform transform{ };
         transform.set_scale({ 1.0f, 1.0f, 1.0f });
 
-        static FileHandle* vertSrc = fileSystem->async_load("assets\\shaders\\vertex.vert", FileLoadMode::READ);
-        static FileHandle* fragSrc = fileSystem->async_load("assets\\shaders\\fragment.frag", FileLoadMode::READ);
-
         static Geometry geom = load_geometry_from_obj(fileSystem->sync_load("assets\\geometry\\monke\\monke.obj", FileLoadMode::READ));
 
-        static bool isShadersLoadedChache = false;
-        static auto isShadersLoaded = [&]() -> bool
-        {
-            if (isShadersLoadedChache)
-            {
-                return true;
-            }
-            else
-            {
-                isShadersLoadedChache = (vertSrc->state == FileHandle::State::LOADED) && (fragSrc->state == FileHandle::State::LOADED);
-                return isShadersLoadedChache;
-            }
-        };
-
-        if (!isInited && isShadersLoaded())
+        if (!isInited)
         {
             renderer->add_render_command([&]()
             {
@@ -221,28 +181,18 @@ namespace al::engine
                 va->set_vertex_buffer(vb);
                 va->set_index_buffer(ib);
 
-                const char* v = reinterpret_cast<const char*>(vertSrc->memory);
-                const char* f = reinterpret_cast<const char*>(fragSrc->memory);
-
-                shader = create_shader<EngineConfig::DEFAULT_RENDERER_TYPE>(v, f);
-
-                texture = create_texture_2d<EngineConfig::DEFAULT_RENDERER_TYPE>("assets\\geometry\\monke\\monke_diffuse.png");
-
-                fileSystem->free_handle(vertSrc);
-                fileSystem->free_handle(fragSrc);
+                diffuseTexture = create_texture_2d<EngineConfig::DEFAULT_RENDERER_TYPE>("assets\\materials\\metal_plate\\diffuse.png");
             });
-
             isInited = true;
         }
-        else if (isShadersLoaded())
+        else
         {
             // @NOTE : Currently using dummy key
-            DrawCommandKey key = 0;
-            DrawCommandData* data = renderer->add_draw_command(key);
+            GeometryCommandKey key = 0;
+            GeometryCommandData* data = renderer->add_geometry(key);
             data->trf = transform;
             data->va = va;
-            data->shader = shader;
-            data->texture = texture;
+            data->diffuseTexture = diffuseTexture;
         }
     }
 

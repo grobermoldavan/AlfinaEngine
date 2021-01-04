@@ -47,6 +47,9 @@ namespace al::engine
         al_log_error("Renderer", "Unsupported rendering API");
         al_assert(false);
     }
+
+    [[nodiscard]] Shader* create_shader(RendererType type, const char* vertexShaderSrc, const char* fragmentShaderSrc) noexcept;
+    void destroy_shader(RendererType type, Shader* shader) noexcept;
 }
 
 #endif

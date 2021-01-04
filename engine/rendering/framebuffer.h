@@ -6,6 +6,7 @@
 #include "engine/config/engine_config.h"
 
 #include "render_core.h"
+#include "engine/debug/debug.h"
 
 #include "utilities/array_container.h"
 
@@ -40,11 +41,12 @@ namespace al::engine
 
         virtual void bind       () noexcept = 0;
         virtual void unbind     () noexcept = 0;
-
         virtual void recreate   () noexcept = 0;
         virtual void resize     (uint32_t width, uint32_t height) noexcept = 0;
 
-        virtual FramebufferDescription* get_description() = 0;
+        virtual void bind_attachment_to_slot(uint32_t attachmentId, uint32_t slot) noexcept = 0;
+        virtual FramebufferDescription* get_description() noexcept = 0;
+        virtual const RendererId get_attachment(uint32_t attachmentId) const noexcept = 0;
     };
 
     template<RendererType type> [[nodiscard]] Framebuffer* create_framebuffer(const FramebufferDescription& description) noexcept
@@ -59,6 +61,9 @@ namespace al::engine
         al_log_error("Renderer", "Unsupported rendering API");
         al_assert(false);
     }
+
+    [[nodiscard]] Framebuffer* create_framebuffer(RendererType type, const FramebufferDescription& description) noexcept;
+    void destroy_framebuffer(RendererType type, Framebuffer* fb) noexcept;
 }
 
 #endif

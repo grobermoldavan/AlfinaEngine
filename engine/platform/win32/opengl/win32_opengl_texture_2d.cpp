@@ -48,6 +48,11 @@ namespace al::engine
             internalFormat = GL_RGB8;
             dataFormat = GL_RGB;
         }
+        else if (stbi_channels == 1)
+        {
+            internalFormat = GL_R8;
+            dataFormat = GL_RED;
+        }
         else
         {
             // Unsupported number of channels

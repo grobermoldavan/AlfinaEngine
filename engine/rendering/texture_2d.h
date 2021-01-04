@@ -3,6 +3,8 @@
 
 #include "render_core.h"
 
+#include "engine/debug/debug.h"
+
 namespace al::engine
 {
     class Texture2d
@@ -26,6 +28,9 @@ namespace al::engine
         al_log_error("Renderer", "Unsupported rendering API");
         al_assert(false);
     }
+
+    [[nodiscard]] Texture2d* create_texture_2d(RendererType type, const char* path) noexcept;
+    void destroy_texture_2d(RendererType type, Texture2d* tex) noexcept;
 }
 
 #endif
