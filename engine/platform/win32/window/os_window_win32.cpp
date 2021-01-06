@@ -6,10 +6,10 @@
 
 namespace al::engine
 {
-    [[nodsicard]] OsWindow* create_window(const OsWindowParams& params) noexcept
+    [[nodsicard]] OsWindow* create_window(OsWindowParams* params) noexcept
     {
         OsWindow* window = MemoryManager::get()->get_stack()->allocate_as<OsWindowWin32>();
-        ::new(window) OsWindowWin32({ });
+        ::new(window) OsWindowWin32(params);
         return window;
     }
 
@@ -21,8 +21,8 @@ namespace al::engine
 
     LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) noexcept;
 
-    OsWindowWin32::OsWindowWin32(const OsWindowParams& params) noexcept
-        : OsWindow{ params }
+    OsWindowWin32::OsWindowWin32(OsWindowParams* inParams) noexcept
+        : OsWindow{ inParams }
         , handle{ nullptr }
         , isQuit{ false }
         , input{ }
@@ -45,7 +45,7 @@ namespace al::engine
         
         constexpr DWORD fullscreenStyle = WS_POPUP;
 
-        const bool isFullscreen = false;
+        const bool isFullscreen = params.isFullscreen;
 
         handle = ::CreateWindowExA(
             0,                                              // Optional window styles.
@@ -68,6 +68,13 @@ namespace al::engine
 
         ::ShowWindow(handle, isFullscreen ? SW_MAXIMIZE : SW_SHOW);
         ::UpdateWindow(handle);
+
+        RECT windowRect;
+        bool getWindowRectResult = ::GetWindowRect(handle, &windowRect);
+        al_assert(getWindowRectResult);
+        
+        params.width = static_cast<uint32_t>(windowRect.right - windowRect.left);
+        params.height = static_cast<uint32_t>(windowRect.bottom - windowRect.top);
 
         process();
     }

@@ -11,7 +11,7 @@ namespace al::engine
     class OsWindow;
     struct OsWindowParams;
 
-    [[nodiscard]] OsWindow* create_window(const OsWindowParams& params) noexcept;   // @NOTE : this function is defined in os header
+    [[nodiscard]] OsWindow* create_window(OsWindowParams* params) noexcept;   // @NOTE : this function is defined in os header
     void destroy_window(OsWindow* window) noexcept;                                 // @NOTE : this function is defined in os header
 
     struct OsWindowInput
@@ -73,14 +73,15 @@ namespace al::engine
     struct OsWindowParams
     {
         std::string_view name = "Alfina Engine";
-        std::size_t width = 1024;
-        std::size_t height = 768;
+        uint32_t width = 1024;
+        uint32_t height = 768;
+        bool isFullscreen = false;
     };
 
     class OsWindow
     {
     public:
-        OsWindow(const OsWindowParams& params) noexcept;
+        OsWindow(OsWindowParams* params) noexcept;
         virtual ~OsWindow() noexcept = default;
 
         virtual void process() noexcept = 0;

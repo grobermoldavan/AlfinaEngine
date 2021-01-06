@@ -40,9 +40,9 @@
 #   define al_log_warning(category, format, ...)    { AL_DBG_NAMESPACE globalLogger->printf_log(Logger::Level::_WARNING, category, AL_LOG_FORMAT(format), __VA_ARGS__); }
 #   define al_log_error(category, format, ...)      { AL_DBG_NAMESPACE globalLogger->printf_log(Logger::Level::_ERROR  , category, AL_LOG_FORMAT(format), __VA_ARGS__); }
 #else
-#   define al_log_message(format, ...)
-#   define al_log_warning(format, ...)
-#   define al_log_error(format, ...)
+#   define al_log_message(category, format, ...)
+#   define al_log_warning(category, format, ...)
+#   define al_log_error(category, format, ...)
 #endif
 
 #ifdef AL_PROFILING_ENABLED

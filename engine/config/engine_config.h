@@ -56,6 +56,8 @@ namespace al::engine
 
         static constexpr uint32_t                   SCREEN_PASS_SOURCE_BUFFER_TEXTURE_LOCATION{ 0 };
         static constexpr const char*                SCREEN_PASS_SOURCE_BUFFER_TEXTURE_NAME{ "texScreen" };
+
+        static constexpr const char*                OPENGL_RENDERER_LOG_CATEGORY = "OpenGL";
     };
 }
 

@@ -88,8 +88,8 @@ namespace al::engine
                     FramebufferAttachmentType::RGB_8,               // Albedo
                     FramebufferAttachmentType::DEPTH_24_STENCIL_8   // Depth + stencil (maybe?)
                 };
-                gbufferDesciption.width = safe_cast_uint64_to_uint32(window->get_params()->width);
-                gbufferDesciption.height = safe_cast_uint64_to_uint32(window->get_params()->height);
+                gbufferDesciption.width = window->get_params()->width;
+                gbufferDesciption.height = window->get_params()->height;
                 gbuffer = create_framebuffer<EngineConfig::DEFAULT_RENDERER_TYPE>(gbufferDesciption);
             }
             {
@@ -136,6 +136,8 @@ namespace al::engine
                 screenRectangleVa->set_vertex_buffer(screenRectangleVb);
                 screenRectangleVa->set_index_buffer(screenRectangleIb);
             }
+            // Enable vsync
+            set_vsync_state(true);
         }
         while (true)
         {
@@ -185,13 +187,13 @@ namespace al::engine
                     current.clear();
                 }
                 {
-                    al_profile_scope("\"Draw to screen\" pass");
+                    al_profile_scope("Draw to screen pass");
                     // Bind buffer and shader
                     bind_screen_framebuffer();
                     drawFramebufferToScreenShader->bind();
                     clear_buffers(); // Probably this is not needed
                     // Attach texture to be drawn on screen
-                    gbuffer->bind_attachment_to_slot(0, EngineConfig::SCREEN_PASS_SOURCE_BUFFER_TEXTURE_LOCATION);
+                    gbuffer->bind_attachment_to_slot(2, EngineConfig::SCREEN_PASS_SOURCE_BUFFER_TEXTURE_LOCATION);
                     drawFramebufferToScreenShader->set_int(EngineConfig::SCREEN_PASS_SOURCE_BUFFER_TEXTURE_NAME, EngineConfig::SCREEN_PASS_SOURCE_BUFFER_TEXTURE_LOCATION);
                     // Draw screen quad with selected texture
                     set_depth_test_state(false);
@@ -207,7 +209,6 @@ namespace al::engine
         }
         {
             al_profile_scope("Renderer pre-terminate");
-
             destroy_framebuffer<EngineConfig::DEFAULT_RENDERER_TYPE>(gbuffer);
             destroy_shader<EngineConfig::DEFAULT_RENDERER_TYPE>(drawFramebufferToScreenShader);
             destroy_vertex_array<EngineConfig::DEFAULT_RENDERER_TYPE>(screenRectangleVa);

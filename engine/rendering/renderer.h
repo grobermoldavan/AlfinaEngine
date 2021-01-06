@@ -75,6 +75,7 @@ namespace al::engine
         virtual void terminate_renderer() noexcept = 0;
         virtual void bind_screen_framebuffer() noexcept = 0;
         virtual void set_depth_test_state(bool isEnabled) noexcept = 0;
+        virtual void set_vsync_state(bool isEnabled) noexcept = 0;
 
         void render_update() noexcept;
         void wait_for_render_start() noexcept;

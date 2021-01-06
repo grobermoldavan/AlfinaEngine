@@ -13,7 +13,7 @@ namespace al::engine
     class OsWindowWin32 : public OsWindow
     {
     public:
-        OsWindowWin32(const OsWindowParams& params) noexcept;
+        OsWindowWin32(OsWindowParams* params) noexcept;
         ~OsWindowWin32() noexcept = default;
 
         HWND get_handle() noexcept { return handle; }

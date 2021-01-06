@@ -36,6 +36,7 @@ namespace al::engine
         virtual void terminate_renderer() noexcept override;
         virtual void bind_screen_framebuffer() noexcept override;
         virtual void set_depth_test_state(bool isEnabled) noexcept override;
+        virtual void set_vsync_state(bool isEnabled) noexcept override;
     };
 }
 

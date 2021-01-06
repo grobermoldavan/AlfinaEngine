@@ -23,10 +23,13 @@ namespace al::engine
         ::new(fileSystem) FileSystem{ jobSystem };
         FileSystem::set_global_instance(fileSystem);
 
-        window = create_window({ });
+        OsWindowParams windowParams;
+        windowParams.isFullscreen = false;
+        window = create_window(&windowParams);
 
         renderer = create_renderer<EngineConfig::DEFAULT_RENDERER_TYPE>(window);
 
+        dbgFlyCamera.get_render_camera()->set_aspect_ratio(static_cast<float>(window->get_params()->width) / static_cast<float>(window->get_params()->height));
         renderer->set_camera(dbgFlyCamera.get_render_camera());
 
         al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Initialized engine components");
@@ -49,7 +52,6 @@ namespace al::engine
     {
         using ClockT = std::chrono::steady_clock;
         using DtDuration = std::chrono::duration<float>;
-
         {
             al_profile_scope("Print log buffer");
             debug::globalLogger->print_log_buffer();
@@ -58,18 +60,15 @@ namespace al::engine
             al_profile_scope("Print profile buffer");
             debug::globalLogger->print_profile_buffer();
         }
-
         al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Starting application");
         frameCount = 0;
         auto previousTime = ClockT::now();
         while(true)
         {
             al_profile_scope("Process frame");
-
             auto currentTime = ClockT::now();
             auto dt = std::chrono::duration_cast<DtDuration>(currentTime - previousTime).count();
             previousTime = currentTime;
-
             {
                 al_profile_scope("Process window");
                 window->process();
@@ -78,7 +77,6 @@ namespace al::engine
                     break;
                 }
             }
-
             renderer->start_process_frame();
             update_input();
             simulate(dt);
@@ -87,7 +85,6 @@ namespace al::engine
             renderer->wait_for_render_finish();
             process_end_frame();
         }
-
     }
 
     void AlfinaEngineApplication::update_input() noexcept
@@ -146,18 +143,6 @@ namespace al::engine
         static IndexBuffer* ib = nullptr;
         static VertexArray* va = nullptr;
         static Texture2d* diffuseTexture = nullptr;
-
-        // static uint32_t indices[] = {
-        //     0, 1, 3,
-        //     3, 1, 2
-        // };
-
-        // static float vertices[] =  {
-        //     -1.0f, -1.0f, 4.0f, 0.0f, 0.0f,
-        //      1.0f, -1.0f, 4.0f, 1.0f, 0.0f,
-        //      1.0f,  1.0f, 4.0f, 1.0f, 1.0f,
-        //     -1.0f,  1.0f, 4.0f, 0.0f, 1.0f
-        // };
 
         static bool isInited = false;
         static float time = 0.0f;

@@ -8,7 +8,7 @@ namespace al::engine
         return &params;
     }
 
-    OsWindow::OsWindow(const OsWindowParams& params) noexcept
-        : params{ params }
+    OsWindow::OsWindow(OsWindowParams* params) noexcept
+        : params{ *params }
     { }
 }
