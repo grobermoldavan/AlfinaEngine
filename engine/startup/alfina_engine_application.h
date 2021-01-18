@@ -10,6 +10,7 @@
 #include "engine/file_system/file_system.h"
 #include "engine/debug/debug.h"
 #include "engine/rendering/renderer.h"
+#include "engine/ecs/ecs.h"
 #include "engine/game_cameras/fly_camera.h"
 
 #include "utilities/event.h"
@@ -41,6 +42,7 @@ namespace al::engine
 
         JobSystem* jobSystem;
         FileSystem* fileSystem;
+        EcsWorld* defaultEcsWorld;
         OsWindow* window;
         Renderer* renderer;
 

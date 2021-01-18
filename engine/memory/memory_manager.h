@@ -22,7 +22,7 @@ namespace al::engine
         StackAllocator* get_stack() noexcept;
         PoolAllocator* get_pool() noexcept;
 
-        static MemoryManager* get();
+        static MemoryManager* get() noexcept;
 
     private:
         StackAllocator stack;

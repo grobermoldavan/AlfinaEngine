@@ -5,77 +5,70 @@
 
 namespace al
 {
-    class IFlags
+    struct Flags32
     {
-    public:
-        virtual void set_flag(uint32_t flag) noexcept = 0;
-        virtual void clear_flag(uint32_t flag) noexcept= 0;
-        virtual bool get_flag(uint32_t flag) const noexcept = 0;
-        virtual void clear() noexcept = 0;
-    };
-
-    class Flags32 : public IFlags
-    {
-    public:
         Flags32(uint32_t initial_flags = 0) noexcept
             : flags{ initial_flags }
         { }
 
-        inline void set_flag(uint32_t flag) noexcept override
+        inline void set_flag(uint32_t flag) noexcept
         {
             flags |= 1 << flag;
         }
 
-        inline bool get_flag(uint32_t flag) const noexcept override
+        inline bool get_flag(uint32_t flag) const noexcept
         {
             return static_cast<bool>(flags & (1 << flag));
         }
 
-        inline void clear_flag(uint32_t flag) noexcept override
+        inline void clear_flag(uint32_t flag) noexcept
         {
             flags &= ~(1 << flag);
         }
 
-        inline void clear() noexcept override
+        inline void clear() noexcept
         {
             flags = 0;
         }
 
-    private:
         uint32_t flags;
     };
 
-    class Flags128 : public IFlags
+    struct Flags128
     {
-    public:
-        Flags128(uint32_t f1 = 0, uint32_t f2 = 0, uint32_t f3 = 0, uint32_t f4 = 0) noexcept
-            : flags{ f1, f2, f3, f4 }
+        Flags128(uint64_t f1 = 0, uint64_t f2 = 0) noexcept
+            : flags{ f1, f2 }
         { }
 
-        inline void set_flag(uint32_t flag) noexcept override
+        inline void set_flag(uint64_t flag) noexcept
         {
-            const auto id = flag / 32U;
-            flags[id] |= 1 << (flag - (id * 32U));
+            const uint64_t id = flag / 64ULL;
+            flags[id] |= 1ULL << (flag - (id * 64ULL));
         }
 
-        inline bool get_flag(uint32_t flag) const noexcept override
+        inline bool get_flag(uint64_t flag) const noexcept
         {
-            const auto id = flag / 32U;
-            return static_cast<bool>(flags[id] & (1 << (flag - (id * 32U))));
+            const uint64_t id = flag / 64ULL;
+            return static_cast<bool>(flags[id] & (1ULL << (flag - (id * 64ULL))));
         }
 
-        inline void clear_flag(uint32_t flag) noexcept override
+        inline void clear_flag(uint64_t flag) noexcept
         {
-            const auto id = flag / 32U;
-            flags[id] &= ~(1UL << (flag - (id * 32U)));
+            const uint64_t id = flag / 64ULL;
+            flags[id] &= ~(1ULL << (flag - (id * 64ULL)));
         }
 
-        inline void clear() noexcept override
+        inline void clear() noexcept
         {
-            flags[0] = flags[1] = flags[2] = flags[3] = 0;
+            flags[0] = flags[1] = 0;
         }
-    private:
-        uint32_t flags[4];
+
+        bool operator == (const Flags128& other) const noexcept
+        {
+            return (flags[0] == other.flags[0]) && (flags[1] == other.flags[1]);
+        }
+
+        uint64_t flags[2];
     };
 }
 

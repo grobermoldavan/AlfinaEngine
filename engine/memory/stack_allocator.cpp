@@ -1,6 +1,8 @@
 
 #include "stack_allocator.h"
 
+#include "memory_common.h"
+
 namespace al::engine
 {
     StackAllocator::StackAllocator() noexcept
@@ -21,27 +23,26 @@ namespace al::engine
 
     std::byte* StackAllocator::allocate(std::size_t memorySizeBytes) noexcept
     {
-        al_assert(memory);
-
+        // @NOTE :  Can't use al_assert here because it writes to the logger, which could not be initialized at this point in time
+        // @TODO :  Add another assert macro, which does not write to the logger
+        // al_assert(memory);
         std::byte* result = nullptr;
-
         while (true)
         {
-            std::byte* currentTop = top;
-            if ((memoryLimit - currentTop) < memorySizeBytes)
+            std::byte* currentTop = top.load(std::memory_order_relaxed);
+            std::byte* currentTopAligned = align_pointer(currentTop);
+            if ((memoryLimit - currentTopAligned) < memorySizeBytes)
             {
                 break;
             }
-
-            std::byte* newTop = top + memorySizeBytes;
+            std::byte* newTop = currentTopAligned + memorySizeBytes;
             const bool casResult = top.compare_exchange_strong(currentTop, newTop);
             if (casResult)
             {
-                result = currentTop;
+                result = currentTopAligned;
                 break;
             }
         }
-
         return result;
     }
 
@@ -52,7 +53,9 @@ namespace al::engine
 
     void StackAllocator::free_to_pointer(std::byte* ptr) noexcept
     {
-        al_assert(memory);
+        // @NOTE :  Can't use al_assert here because it writes to the logger, which could not be initialized at this point in time
+        // @TODO :  Add another assert macro, which does not write to the logger
+        // al_assert(memory);
         if (ptr >= memory && ptr < memoryLimit) return;
         top = ptr;
     }

@@ -1,8 +1,6 @@
 
 #include "alfina_engine_application.h"
 
-#include "engine/rendering/geometry/geometry.h"
-
 #include "utilities/smooth_average.h"
 
 namespace al::engine
@@ -22,6 +20,9 @@ namespace al::engine
         fileSystem = memoryManager->get_stack()->allocate_as<FileSystem>();
         ::new(fileSystem) FileSystem{ jobSystem };
         FileSystem::set_global_instance(fileSystem);
+
+        defaultEcsWorld = memoryManager->get_stack()->allocate_as<EcsWorld>();
+        ::new(defaultEcsWorld) EcsWorld{ };
 
         OsWindowParams windowParams;
         windowParams.isFullscreen = false;
@@ -63,6 +64,23 @@ namespace al::engine
         al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Starting application");
         frameCount = 0;
         auto previousTime = ClockT::now();
+
+        DynamicArray<EntityHandle> handles;
+        for (int i = 0; i < 10; i++)
+        {
+            handles.push_back(defaultEcsWorld->create_entity());
+        }
+        for (EntityHandle handle : handles)
+        {
+            defaultEcsWorld->add_components<float4>(handle);
+            if (rand() > (RAND_MAX / 3)) defaultEcsWorld->add_components<uint64_t>(handle);
+            if (rand() > (RAND_MAX / 2)) defaultEcsWorld->add_components<Transform>(handle);
+        }
+        defaultEcsWorld->for_each<float4>([](EcsWorld* world, EntityHandle handle, float4* vec) -> void
+        {
+            vec->y += handle;
+        });
+
         while(true)
         {
             al_profile_scope("Process frame");
@@ -77,6 +95,12 @@ namespace al::engine
                     break;
                 }
             }
+
+            defaultEcsWorld->for_each<float4>([](EcsWorld* world, EntityHandle handle, float4* vec) -> void
+            {
+                vec->x += 0.1f;
+            });
+
             renderer->start_process_frame();
             update_input();
             simulate(dt);
@@ -85,6 +109,7 @@ namespace al::engine
             renderer->wait_for_render_finish();
             process_end_frame();
         }
+        defaultEcsWorld->log_world_state();
     }
 
     void AlfinaEngineApplication::update_input() noexcept
@@ -130,7 +155,7 @@ namespace al::engine
     {
         static SmoothAverage<float> fps;
         fps.push(dt);
-        // al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Fps : %f", 1.0f / fps.get());
+        al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Fps : %f", 1.0f / fps.get());
 
         dbgFlyCamera.process_inputs(&inputState.get_current(), dt);
     }

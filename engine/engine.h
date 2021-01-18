@@ -29,6 +29,7 @@
 #include "engine/file_system/file_system.h"
 #include "engine/game_cameras/fly_camera.h"
 #include "engine/job_system/job_system.h"
+#include "engine/memory/memory_common.h"
 #include "engine/memory/allocator_base.h"
 #include "engine/memory/dl_allocator.h"
 #include "engine/memory/memory_manager.h"
@@ -51,6 +52,7 @@
 #include "engine/window/os_window.h"
 #include "engine/startup/alfina_engine_application.h"
 #include "engine/platform/platform_thread_event.h"
+#include "engine/ecs/ecs.h"
 #ifdef AL_PLATFORM_WIN32
 #   include "engine/platform/win32/window/os_window_win32.h"
 #   include "engine/platform/win32/platform_thread_event_win32.h"
@@ -72,6 +74,7 @@
 #include "engine/file_system/file_system.cpp"
 #include "engine/game_cameras/fly_camera.cpp"
 #include "engine/job_system/job_system.cpp"
+#include "engine/memory/memory_common.cpp"
 #include "engine/memory/dl_allocator.cpp"
 #include "engine/memory/memory_manager.cpp"
 #include "engine/memory/pool_allocator.cpp"
@@ -89,6 +92,7 @@
 #include "engine/window/os_window.cpp"
 #include "engine/startup/alfina_engine_application.cpp"
 #include "startup/entry_point.cpp"
+#include "engine/ecs/ecs.cpp"
 #ifdef AL_PLATFORM_WIN32
 #   include "engine/platform/win32/window/os_window_win32.cpp"
 #   include "engine/platform/win32/platform_thread_event_win32.cpp"

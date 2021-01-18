@@ -59,7 +59,18 @@
 #   error Unsupported platform
 #endif
 
-#define al_assert(cond) if (!(cond)) { ::al::engine::debug::assert_implementation(__FILE__, __FUNCSIG__, __LINE__, #cond); }
+#define al_assert(cond)                                                                     \
+    if (!(cond))                                                                            \
+    {                                                                                       \
+        ::al::engine::debug::assert_implementation(__FILE__, __FUNCSIG__, __LINE__, #cond); \
+    }
+
+#define al_assert_msg(cond, format, ...)                                                    \
+    if (!(cond))                                                                            \
+    {                                                                                       \
+        al_log_error("assert", format, __VA_ARGS__);                                        \
+        ::al::engine::debug::assert_implementation(__FILE__, __FUNCSIG__, __LINE__, #cond); \
+    }
 
 #define al_crash_impl { int* crash = nullptr; crash = 0; }
 #define al_exception_wrap(code) try { code; } catch (const std::exception& e) { al_log_error("Exception", "%s", e.what()); al_assert(false); }
@@ -104,12 +115,15 @@ namespace al::engine::debug
             {
                 return;
             }
-
             int size = std::snprintf(nullptr, 0, format, category, args...);
             if (size >= 0)
             {
                 char* messageBuffer = allocate_buffer(logBuffer, &logBufferPtr, EngineConfig::LOG_BUFFER_SIZE, size);
-                // @TODO :  handle buffer overflow (messageBuffer == nullptr)
+                if (!messageBuffer)
+                {
+                    print_log_buffer();
+                    messageBuffer = allocate_buffer(logBuffer, &logBufferPtr, EngineConfig::LOG_BUFFER_SIZE, size);
+                }
                 std::sprintf(messageBuffer, format, category, args...);
             }
             else { /* @TODO : handle negative return value */ }
@@ -122,12 +136,15 @@ namespace al::engine::debug
             //          Don't know the reason, tbh.
             // @TODO :  Find a way to profile data without mutex.
             std::unique_lock<std::mutex> lock{ profileMutex };
-
             int size = std::snprintf(nullptr, 0, format, args...);
             if (size >= 0)
             {
                 char* messageBuffer = allocate_buffer(profileBuffer, &profileBufferPtr, EngineConfig::PROFILE_BUFFER_SIZE, size);
-                // @TODO : handle buffer overflow (messageBuffer == nullptr)
+                if (!messageBuffer)
+                {
+                    print_profile_buffer();
+                    messageBuffer = allocate_buffer(logBuffer, &logBufferPtr, EngineConfig::LOG_BUFFER_SIZE, size);
+                }
                 std::sprintf(messageBuffer, format, args...);
             }
             else { /* @TODO : handle negative return value */ }

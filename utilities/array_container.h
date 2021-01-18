@@ -1,7 +1,6 @@
 #ifndef AL_ARRAY_CONTAINER_H
 #define AL_ARRAY_CONTAINER_H
 
-#include <array>
 #include <cstddef>
 
 #include "utilities/function.h"
@@ -18,12 +17,12 @@ namespace al
     //          Insertion time-complexity is O(1), removing is also O(1).
 
     template<typename T, std::size_t Size>
-    class ArrayContainer : public std::array<T, Size>
+    class ArrayContainer
     {
     public:
         ArrayContainer() noexcept
-            : std::array<T, Size>{ }
-            , currentSize{ 0 }
+            : currentSize{ 0 }
+            , data{ }
         { }
 
         ArrayContainer(std::initializer_list<T> args) noexcept
@@ -115,8 +114,19 @@ namespace al
             return currentSize;
         }
 
+        T& operator [] (std::size_t index) noexcept
+        {
+            return at(index);
+        }
+
     private:
         std::size_t currentSize;
+        T data[Size];
+
+        inline T& at(std::size_t index) noexcept
+        {
+            return data[index];
+        }
     };
 }
 

@@ -19,6 +19,7 @@ namespace al::engine
         static constexpr std::size_t                MEMORY_SIZE{ gigabytes<std::size_t>(1) };
         static constexpr std::size_t                POOL_ALLOCATOR_MAX_BUCKETS{ 5 };
         static constexpr std::size_t                POOL_ALLOCATOR_MAX_PTR_SIZE_PAIRS{ 64 };
+        static constexpr std::uint64_t              DEFAULT_MEMORY_ALIGNMENT{ 8 };  // Must be power of two
 
         // File System settings
         static constexpr std::size_t                MAX_FILE_HANDLES{ 4096 };
@@ -57,7 +58,11 @@ namespace al::engine
         static constexpr uint32_t                   SCREEN_PASS_SOURCE_BUFFER_TEXTURE_LOCATION{ 0 };
         static constexpr const char*                SCREEN_PASS_SOURCE_BUFFER_TEXTURE_NAME{ "texScreen" };
 
-        static constexpr const char*                OPENGL_RENDERER_LOG_CATEGORY = "OpenGL";
+        static constexpr const char*                OPENGL_RENDERER_LOG_CATEGORY{ "OpenGL" };
+
+        // ECS settings
+        static constexpr const char*                ECS_LOG_CATEGORY{ "ECS" };
+        static constexpr uint64_t                   NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK{ 64 };
     };
 }
 

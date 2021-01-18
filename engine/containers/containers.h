@@ -7,6 +7,7 @@
 
 namespace al::engine
 {
+    // @TODO :  make dynamic array which does not throw exceptions
     template<typename T>
     using DynamicArray = std::vector<T, PoolAllocatorStdWrap<T>>;
 }

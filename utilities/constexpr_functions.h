@@ -90,13 +90,15 @@ namespace al
 			static_assert(sizeof(T) == sizeof(uint8_t));
 			crc = ~crc;
 			for (std::size_t it = 0; it < size; ++it)
+            {
 				crc = crc_table[data[it] ^ (crc & 0xFF)] ^ (crc >> 8);
+            }
 			return ~crc;
 		}
 	}
 	
 	template<typename T, std::size_t size>
-	constexpr uint64_t crc32(const T (&data)[size]) noexcept
+	constexpr uint32_t crc32(const T (&data)[size]) noexcept
 	{
 		return crc_private::crc32(data);
 	}

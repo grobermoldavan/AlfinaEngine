@@ -1,18 +1,20 @@
 
 #include "memory_manager.h"
 
+#include "memory_common.h"
+
 namespace al::engine
 {
-    MemoryManager* MemoryManager::get()
+    MemoryManager* MemoryManager::get() noexcept
     {
         static MemoryManager instance;
         return &instance;
     }
 
     MemoryManager::MemoryManager() noexcept
-        : memory{ static_cast<std::byte*>(std::malloc(EngineConfig::MEMORY_SIZE)) }
+        : memory{ static_cast<std::byte*>(std::malloc(EngineConfig::MEMORY_SIZE + EngineConfig::DEFAULT_MEMORY_ALIGNMENT)) }
     {
-        stack.initialize(memory, EngineConfig::MEMORY_SIZE);
+        stack.initialize(align_pointer(memory), EngineConfig::MEMORY_SIZE);
         // @TODO : change this hardcoded pool initialization to
         //         dynamic, which counts each bucket memory size
         //         based on some user settings

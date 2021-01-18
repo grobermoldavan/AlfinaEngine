@@ -5,7 +5,6 @@
 #include <atomic>
 
 #include "allocator_base.h"
-#include "engine/debug/debug.h"
 
 // @NOTE : This allocator is thread-safe
 

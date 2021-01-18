@@ -7,12 +7,20 @@ int main(int argc, const char* argv[])
 {
     using namespace al::engine;
 
-    CommandLineParams params{ argv, static_cast<CommandLineParams::size_type>(argc) };
-    AlfinaEngineApplication* application = create_application(params);
-    application->initialize_components();
-    application->run();
-    application->terminate_components();
-    destroy_application(application);
+    try
+    {
+        CommandLineParams params{ argv, static_cast<CommandLineParams::size_type>(argc) };
+        AlfinaEngineApplication* application = create_application(params);
+        application->initialize_components();
+        application->run();
+        application->terminate_components();
+        destroy_application(application);
+    }
+    catch(std::exception& e)
+    {
+        std::exception_ptr exceptionPointer = std::current_exception();
+        // @TODO :  display messge box with exception info
+    }
 
     return 0;
 }
