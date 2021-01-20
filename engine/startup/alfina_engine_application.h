@@ -40,8 +40,6 @@ namespace al::engine
     protected:
         static constexpr const char* LOG_CATEGORY_BASE_APPLICATION = "Engine";
 
-        JobSystem* jobSystem;
-        FileSystem* fileSystem;
         EcsWorld* defaultEcsWorld;
         OsWindow* window;
         Renderer* renderer;

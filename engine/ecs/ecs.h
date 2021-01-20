@@ -89,7 +89,10 @@ namespace al::engine
         using ForEachFunction = void(*)(EcsWorld*, EntityHandle, T*...);
 
         template<typename ... T>
-        void for_each(ForEachFunction<T...> func) noexcept;
+        void for_each_fp(ForEachFunction<T...> func) noexcept;
+
+        template<typename ... T>
+        void for_each(Function<void(EcsWorld*, EntityHandle, T*...)> func) noexcept;
 
     private:
         static constexpr ArchetypeHandle EMPTY_ARCHETYPE{ 0 };

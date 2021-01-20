@@ -9,7 +9,7 @@ namespace al::engine
 {
     template<> [[nodiscard]] Renderer* create_renderer<RendererType::OPEN_GL>(OsWindow* window) noexcept
     {
-        Renderer* renderer = MemoryManager::get()->get_stack()->allocate_as<Win32OpenglRenderer>();
+        Renderer* renderer = MemoryManager::get_stack()->allocate_as<Win32OpenglRenderer>();
         ::new(renderer) Win32OpenglRenderer{ window };
         return renderer;
     }
@@ -18,7 +18,7 @@ namespace al::engine
     {
         renderer->terminate();
         renderer->~Renderer();
-        MemoryManager::get()->get_stack()->deallocate(reinterpret_cast<std::byte*>(renderer), sizeof(Win32OpenglRenderer));
+        MemoryManager::get_stack()->deallocate(reinterpret_cast<std::byte*>(renderer), sizeof(Win32OpenglRenderer));
     }
 
     void GLAPIENTRY OpenGlCallback( GLenum source,

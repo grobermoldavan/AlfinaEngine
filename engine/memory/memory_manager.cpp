@@ -1,44 +1,58 @@
 
 #include "memory_manager.h"
-
+#include "engine/config/engine_config.h"
 #include "memory_common.h"
+
+#include "utilities/constexpr_functions.h"
 
 namespace al::engine
 {
-    MemoryManager* MemoryManager::get() noexcept
-    {
-        static MemoryManager instance;
-        return &instance;
-    }
+    MemoryManager MemoryManager::instance{ };
 
     MemoryManager::MemoryManager() noexcept
-        : memory{ static_cast<std::byte*>(std::malloc(EngineConfig::MEMORY_SIZE + EngineConfig::DEFAULT_MEMORY_ALIGNMENT)) }
+        : memory{ nullptr }
+    { }
+
+    MemoryManager::~MemoryManager() noexcept
+    { }
+
+    void MemoryManager::construct() noexcept
     {
-        stack.initialize(align_pointer(memory), EngineConfig::MEMORY_SIZE);
+        if (instance.memory)
+        {
+            return;
+        }
+        instance.memory = static_cast<std::byte*>(std::malloc(EngineConfig::MEMORY_SIZE + EngineConfig::DEFAULT_MEMORY_ALIGNMENT));
+        instance.stack.initialize(align_pointer(instance.memory), EngineConfig::MEMORY_SIZE);
         // @TODO : change this hardcoded pool initialization to
         //         dynamic, which counts each bucket memory size
         //         based on some user settings
-        pool.initialize({
+        instance.pool.initialize({
             bucket_desc(64                          , megabytes<std::size_t>(128)),
             bucket_desc(128                         , megabytes<std::size_t>(128)),
             bucket_desc(256                         , megabytes<std::size_t>(128)),
             bucket_desc(kilobytes<std::size_t>(1)   , megabytes<std::size_t>(128)),
             bucket_desc(kilobytes<std::size_t>(4)   , megabytes<std::size_t>(256)),
-        }, &stack);
+        }, &instance.stack);
     }
 
-    MemoryManager::~MemoryManager() noexcept
+    void MemoryManager::destruct() noexcept
     {
-        std::free(memory);
+        if (!instance.memory)
+        {
+            return;
+        }
+        std::free(instance.memory);
+        instance.~MemoryManager();
     }
 
-    StackAllocator* MemoryManager::get_stack() noexcept
+    inline StackAllocator* MemoryManager::get_stack() noexcept
     {
-        return &stack;
+        return &instance.stack;
     }
 
-    PoolAllocator* MemoryManager::get_pool() noexcept
+    inline PoolAllocator* MemoryManager::get_pool() noexcept
     {
-        return &pool;
+        return &instance.pool;
     }
 }

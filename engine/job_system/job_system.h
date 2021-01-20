@@ -50,7 +50,7 @@ namespace al::engine
     class JobSystemThread : NonCopyable
     {
     public:
-        JobSystemThread(JobSystem* jobSystem) noexcept;
+        JobSystemThread() noexcept;
         ~JobSystemThread() noexcept;
 
     private:
@@ -67,18 +67,26 @@ namespace al::engine
     class JobSystem : NonCopyable
     {
     public:
-        JobSystem(std::size_t numThreads) noexcept;
-        ~JobSystem() noexcept;
+        static void construct   ()          noexcept;
+        static void destruct    ()          noexcept;
+        static void add_job     (Job* job)  noexcept;
+        static Job* get_job     ()          noexcept;
+        static void wait_for    (Job* job)  noexcept;
 
-        void add_job(Job* job) noexcept;
-        Job* get_job() noexcept;
-        void wait_for(Job* job) noexcept;
+    private:
+        static JobSystem* instance;
 
-    public:
         std::span<JobSystemThread> threads;
         StaticThreadSafeQueue<Job*, EngineConfig::MAX_JOBS> jobs;
 
         friend JobSystemThread;
+
+        JobSystem(std::size_t numThreads) noexcept;
+        ~JobSystem() noexcept;
+
+        void instance_add_job   (Job* job)  noexcept;
+        Job* instance_get_job   ()          noexcept;
+        void instance_wait_for  (Job* job)  noexcept;
     };
 }
 

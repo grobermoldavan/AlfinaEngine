@@ -78,7 +78,6 @@ namespace al::engine
         initialize_renderer();
         {
             al_profile_scope("Renderer post-init");
-            FileSystem* fileSystem = FileSystem::get();
             {
                 FramebufferDescription gbufferDesciption;
                 gbufferDesciption.attachments =
@@ -93,25 +92,25 @@ namespace al::engine
                 gbuffer = create_framebuffer<EngineConfig::DEFAULT_RENDERER_TYPE>(gbufferDesciption);
             }
             {
-                FileHandle* vertGpassShaderSrc = fileSystem->sync_load(EngineConfig::DEFFERED_GEOMETRY_PASS_VERT_SHADER_PATH, FileLoadMode::READ);
-                FileHandle* fragGpassShaderSrc = fileSystem->sync_load(EngineConfig::DEFFERED_GEOMETRY_PASS_FRAG_SHADER_PATH, FileLoadMode::READ);
+                FileHandle* vertGpassShaderSrc = FileSystem::sync_load(EngineConfig::DEFFERED_GEOMETRY_PASS_VERT_SHADER_PATH, FileLoadMode::READ);
+                FileHandle* fragGpassShaderSrc = FileSystem::sync_load(EngineConfig::DEFFERED_GEOMETRY_PASS_FRAG_SHADER_PATH, FileLoadMode::READ);
                 const char* vertGpassShaderStr = reinterpret_cast<const char*>(vertGpassShaderSrc->memory);
                 const char* fragGpassShaderStr = reinterpret_cast<const char*>(fragGpassShaderSrc->memory);
                 gpassShader = create_shader<EngineConfig::DEFAULT_RENDERER_TYPE>(vertGpassShaderStr, fragGpassShaderStr);
-                fileSystem->free_handle(vertGpassShaderSrc);
-                fileSystem->free_handle(fragGpassShaderSrc);
+                FileSystem::free_handle(vertGpassShaderSrc);
+                FileSystem::free_handle(fragGpassShaderSrc);
 
                 gpassShader->bind();
                 gpassShader->set_int(EngineConfig::DEFFERED_GEOMETRY_PASS_DIFFUSE_TEXTURE_NAME, EngineConfig::DEFFERED_GEOMETRY_PASS_DIFFUSE_TEXTURE_LOCATION);
             }
             {
-                FileHandle* vertDrawFramebufferToScreenShaderSrc = fileSystem->sync_load(EngineConfig::DRAW_FRAMEBUFFER_TO_SCREEN_VERT_SHADER_PATH, FileLoadMode::READ);
-                FileHandle* fragDrawFramebufferToScreenShaderSrc = fileSystem->sync_load(EngineConfig::DRAW_FRAMEBUFFER_TO_SCREEN_FRAG_SHADER_PATH, FileLoadMode::READ);
+                FileHandle* vertDrawFramebufferToScreenShaderSrc = FileSystem::sync_load(EngineConfig::DRAW_FRAMEBUFFER_TO_SCREEN_VERT_SHADER_PATH, FileLoadMode::READ);
+                FileHandle* fragDrawFramebufferToScreenShaderSrc = FileSystem::sync_load(EngineConfig::DRAW_FRAMEBUFFER_TO_SCREEN_FRAG_SHADER_PATH, FileLoadMode::READ);
                 const char* vertDrawFramebufferToScreenShaderStr = reinterpret_cast<const char*>(vertDrawFramebufferToScreenShaderSrc->memory);
                 const char* fragDrawFramebufferToScreenShaderStr = reinterpret_cast<const char*>(fragDrawFramebufferToScreenShaderSrc->memory);
                 drawFramebufferToScreenShader = create_shader<EngineConfig::DEFAULT_RENDERER_TYPE>(vertDrawFramebufferToScreenShaderStr, fragDrawFramebufferToScreenShaderStr);
-                fileSystem->free_handle(vertDrawFramebufferToScreenShaderSrc);
-                fileSystem->free_handle(fragDrawFramebufferToScreenShaderSrc);
+                FileSystem::free_handle(vertDrawFramebufferToScreenShaderSrc);
+                FileSystem::free_handle(fragDrawFramebufferToScreenShaderSrc);
             }
             {
                 static float screenPlaneVertices[] =
@@ -180,8 +179,13 @@ namespace al::engine
                             al_log_error(LOG_CATEGORY_RENDERER, "Trying to process draw command, but vertex array is null");
                             return;
                         }
+                        if (!data->diffuseTexture)
+                        {
+                            al_log_error(LOG_CATEGORY_RENDERER, "Trying to process draw command, but diffuse texture is null");
+                            return;
+                        }
                         data->diffuseTexture->bind(EngineConfig::DEFFERED_GEOMETRY_PASS_DIFFUSE_TEXTURE_LOCATION);
-                        gpassShader->set_mat4(EngineConfig::SHADER_MODEL_MATRIX_UNIFORM_NAME, data->trf.get_full_transform());
+                        gpassShader->set_mat4(EngineConfig::SHADER_MODEL_MATRIX_UNIFORM_NAME, data->trf.get_full_transform().transposed());
                         draw(data->va);
                     });
                     current.clear();

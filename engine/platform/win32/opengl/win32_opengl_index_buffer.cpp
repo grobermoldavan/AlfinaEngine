@@ -7,7 +7,7 @@ namespace al::engine
 {
     template<> [[nodiscard]] IndexBuffer* create_index_buffer<RendererType::OPEN_GL>(uint32_t* indices, std::size_t count) noexcept
     {
-        IndexBuffer* ib = MemoryManager::get()->get_pool()->allocate_as<Win32OpenglIndexBuffer>();
+        IndexBuffer* ib = MemoryManager::get_pool()->allocate_as<Win32OpenglIndexBuffer>();
         ::new(ib) Win32OpenglIndexBuffer{ indices, count };
         return ib;
     }
@@ -15,7 +15,7 @@ namespace al::engine
     template<> void destroy_index_buffer<RendererType::OPEN_GL>(IndexBuffer* ib) noexcept
     {
         ib->~IndexBuffer();
-        MemoryManager::get()->get_pool()->deallocate(reinterpret_cast<std::byte*>(ib), sizeof(Win32OpenglIndexBuffer));
+        MemoryManager::get_pool()->deallocate(reinterpret_cast<std::byte*>(ib), sizeof(Win32OpenglIndexBuffer));
     }
 
     void Win32OpenglIndexBuffer::bind() const noexcept

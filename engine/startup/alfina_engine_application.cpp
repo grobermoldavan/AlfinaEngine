@@ -7,21 +7,12 @@ namespace al::engine
 {
     void AlfinaEngineApplication::initialize_components() noexcept
     {
-        const std::size_t NUM_OF_JOB_THREADS = std::thread::hardware_concurrency() - 2; // Minus two because of the main thread and rendering thread
+        MemoryManager::construct();
+        debug::Logger::construct();
+        JobSystem::construct();
+        FileSystem::construct();
 
-        MemoryManager* memoryManager = MemoryManager::get();
-
-        debug::globalLogger = memoryManager->get_stack()->allocate_as<debug::Logger>();
-        ::new(debug::globalLogger) debug::Logger{ };
-
-        jobSystem = memoryManager->get_stack()->allocate_as<JobSystem>();
-        ::new(jobSystem) JobSystem{ NUM_OF_JOB_THREADS };
-
-        fileSystem = memoryManager->get_stack()->allocate_as<FileSystem>();
-        ::new(fileSystem) FileSystem{ jobSystem };
-        FileSystem::set_global_instance(fileSystem);
-
-        defaultEcsWorld = memoryManager->get_stack()->allocate_as<EcsWorld>();
+        defaultEcsWorld = MemoryManager::get_stack()->allocate_as<EcsWorld>();
         ::new(defaultEcsWorld) EcsWorld{ };
 
         OsWindowParams windowParams;
@@ -40,13 +31,15 @@ namespace al::engine
     {
         al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Terminating engine components");
 
-        MemoryManager* memoryManager = MemoryManager::get();
-
         destroy_renderer<EngineConfig::DEFAULT_RENDERER_TYPE>(renderer);
         destroy_window(window);
-        fileSystem->~FileSystem();
-        jobSystem->~JobSystem();
-        debug::globalLogger->~Logger();
+
+        defaultEcsWorld->~EcsWorld();
+
+        FileSystem::destruct();
+        JobSystem::destruct();
+        debug::Logger::destruct();
+        MemoryManager::destruct();
     }
 
     void AlfinaEngineApplication::run() noexcept
@@ -55,32 +48,15 @@ namespace al::engine
         using DtDuration = std::chrono::duration<float>;
         {
             al_profile_scope("Print log buffer");
-            debug::globalLogger->print_log_buffer();
+            debug::Logger::print_log_buffer();
         }
         {
             al_profile_scope("Print profile buffer");
-            debug::globalLogger->print_profile_buffer();
+            debug::Logger::print_profile_buffer();
         }
         al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Starting application");
         frameCount = 0;
         auto previousTime = ClockT::now();
-
-        DynamicArray<EntityHandle> handles;
-        for (int i = 0; i < 10; i++)
-        {
-            handles.push_back(defaultEcsWorld->create_entity());
-        }
-        for (EntityHandle handle : handles)
-        {
-            defaultEcsWorld->add_components<float4>(handle);
-            if (rand() > (RAND_MAX / 3)) defaultEcsWorld->add_components<uint64_t>(handle);
-            if (rand() > (RAND_MAX / 2)) defaultEcsWorld->add_components<Transform>(handle);
-        }
-        defaultEcsWorld->for_each<float4>([](EcsWorld* world, EntityHandle handle, float4* vec) -> void
-        {
-            vec->y += handle;
-        });
-
         while(true)
         {
             al_profile_scope("Process frame");
@@ -95,12 +71,6 @@ namespace al::engine
                     break;
                 }
             }
-
-            defaultEcsWorld->for_each<float4>([](EcsWorld* world, EntityHandle handle, float4* vec) -> void
-            {
-                vec->x += 0.1f;
-            });
-
             renderer->start_process_frame();
             update_input();
             simulate(dt);
@@ -174,7 +144,13 @@ namespace al::engine
         static Transform transform{ };
         transform.set_scale({ 1.0f, 1.0f, 1.0f });
 
-        static Geometry geom = load_geometry_from_obj(fileSystem->sync_load("assets\\geometry\\monke\\monke.obj", FileLoadMode::READ));
+        constexpr uint64_t MONKES_NUM = 100;
+        static EntityHandle monkes[MONKES_NUM];
+        constexpr float radius = 10.0f;
+        constexpr float step = 360.0f / (float)MONKES_NUM;
+        static uint64_t count = 0;
+
+        static Geometry geom = load_geometry_from_obj(FileSystem::sync_load("assets\\geometry\\monke\\monke.obj", FileLoadMode::READ));
 
         if (!isInited)
         {
@@ -190,19 +166,33 @@ namespace al::engine
                 va = create_vertex_array<EngineConfig::DEFAULT_RENDERER_TYPE>();
                 va->set_vertex_buffer(vb);
                 va->set_index_buffer(ib);
-
                 diffuseTexture = create_texture_2d<EngineConfig::DEFAULT_RENDERER_TYPE>("assets\\materials\\metal_plate\\diffuse.png");
+            });
+            for (EntityHandle& monke : monkes)
+            {
+                monke = defaultEcsWorld->create_entity();
+                defaultEcsWorld->add_components<Transform>(monke);
+            }
+            defaultEcsWorld->for_each<Transform>([&](EcsWorld* world, EntityHandle handle, Transform* trf)
+            {
+                float posX = radius * std::sin(to_radians((float)count * step));
+                float posZ = radius * std::cos(to_radians((float)count * step));
+                ::new(trf) Transform{ };
+                trf->set_position({ posX, 0, posZ });
+                count += 1;
             });
             isInited = true;
         }
-        else
+        else if (vb && ib && va && diffuseTexture)
         {
-            // @NOTE : Currently using dummy key
-            GeometryCommandKey key = 0;
-            GeometryCommandData* data = renderer->add_geometry(key);
-            data->trf = transform;
-            data->va = va;
-            data->diffuseTexture = diffuseTexture;
+            defaultEcsWorld->for_each<Transform>([&](EcsWorld* world, EntityHandle handle, Transform* trf)
+            {
+                GeometryCommandKey key = 0;
+                GeometryCommandData* data = renderer->add_geometry(key);
+                data->trf = *trf;
+                data->va = va;
+                data->diffuseTexture = diffuseTexture;
+            });
         }
     }
 
@@ -210,14 +200,14 @@ namespace al::engine
     {
         al_profile_function();
 
-        fileSystem->remove_finished_jobs();
+        FileSystem::remove_finished_jobs();
         {
             al_profile_scope("Print log buffer");
-            debug::globalLogger->print_log_buffer();
+            debug::Logger::print_log_buffer();
         }
         {
             al_profile_scope("Print profile buffer");
-            debug::globalLogger->print_profile_buffer();
+            debug::Logger::print_profile_buffer();
         }
         frameCount++;
     }

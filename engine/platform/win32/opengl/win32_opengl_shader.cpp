@@ -9,7 +9,7 @@ namespace al::engine
 {
     template<> [[nodiscard]] Shader* create_shader<RendererType::OPEN_GL>(const char* vertexShaderSrc, const char* fragmentShaderSrc) noexcept
     {
-        Shader* shader = MemoryManager::get()->get_pool()->allocate_as<Win32OpenglShader>();
+        Shader* shader = MemoryManager::get_pool()->allocate_as<Win32OpenglShader>();
         ::new(shader) Win32OpenglShader{ vertexShaderSrc, fragmentShaderSrc };
         return shader;
     }
@@ -17,7 +17,7 @@ namespace al::engine
     template<> void destroy_shader<RendererType::OPEN_GL>(Shader* shader) noexcept
     {
         shader->~Shader();
-        MemoryManager::get()->get_pool()->deallocate(reinterpret_cast<std::byte*>(shader), sizeof(Win32OpenglShader));
+        MemoryManager::get_pool()->deallocate(reinterpret_cast<std::byte*>(shader), sizeof(Win32OpenglShader));
     }
 
     Win32OpenglShader::Win32OpenglShader(const char* vertexShaderSrc, const char* fragmentShaderSrc) noexcept

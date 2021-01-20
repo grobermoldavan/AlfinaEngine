@@ -36,9 +36,9 @@
 #ifdef AL_LOGGING_ENABLED
 #   define AL_DBG_NAMESPACE using namespace ::al::engine::debug;
 #   define AL_LOG_FORMAT(format) "[%s] "##format##"\n"
-#   define al_log_message(category, format, ...)    { AL_DBG_NAMESPACE globalLogger->printf_log(Logger::Level::_MESSAGE, category, AL_LOG_FORMAT(format), __VA_ARGS__); }
-#   define al_log_warning(category, format, ...)    { AL_DBG_NAMESPACE globalLogger->printf_log(Logger::Level::_WARNING, category, AL_LOG_FORMAT(format), __VA_ARGS__); }
-#   define al_log_error(category, format, ...)      { AL_DBG_NAMESPACE globalLogger->printf_log(Logger::Level::_ERROR  , category, AL_LOG_FORMAT(format), __VA_ARGS__); }
+#   define al_log_message(category, format, ...)    { AL_DBG_NAMESPACE Logger::printf_log(Logger::Level::_MESSAGE, category, AL_LOG_FORMAT(format), __VA_ARGS__); }
+#   define al_log_warning(category, format, ...)    { AL_DBG_NAMESPACE Logger::printf_log(Logger::Level::_WARNING, category, AL_LOG_FORMAT(format), __VA_ARGS__); }
+#   define al_log_error(category, format, ...)      { AL_DBG_NAMESPACE Logger::printf_log(Logger::Level::_ERROR  , category, AL_LOG_FORMAT(format), __VA_ARGS__); }
 #else
 #   define al_log_message(category, format, ...)
 #   define al_log_warning(category, format, ...)
@@ -78,8 +78,6 @@
 
 namespace al::engine::debug
 {
-    class Logger* globalLogger = nullptr;
-
     using DebugOutput = std::ostream;
     using DebugFileOutput = std::ofstream;
 
@@ -104,67 +102,35 @@ namespace al::engine::debug
             _ERROR
         };
 
+        static void construct() noexcept;
+        static void destruct() noexcept;
+
+        template<typename ... Args> static void printf_log          (Level level, const char* category, const char* format, Args ... args) noexcept;
+        template<typename ... Args> static void printf_profile      (const char* format, Args ... args) noexcept;
+                                    static void print_log_buffer    () noexcept;
+                                    static void print_profile_buffer() noexcept;
+                                    static void enable_log_level    (Level level) noexcept;
+                                    static void disable_log_level   (Level level) noexcept;
+
+    private:
+        static Logger* instance;
+
+        char                        logBuffer[EngineConfig::LOG_BUFFER_SIZE + 1];
+        std::atomic<std::size_t>    logBufferPtr;
+        char                        profileBuffer[EngineConfig::PROFILE_BUFFER_SIZE + 1];
+        std::atomic<std::size_t>    profileBufferPtr;
+        std::mutex                  profileMutex;
+        uint32_t                    levelFlags;
+
         Logger(uint32_t levelFlags = set_bit(0u, _MESSAGE) | set_bit(0u, _WARNING) | set_bit(0u, _ERROR)) noexcept;
         ~Logger() noexcept;
 
-        template<typename ... Args>
-        void printf_log(Level level, const char* category, const char* format, Args ... args) noexcept
-        {
-            // @TODO : print level with the log
-            if (!is_bit_set(levelFlags, level))
-            {
-                return;
-            }
-            int size = std::snprintf(nullptr, 0, format, category, args...);
-            if (size >= 0)
-            {
-                char* messageBuffer = allocate_buffer(logBuffer, &logBufferPtr, EngineConfig::LOG_BUFFER_SIZE, size);
-                if (!messageBuffer)
-                {
-                    print_log_buffer();
-                    messageBuffer = allocate_buffer(logBuffer, &logBufferPtr, EngineConfig::LOG_BUFFER_SIZE, size);
-                }
-                std::sprintf(messageBuffer, format, category, args...);
-            }
-            else { /* @TODO : handle negative return value */ }
-        }
-
-        template<typename ... Args>
-        void printf_profile(const char* format, Args ... args) noexcept
-        {
-            // @NOTE :  Without a mutex profiling seems to be messed up sometimes.
-            //          Don't know the reason, tbh.
-            // @TODO :  Find a way to profile data without mutex.
-            std::unique_lock<std::mutex> lock{ profileMutex };
-            int size = std::snprintf(nullptr, 0, format, args...);
-            if (size >= 0)
-            {
-                char* messageBuffer = allocate_buffer(profileBuffer, &profileBufferPtr, EngineConfig::PROFILE_BUFFER_SIZE, size);
-                if (!messageBuffer)
-                {
-                    print_profile_buffer();
-                    messageBuffer = allocate_buffer(logBuffer, &logBufferPtr, EngineConfig::LOG_BUFFER_SIZE, size);
-                }
-                std::sprintf(messageBuffer, format, args...);
-            }
-            else { /* @TODO : handle negative return value */ }
-        }
-
-        void print_log_buffer() noexcept;
-        void print_profile_buffer() noexcept;
-
-        inline void enable_log_level(Level level) noexcept;
-        inline void disable_log_level(Level level) noexcept;
-
-    private:
-        char logBuffer[EngineConfig::LOG_BUFFER_SIZE + 1];
-        std::atomic<std::size_t> logBufferPtr;
-
-        char profileBuffer[EngineConfig::PROFILE_BUFFER_SIZE + 1];
-        std::atomic<std::size_t> profileBufferPtr;
-
-        std::mutex profileMutex;
-        uint32_t levelFlags;
+        template<typename ... Args> void instance_printf_log            (Level level, const char* category, const char* format, Args ... args) noexcept;
+        template<typename ... Args> void instance_printf_profile        (const char* format, Args ... args) noexcept;
+                                    void instance_print_log_buffer      () noexcept;
+                                    void instance_print_profile_buffer  () noexcept;
+                                    void instance_enable_log_level      (Level level) noexcept;
+                                    void instance_disable_log_level     (Level level) noexcept;
 
         char* allocate_buffer(char* buffer, std::atomic<std::size_t>* bufferPtr, std::size_t bufferSize, std::size_t sizeToAllocate) noexcept;
     };

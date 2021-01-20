@@ -4,30 +4,28 @@
 #include <cstddef>
 #include <cstdlib>
 
-#include "engine/config/engine_config.h"
-
 #include "stack_allocator.h"
 #include "pool_allocator.h"
-
-#include "utilities/constexpr_functions.h"
 
 namespace al::engine
 {
     class MemoryManager
     {
     public:
-        MemoryManager() noexcept;
-        ~MemoryManager() noexcept;
-
-        StackAllocator* get_stack() noexcept;
-        PoolAllocator* get_pool() noexcept;
-
-        static MemoryManager* get() noexcept;
+        static void             construct   () noexcept;
+        static void             destruct    () noexcept;
+        static StackAllocator*  get_stack   () noexcept;
+        static PoolAllocator*   get_pool    () noexcept;
 
     private:
+        static MemoryManager instance;
+
         StackAllocator stack;
         PoolAllocator pool;
         std::byte* memory;
+
+        MemoryManager() noexcept;
+        ~MemoryManager() noexcept;
     };
 }
 

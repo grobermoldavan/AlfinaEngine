@@ -8,7 +8,7 @@ namespace al::engine
 {
     template<> [[nodiscard]] Texture2d* create_texture_2d<RendererType::OPEN_GL>(const char* path) noexcept
     {
-        Texture2d* tex = MemoryManager::get()->get_pool()->allocate_as<Win32OpenglTexure2d>();
+        Texture2d* tex = MemoryManager::get_pool()->allocate_as<Win32OpenglTexure2d>();
         ::new(tex) Win32OpenglTexure2d{ path };
         return tex;
     }
@@ -16,7 +16,7 @@ namespace al::engine
     template<> void destroy_texture_2d<RendererType::OPEN_GL>(Texture2d* tex) noexcept
     {
         tex->~Texture2d();
-        MemoryManager::get()->get_pool()->deallocate(reinterpret_cast<std::byte*>(tex), sizeof(Win32OpenglTexure2d));
+        MemoryManager::get_pool()->deallocate(reinterpret_cast<std::byte*>(tex), sizeof(Win32OpenglTexure2d));
     }
 
     Win32OpenglTexure2d::Win32OpenglTexure2d(const char* path) noexcept

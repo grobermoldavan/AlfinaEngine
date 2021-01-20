@@ -8,7 +8,7 @@ namespace al::engine
 {
     [[nodsicard]] OsWindow* create_window(OsWindowParams* params) noexcept
     {
-        OsWindow* window = MemoryManager::get()->get_stack()->allocate_as<OsWindowWin32>();
+        OsWindow* window = MemoryManager::get_stack()->allocate_as<OsWindowWin32>();
         ::new(window) OsWindowWin32(params);
         return window;
     }
@@ -16,7 +16,7 @@ namespace al::engine
     void destroy_window(OsWindow* window) noexcept
     {
         window->~OsWindow();
-        MemoryManager::get()->get_stack()->deallocate(reinterpret_cast<std::byte*>(window), sizeof(OsWindowWin32));
+        MemoryManager::get_stack()->deallocate(reinterpret_cast<std::byte*>(window), sizeof(OsWindowWin32));
     }
 
     LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) noexcept;

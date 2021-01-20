@@ -102,7 +102,28 @@ namespace al::engine
     }
 
     template<typename ... T>
-    void EcsWorld::for_each(ForEachFunction<T...> func) noexcept
+    void EcsWorld::for_each_fp(ForEachFunction<T...> func) noexcept
+    {
+        ComponentFlags requestFlags{ };
+        set_component_flags<T...>(&requestFlags);
+        const uint64_t archetypesSize = archetypes.size();
+        for (uint64_t it = 1; it < archetypesSize; it++)
+        {
+            if (!is_valid_subset(requestFlags, archetypes[it].componentFlags))
+            {
+                continue;
+            }
+            Archetype* archetypePtr = &archetypes[it];
+            const uint64_t archetypeSize = archetypePtr->size;
+            for (uint64_t entityIt = 0; entityIt < archetypeSize; entityIt++)
+            {
+                func(this, *accsess_entity_handle(archetypePtr, entityIt), accsess_component_template<T>(archetypePtr, entityIt)...);
+            }
+        }
+    }
+
+    template<typename ... T>
+    void EcsWorld::for_each(Function<void(EcsWorld*, EntityHandle, T*...)> func) noexcept
     {
         ComponentFlags requestFlags{ };
         set_component_flags<T...>(&requestFlags);
@@ -221,14 +242,15 @@ namespace al::engine
         Archetype* archetypePtr = archetype(handle);
         for (uint64_t it = 0; it < MAX_COMPONENTS; it++)
         {
-            if (archetypePtr->componentFlags.get_flag(it))
+            if (!archetypePtr->componentFlags.get_flag(it))
             {
-                archetypePtr->components[it] =
-                {
-                    .componentId = it,
-                    .chunks = { }
-                };
+                continue;
             }
+            archetypePtr->components[it] =
+            {
+                .componentId = it,
+                .chunks = { }
+            };
         }
         allocate_chunks(handle);
         return handle;
@@ -244,11 +266,11 @@ namespace al::engine
                 continue;
             }
             const uint64_t componentSize = component_info(array.componentId)->sizeBytes;
-            std::byte* memory = MemoryManager::get()->get_pool()->allocate(componentSize * EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK);
+            std::byte* memory = MemoryManager::get_pool()->allocate(componentSize * EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK);
             std::memset(memory, 0, componentSize * EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK);
             array.chunks.push_back(reinterpret_cast<uint8_t*>(memory));
         }
-        std::byte* memory = MemoryManager::get()->get_pool()->allocate(sizeof(EntityHandle) * EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK);
+        std::byte* memory = MemoryManager::get_pool()->allocate(sizeof(EntityHandle) * EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK);
         std::memset(memory, 0, sizeof(EntityHandle) * EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK);
         archetypePtr->entityHandlesChunks.push_back(reinterpret_cast<EntityHandle*>(memory));
         archetypePtr->capacity += EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK;

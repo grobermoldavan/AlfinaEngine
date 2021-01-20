@@ -41,9 +41,8 @@ namespace al::engine
         }
     }
 
-    JobSystemThread::JobSystemThread(JobSystem* jobSystem) noexcept
+    JobSystemThread::JobSystemThread() noexcept
         : shouldRun{ true }
-        , jobSystem{ jobSystem }
     { 
         thread = std::thread{ &JobSystemThread::work, this };
     }
@@ -80,16 +79,18 @@ namespace al::engine
 
     Job* JobSystemThread::get_job() noexcept
     {
-        return jobSystem->get_job();
+        return JobSystem::get_job();
     }
 
+    JobSystem* JobSystem::instance{ nullptr };
+
     JobSystem::JobSystem(std::size_t numThreads) noexcept
-        : threads{ reinterpret_cast<JobSystemThread*>(MemoryManager::get()->get_stack()->allocate(sizeof(JobSystemThread) * numThreads)), numThreads }
+        : threads{ reinterpret_cast<JobSystemThread*>(MemoryManager::get_stack()->allocate(sizeof(JobSystemThread) * numThreads)), numThreads }
         , jobs{ }
     {
         for (JobSystemThread& thread : threads)
         {
-            new(&thread) JobSystemThread{ this };
+            new(&thread) JobSystemThread{ };
         }
     }
 
@@ -101,20 +102,55 @@ namespace al::engine
         }
     }
 
+    void JobSystem::construct() noexcept
+    {
+        if (instance)
+        {
+            return;
+        }
+        instance = MemoryManager::get_stack()->allocate_as<JobSystem>();
+        // @NOTE :  minus two because of the main thread and rendering thread
+        ::new(instance) JobSystem{ std::thread::hardware_concurrency() - 2 };
+    }
+
+    void JobSystem::destruct() noexcept
+    {
+        if (!instance)
+        {
+            return;
+        }
+        instance->~JobSystem();
+    }
+
     void JobSystem::add_job(Job* job) noexcept
+    {
+        instance->instance_add_job(job);
+    }
+
+    Job* JobSystem::get_job() noexcept
+    {
+        return instance->instance_get_job();
+    }
+
+    void JobSystem::wait_for(Job* job) noexcept
+    {
+        instance->instance_wait_for(job);
+    }
+
+    void JobSystem::instance_add_job(Job* job) noexcept
     {
         bool result = jobs.enqueue(&job);
         al_assert(result);
     }
 
-    Job* JobSystem::get_job() noexcept
+    Job* JobSystem::instance_get_job() noexcept
     {
         Job* job = nullptr;
         bool result = jobs.dequeue(&job);
         return job;
     }
 
-    void JobSystem::wait_for(Job* job) noexcept
+    void JobSystem::instance_wait_for(Job* job) noexcept
     {
         while(!job->is_finished())
         {

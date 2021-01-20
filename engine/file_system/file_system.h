@@ -53,45 +53,35 @@ namespace al::engine
     class FileSystem
     {
     public:
-        FileSystem(JobSystem* jobSystem);
-        ~FileSystem();
-
-        [[nodiscard]] FileHandle* sync_load(std::string_view file, FileLoadMode mode) noexcept;
-        [[nodiscard]] FileHandle* async_load(std::string_view file, FileLoadMode mode) noexcept;
-        void free_handle(FileHandle* handle) noexcept;
-
-        void remove_finished_jobs() noexcept;
-
-        static FileSystem* get() noexcept
-        {
-            return globalInstance;
-        }
-
-        static void set_global_instance(FileSystem* fs) noexcept
-        {
-            globalInstance = fs;
-        }
+        static void                         construct           ()                                          noexcept;
+        static void                         destruct            ()                                          noexcept;
+        static [[nodiscard]] FileHandle*    sync_load           (std::string_view file, FileLoadMode mode)  noexcept;
+        static [[nodiscard]] FileHandle*    async_load          (std::string_view file, FileLoadMode mode)  noexcept;
+        static void                         free_handle         (FileHandle* handle)                        noexcept;
+        static void                         remove_finished_jobs()                                          noexcept;
 
     private:
-        static FileSystem* globalInstance;
+        static FileSystem* instance;
 
-        ArrayContainer<FileHandle, EngineConfig::MAX_FILE_HANDLES> handles;
-        std::mutex handlesListMutex;
-
+        ArrayContainer<FileHandle, EngineConfig::MAX_FILE_HANDLES>          handles;
+        std::mutex                                                          handlesListMutex;
         // @NOTE :  SuList does not copy objects from one place another, so it is
         //          more suitable for storing Jobs because Jobs can't be copied
-        SuList<AsyncFileReadJob, EngineConfig::MAX_ASYNC_FILE_READ_JOBS> jobs;
-        std::mutex jobsListMutex;
+        SuList<AsyncFileReadJob, EngineConfig::MAX_ASYNC_FILE_READ_JOBS>    jobs;
+        std::mutex                                                          jobsListMutex;
+        AllocatorBase*                                                      allocator;
+        Job                                                                 cleanupJob;
 
-        AllocatorBase* allocator;
-        JobSystem* jobSystem;
-        Job cleanupJob;
+        FileSystem();
+        ~FileSystem();
 
-        FileHandle* get_file_handle() noexcept;
-        AsyncFileReadJob* get_file_load_job() noexcept;
+        [[nodiscard]] FileHandle*   instance_sync_load              (std::string_view file, FileLoadMode mode)  noexcept;
+        [[nodiscard]] FileHandle*   instance_async_load             (std::string_view file, FileLoadMode mode)  noexcept;
+        void                        instance_free_handle            (FileHandle* handle)                        noexcept;
+        void                        instance_remove_finished_jobs   ()                                          noexcept;
+        FileHandle*                 get_file_handle                 ()                                          noexcept;
+        AsyncFileReadJob*           get_file_load_job               ()                                          noexcept;
     };
-
-    FileSystem* FileSystem::globalInstance{ nullptr };
 }
 
 #endif
