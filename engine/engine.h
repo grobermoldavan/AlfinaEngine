@@ -52,8 +52,10 @@
 #include "engine/window/os_window.h"
 #include "engine/startup/alfina_engine_application.h"
 #include "engine/platform/platform_thread_event.h"
+#include "engine/platform/platform_thread_utilities.h"
 #include "engine/ecs/ecs.h"
 #ifdef AL_PLATFORM_WIN32
+#   include "engine/platform/win32/win32_backend.h"
 #   include "engine/platform/win32/window/os_window_win32.h"
 #   include "engine/platform/win32/platform_thread_event_win32.h"
 #   include "engine/platform/win32/opengl/win32_opengl_backend.h"
@@ -103,6 +105,7 @@
 #   include "engine/platform/win32/opengl/win32_opengl_shader.cpp"
 #   include "engine/platform/win32/opengl/win32_opengl_framebuffer.cpp"
 #   include "engine/platform/win32/opengl/win32_opengl_renderer.cpp"
+#   include "engine/platform/win32/platform_thread_utilities_win32.cpp"
 #else
 #   error Unsupported platform
 #endif

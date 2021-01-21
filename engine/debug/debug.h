@@ -13,6 +13,7 @@
 //              al_profile_function automatically uses function signature as a scope name
 //              al_profile_scope uses user-provided name for the scope
 
+#include <cstdlib>
 #include <cstddef>
 #include <cstdint>
 #include <chrono>
@@ -72,7 +73,7 @@
         ::al::engine::debug::assert_implementation(__FILE__, __FUNCSIG__, __LINE__, #cond); \
     }
 
-#define al_crash_impl { int* crash = nullptr; crash = 0; }
+#define al_crash_impl std::abort();
 #define al_exception_wrap(code) try { code; } catch (const std::exception& e) { al_log_error("Exception", "%s", e.what()); al_assert(false); }
 #define al_exception_wrap_no_assert(code) try { code; } catch (const std::exception& e) { al_crash_impl }
 

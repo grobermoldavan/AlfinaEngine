@@ -7,7 +7,7 @@
 
 namespace al
 {
-    // @NOTE :  ArrayContainer is a data structure which provides functionality
+    // @NOTE :  ArrayContainer is a memory structure which provides functionality
     //          similar to SuList - it allows to store objects in an unordered way
     //          (means the order could, and most likely will, change), iterate
     //          through an objects in a cache-friendly way (more cache friendly,
@@ -22,7 +22,7 @@ namespace al
     public:
         ArrayContainer() noexcept
             : currentSize{ 0 }
-            , data{ }
+            , memory{ }
         { }
 
         ArrayContainer(std::initializer_list<T> args) noexcept
@@ -119,13 +119,18 @@ namespace al
             return at(index);
         }
 
+        T* data() noexcept
+        {
+            return memory;
+        }
+
     private:
         std::size_t currentSize;
-        T data[Size];
+        T memory[Size];
 
         inline T& at(std::size_t index) noexcept
         {
-            return data[index];
+            return memory[index];
         }
     };
 }

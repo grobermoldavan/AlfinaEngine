@@ -236,6 +236,18 @@ namespace al
     {
         return (value & (value - T{1})) == 0;
     }
+
+    template<typename T>
+    constexpr T minimum(const T& first, const T& second) noexcept
+    {
+        return first < second ? first : second;
+    }
+
+    template<typename T>
+    constexpr T maximum(const T& first, const T& second) noexcept
+    {
+        return first > second ? first : second;
+    }
 }
 
 #endif

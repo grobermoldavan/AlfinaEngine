@@ -3,8 +3,7 @@
 
 #include <cstdint>
 
-#include <Windows.h>
-
+#include "win32_backend.h"
 #include "engine/platform/platform_thread_event.h"
 
 namespace al::engine

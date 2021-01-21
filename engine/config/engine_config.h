@@ -15,6 +15,9 @@ namespace al::engine
 {
     struct EngineConfig
     {
+        // Thread settings
+        static constexpr std::size_t                MAX_SUPPORTED_THREADS{ 64 }; // Bigger numbers of threads must be handled diffenrently
+
         // Memory Manager settings
         static constexpr std::size_t                MEMORY_SIZE{ gigabytes<std::size_t>(1) };
         static constexpr std::size_t                POOL_ALLOCATOR_MAX_BUCKETS{ 5 };

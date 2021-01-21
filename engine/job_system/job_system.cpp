@@ -61,6 +61,11 @@ namespace al::engine
         }
     }
 
+    std::thread* JobSystemThread::get_thread() noexcept
+    {
+        return &thread;
+    }
+
     void JobSystemThread::work() noexcept
     {
         while(shouldRun)
@@ -102,15 +107,14 @@ namespace al::engine
         }
     }
 
-    void JobSystem::construct() noexcept
+    void JobSystem::construct(std::size_t numThreads) noexcept
     {
         if (instance)
         {
             return;
         }
         instance = MemoryManager::get_stack()->allocate_as<JobSystem>();
-        // @NOTE :  minus two because of the main thread and rendering thread
-        ::new(instance) JobSystem{ std::thread::hardware_concurrency() - 2 };
+        ::new(instance) JobSystem{ numThreads };
     }
 
     void JobSystem::destruct() noexcept
@@ -122,19 +126,24 @@ namespace al::engine
         instance->~JobSystem();
     }
 
-    void JobSystem::add_job(Job* job) noexcept
+    inline void JobSystem::add_job(Job* job) noexcept
     {
         instance->instance_add_job(job);
     }
 
-    Job* JobSystem::get_job() noexcept
+    inline Job* JobSystem::get_job() noexcept
     {
         return instance->instance_get_job();
     }
 
-    void JobSystem::wait_for(Job* job) noexcept
+    inline void JobSystem::wait_for(Job* job) noexcept
     {
         instance->instance_wait_for(job);
+    }
+
+    inline std::span<JobSystemThread> JobSystem::get_threads() noexcept
+    {
+        return instance->threads;
     }
 
     void JobSystem::instance_add_job(Job* job) noexcept

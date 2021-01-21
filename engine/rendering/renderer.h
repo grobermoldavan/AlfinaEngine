@@ -35,6 +35,8 @@ namespace al::engine
         Renderer(OsWindow* window) noexcept;
         ~Renderer() = default;
 
+        std::thread* get_thread() noexcept;
+
         void terminate() noexcept;
         void start_process_frame() noexcept;
         void wait_for_render_finish() noexcept;

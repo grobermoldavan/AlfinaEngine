@@ -2,6 +2,7 @@
 #include "alfina_engine_application.h"
 
 #include "utilities/smooth_average.h"
+#include "utilities/constexpr_functions.h"
 
 namespace al::engine
 {
@@ -9,7 +10,7 @@ namespace al::engine
     {
         MemoryManager::construct();
         debug::Logger::construct();
-        JobSystem::construct();
+        JobSystem::construct(get_number_of_job_system_threads());
         FileSystem::construct();
 
         defaultEcsWorld = MemoryManager::get_stack()->allocate_as<EcsWorld>();
@@ -20,6 +21,8 @@ namespace al::engine
         window = create_window(&windowParams);
 
         renderer = create_renderer<EngineConfig::DEFAULT_RENDERER_TYPE>(window);
+
+        distribute_threads_to_cpu_cores();
 
         dbgFlyCamera.get_render_camera()->set_aspect_ratio(static_cast<float>(window->get_params()->width) / static_cast<float>(window->get_params()->height));
         renderer->set_camera(dbgFlyCamera.get_render_camera());
@@ -215,5 +218,60 @@ namespace al::engine
     void AlfinaEngineApplication::app_quit() noexcept
     {
         window->quit();
+    }
+
+    std::size_t AlfinaEngineApplication::get_number_of_job_system_threads() noexcept
+    {
+        const std::size_t systemMaxThreads = std::thread::hardware_concurrency();
+        if (systemMaxThreads > 2)
+        {
+            // Minus one for main thread and minus one for render thread
+            return systemMaxThreads - 2;
+        }
+        else
+        {
+            return 1;   
+        }
+    }
+
+    void AlfinaEngineApplication::distribute_threads_to_cpu_cores() noexcept
+    {
+        // Collect handles to all threads used by the program
+        ArrayContainer<ThreadHandle, EngineConfig::MAX_SUPPORTED_THREADS> threads;
+        threads.push(get_current_thread_handle());
+        threads.push(renderer->get_thread()->native_handle());
+        std::span<JobSystemThread> jobSystemThread = JobSystem::get_threads();
+        for (JobSystemThread& jobSystemThread : jobSystemThread)
+        {
+            threads.push(jobSystemThread.get_thread()->native_handle());
+        }
+        // Get max number of threads supported by the user's computer
+        const std::size_t systemMaxThreads = std::thread::hardware_concurrency();
+        // Get number of program threads
+        const std::size_t programThreadsCount = threads.get_current_size();
+        // Print warnings if needed
+        if (systemMaxThreads > EngineConfig::MAX_SUPPORTED_THREADS)
+        {
+            al_log_warning(LOG_CATEGORY_BASE_APPLICATION, "Current system supports %d threads", systemMaxThreads);
+            al_log_warning(LOG_CATEGORY_BASE_APPLICATION, "This is more than engine currntly supports (%d threads)", EngineConfig::MAX_SUPPORTED_THREADS);
+        }
+        if (programThreadsCount > EngineConfig::MAX_SUPPORTED_THREADS)
+        {
+            al_log_warning(LOG_CATEGORY_BASE_APPLICATION, "Using more threads than engine supports. Some threads will share the same cores");
+        }
+        if (programThreadsCount > systemMaxThreads)
+        {
+            al_log_warning(LOG_CATEGORY_BASE_APPLICATION, "Using more threads than system supports. Some threads will share the same cores");
+        }
+        // Get max supported number of threads by the program
+        // If user's computer supports less than EngineConfig::MAX_SUPPORTED_THREADS threads, systemMaxThreads will be used
+        // If user's computer supports more than EngineConfig::MAX_SUPPORTED_THREADS threads, EngineConfig::MAX_SUPPORTED_THREADS will be used
+        const uint64_t maxThreads = minimum(systemMaxThreads, EngineConfig::MAX_SUPPORTED_THREADS);
+        for (uint64_t it = 0; it < programThreadsCount; it++)
+        {
+            const uint64_t mask = uint64_t{1} << (it % maxThreads);
+            std::cout << " M " << mask << std::endl;
+            set_thread_affinity_mask(threads[it], mask);
+        }
     }
 }

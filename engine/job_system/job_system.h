@@ -53,6 +53,8 @@ namespace al::engine
         JobSystemThread() noexcept;
         ~JobSystemThread() noexcept;
 
+        std::thread* get_thread() noexcept;
+
     private:
         std::thread thread;
         std::atomic<bool> shouldRun;
@@ -67,11 +69,13 @@ namespace al::engine
     class JobSystem : NonCopyable
     {
     public:
-        static void construct   ()          noexcept;
-        static void destruct    ()          noexcept;
-        static void add_job     (Job* job)  noexcept;
-        static Job* get_job     ()          noexcept;
-        static void wait_for    (Job* job)  noexcept;
+        static void construct   (std::size_t numThreads)    noexcept;
+        static void destruct    ()                          noexcept;
+        static void add_job     (Job* job)                  noexcept;
+        static Job* get_job     ()                          noexcept;
+        static void wait_for    (Job* job)                  noexcept;
+
+        static std::span<JobSystemThread> get_threads() noexcept;
 
     private:
         static JobSystem* instance;

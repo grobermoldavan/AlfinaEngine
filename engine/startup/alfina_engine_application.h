@@ -12,6 +12,7 @@
 #include "engine/rendering/renderer.h"
 #include "engine/ecs/ecs.h"
 #include "engine/game_cameras/fly_camera.h"
+#include "engine/platform/platform_thread_utilities.h"
 
 #include "utilities/event.h"
 
@@ -45,7 +46,7 @@ namespace al::engine
         Renderer* renderer;
 
         Toggle<OsWindowInput> inputState;
-        std::uint64_t frameCount;
+        uint64_t frameCount;
 
         FlyCamera dbgFlyCamera;
 
@@ -55,6 +56,10 @@ namespace al::engine
         Event<void(OsWindowInput::MouseInputFlags)> onMouseButtonReleased;
 
         void app_quit() noexcept;
+
+    private:
+        std::size_t get_number_of_job_system_threads() noexcept;
+        void distribute_threads_to_cpu_cores() noexcept;
     };
 }
 

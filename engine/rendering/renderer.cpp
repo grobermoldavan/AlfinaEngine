@@ -22,6 +22,11 @@ namespace al::engine
         , screenRectangleVa{ nullptr }
     { }
 
+    std::thread* Renderer::get_thread() noexcept
+    {
+        return &renderThread;
+    }
+
     void Renderer::terminate() noexcept
     {
         // @NOTE :  Can't join render in the destructor because on joining thread will call

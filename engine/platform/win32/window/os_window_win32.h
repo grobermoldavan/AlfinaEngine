@@ -1,9 +1,7 @@
 #ifndef AL_OS_WINDOW_WIN32_H
 #define AL_OS_WINDOW_WIN32_H
 
-#include <Windows.h>
-#include <Windowsx.h>
-
+#include "engine/platform/win32/win32_backend.h"
 #include "engine/window/os_window.h"
 
 namespace al::engine
