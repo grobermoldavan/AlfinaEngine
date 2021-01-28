@@ -145,15 +145,15 @@ namespace al
     public:
         StaticThreadSafeQueue()
             : storage{ }
-            , ThreadSafeQueue{ storage, Capacity }
+            , ThreadSafeQueue<T>{ storage, Capacity }
         {
             // We can't do the initialize logic in ThreadSafeQueue constructor
             // because storage memory can be cleared after this contructor
-            initialize(Capacity);
+            ThreadSafeQueue<T>::initialize(Capacity);
         }
 
     private:
-        Cell storage[Capacity];
+        ThreadSafeQueue<T>::Cell storage[Capacity];
     };
 }
 

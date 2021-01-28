@@ -2,6 +2,7 @@
 #define AL_ARRAY_CONTAINER_H
 
 #include <cstddef>
+#include <span>
 
 #include "utilities/function.h"
 
@@ -50,7 +51,7 @@ namespace al
         {
             if (currentSize >= Size)
             {
-                return false;
+                return nullptr;
             }
 
             currentSize += 1;
@@ -122,6 +123,16 @@ namespace al
         T* data() noexcept
         {
             return memory;
+        }
+
+        T* begin() noexcept
+        {
+            return memory;
+        }
+
+        T* end() noexcept
+        {
+            return &memory[currentSize];
         }
 
     private:

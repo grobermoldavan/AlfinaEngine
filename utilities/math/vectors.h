@@ -110,7 +110,7 @@ namespace al
         friend  inline vec3     operator *  (const vec3& one, Type value)           noexcept    { return one.mul(value); }
         friend  inline vec3     operator /  (const vec3& one, Type value)           noexcept    { return one.div(value); }
         friend  inline vec3     operator *  (Type value, const vec3& one)           noexcept    { return one.mul(value); }
-        friend  inline vec3     operator /  (Type value, const vec3& one)           noexcept    { return one.div(value); }
+        friend  inline vec3     operator /  (Type value, const vec3& one)           noexcept    { return one.div(value); } // WRONG !
 
         friend std::ostream& operator << (std::ostream& os, const vec3& vector) noexcept
         {

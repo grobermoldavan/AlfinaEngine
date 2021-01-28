@@ -11,7 +11,7 @@ namespace al::engine
         , fovDeg{ 90.0f }
     { }
 
-    PerspectiveRenderCamera::PerspectiveRenderCamera(Transform transform, float aspectRatio, float nearPlane, float farPlane, float fovDeg) noexcept
+    PerspectiveRenderCamera::PerspectiveRenderCamera(deprecated_Transform transform, float aspectRatio, float nearPlane, float farPlane, float fovDeg) noexcept
         : transform{ transform }
         , aspectRatio{ aspectRatio }
         , nearPlane{ nearPlane }
@@ -19,7 +19,7 @@ namespace al::engine
         , fovDeg{ fovDeg }
     { }
 
-    Transform* PerspectiveRenderCamera::get_transform() noexcept
+    deprecated_Transform* PerspectiveRenderCamera::get_transform() noexcept
     {
         return &transform;
     }

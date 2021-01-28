@@ -17,7 +17,7 @@ namespace al::engine
 
     void FlyCamera::process_inputs(const OsWindowInput* input, float dt) noexcept
     {
-        Transform* trf = renderCamera.get_transform();
+        deprecated_Transform* trf = renderCamera.get_transform();
 
         // Process keyboard input
         {

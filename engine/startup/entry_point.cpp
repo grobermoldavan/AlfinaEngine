@@ -18,7 +18,6 @@ int main(int argc, const char* argv[])
     }
     catch(std::exception& e)
     {
-        std::exception_ptr exceptionPointer = std::current_exception();
         // @TODO :  display messge box with exception info
     }
 

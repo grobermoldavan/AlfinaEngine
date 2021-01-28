@@ -1,7 +1,6 @@
 #ifndef AL_WIN32_OPENGL_FRAMEBUFFER_H
 #define AL_WIN32_OPENGL_FRAMEBUFFER_H
 
-#include <array>
 #include <cstdint>
 
 #include "win32_opengl_backend.h"
@@ -42,7 +41,7 @@ namespace al::engine
         static GLenum depth_attachment_type_to_attachment_point(FramebufferAttachmentType type);
 
         FramebufferDescription description;
-        std::array<RendererId, EngineConfig::FRAMEBUFFER_MAX_ATTACHMENTS> attachmentLocations;
+        RendererId attachmentLocations[EngineConfig::FRAMEBUFFER_MAX_ATTACHMENTS];
         RendererId rendererId;
         uint32_t colorAttachmentsCount;
     };

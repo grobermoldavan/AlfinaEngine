@@ -93,7 +93,7 @@ namespace al::engine
 
     Win32OpenglFramebuffer::Win32OpenglFramebuffer(const FramebufferDescription& description)
         : description{ description }
-        , attachmentLocations{ }
+        , attachmentLocations{ 0 }
         , rendererId{ 0 }
         , colorAttachmentsCount{ 0 }
     {
@@ -105,7 +105,7 @@ namespace al::engine
         if (rendererId)
         {
             ::glDeleteFramebuffers(1, &rendererId);
-            for (std::uint32_t it = 0; it < description.attachments.get_current_size(); it++)
+            for (std::size_t it = 0; it < description.attachments.get_current_size(); it++)
             {
                 ::glDeleteTextures(1, &attachmentLocations[it]);
             }
@@ -128,21 +128,18 @@ namespace al::engine
     void Win32OpenglFramebuffer::recreate() noexcept
     {
         al_profile_function();
-
         if (rendererId)
         {
             ::glDeleteFramebuffers(1, &rendererId);
-            for (uint32_t it = 0; it < description.attachments.get_current_size(); it++)
+            for (std::size_t it = 0; it < description.attachments.get_current_size(); it++)
             {
                 ::glDeleteTextures(1, &attachmentLocations[it]);
             }
             reset_color_attachment_counter();
         }
-
         ::glCreateFramebuffers(1, &rendererId);
         ::glBindFramebuffer(GL_FRAMEBUFFER, rendererId);
-
-        for (uint32_t it = 0; it < description.attachments.get_current_size(); it++)
+        for (std::size_t it = 0; it < description.attachments.get_current_size(); it++)
         {
             FramebufferAttachmentType attachment = description.attachments[it];
             RendererId* attachmentId = &attachmentLocations[it];
@@ -172,13 +169,11 @@ namespace al::engine
                 ::glFramebufferTexture2D(GL_FRAMEBUFFER, colorAttachment, GL_TEXTURE_2D, *attachmentId, 0);
             }
         }
-
         const bool isFramebufferComplete = ::glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
         if (!isFramebufferComplete)
         {
             al_log_error("OpenGL Framebuffer", "Framebuffer is not complete.");
         }
-
         {
             DynamicArray<GLenum> colorAttachments;
             for (uint32_t it = 0; it < colorAttachmentsCount; it++)
@@ -187,7 +182,6 @@ namespace al::engine
             }
             ::glDrawBuffers(colorAttachmentsCount, colorAttachments.data());
         }
-
         ::glBindFramebuffer(GL_FRAMEBUFFER, 0);
     }
 

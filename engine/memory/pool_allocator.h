@@ -31,16 +31,16 @@ namespace al::engine
         MemoryBucket() noexcept;
         ~MemoryBucket() noexcept;
 
-        void initialize(std::size_t blockSize, std::size_t blockCount, AllocatorBase* allocator) noexcept;
-        [[nodiscard]] std::byte* allocate(std::size_t memorySizeBytes) noexcept;
-        void deallocate(std::byte* ptr, std::size_t memorySizeBytes) noexcept;
-        const bool is_belongs(std::byte* ptr) const noexcept;
-        const std::size_t get_block_size() const noexcept;
-        const std::size_t get_block_count() const noexcept;
-        const bool is_bucket_initialized() const noexcept;
+        void                        initialize              (std::size_t blockSize, std::size_t blockCount, AllocatorBase* allocator)           noexcept;
+        [[nodiscard]] std::byte*    allocate                (std::size_t memorySizeBytes)                                                       noexcept;
+        void                        deallocate              (std::byte* ptr, std::size_t memorySizeBytes)                                       noexcept;
+        const bool                  is_belongs              (std::byte* ptr)                                                            const   noexcept;
+        const std::size_t           get_block_size          ()                                                                          const   noexcept;
+        const std::size_t           get_block_count         ()                                                                          const   noexcept;
+        const bool                  is_bucket_initialized   ()                                                                          const   noexcept;
 
-        const std::byte* get_ledger() const noexcept;
-        const std::size_t get_ledger_size_bytes() const noexcept;
+        const std::byte*    get_ledger              () const noexcept;
+        const std::size_t   get_ledger_size_bytes   () const noexcept;
 
     private:
 #if(POOL_ALLOCATOR_USE_LOCK)
@@ -56,9 +56,9 @@ namespace al::engine
         std::byte* memory;
         std::byte* ledger;
 
-        std::size_t find_contiguous_blocks(std::size_t number) const noexcept;
-        void set_blocks_in_use(std::size_t first, std::size_t number) noexcept;
-        void set_blocks_free(std::size_t first, std::size_t number) noexcept;
+        std::size_t find_contiguous_blocks  (std::size_t number)                    const   noexcept;
+        void        set_blocks_in_use       (std::size_t first, std::size_t number)         noexcept;
+        void        set_blocks_free         (std::size_t first, std::size_t number)         noexcept;
     };
 
     struct BucketDescrition
@@ -84,8 +84,8 @@ namespace al::engine
         PoolAllocator() = default;
         ~PoolAllocator() = default;
 
-        virtual [[nodiscard]] std::byte* allocate(std::size_t memorySizeBytes) noexcept override;
-        virtual void deallocate(std::byte* ptr, std::size_t memorySizeBytes) noexcept override;
+        virtual [[nodiscard]] std::byte*    allocate    (std::size_t memorySizeBytes)                   noexcept override;
+        virtual void                        deallocate  (std::byte* ptr, std::size_t memorySizeBytes)   noexcept override;
 
         void initialize(std::array<BucketDescrition, EngineConfig::POOL_ALLOCATOR_MAX_BUCKETS> bucketDescriptions, AllocatorBase* allocator) noexcept;
 
@@ -96,9 +96,9 @@ namespace al::engine
         //          ptrSizePairs.
         //          You CAN'T succsessfully use deallocate_using_allocation_info or reallocate_using_allocation_info if memory was not allocated
         //          via allocate_using_allocation_info method.
-        [[nodiscard]] std::byte* allocate_using_allocation_info(std::size_t memorySizeBytes) noexcept;
-        void deallocate_using_allocation_info(std::byte* ptr) noexcept;
-        [[nodiscard]] std::byte* reallocate_using_allocation_info(std::byte* ptr, std::size_t newMemorySizeBytes) noexcept;
+        [[nodiscard]] std::byte*    allocate_using_allocation_info  (std::size_t memorySizeBytes)                       noexcept;
+        void                        deallocate_using_allocation_info(std::byte* ptr)                                    noexcept;
+        [[nodiscard]] std::byte*    reallocate_using_allocation_info(std::byte* ptr, std::size_t newMemorySizeBytes)    noexcept;
 
     private:
         std::array<MemoryBucket, EngineConfig::POOL_ALLOCATOR_MAX_BUCKETS> buckets;
@@ -111,53 +111,6 @@ namespace al::engine
 
         ArrayContainer<AllocationInfo, EngineConfig::POOL_ALLOCATOR_MAX_PTR_SIZE_PAIRS> ptrSizePairs;
     };
-
-    // ==========================================================================================================================================
-    // @NOTE : This is a wrapper over pool allocator which gives us an ability to use custom allocator with std containers
-    // ==========================================================================================================================================
-
-    template<typename T>
-    class PoolAllocatorStdWrap
-    {
-    public:
-        using value_type = T;
-
-        PoolAllocatorStdWrap() noexcept
-            : allocator { MemoryManager::get_pool() }
-        { }
-
-        template<typename U>
-        PoolAllocatorStdWrap(const PoolAllocatorStdWrap<U>&) noexcept
-            : allocator { MemoryManager::get_pool() }
-        { }
-
-        ~PoolAllocatorStdWrap() = default;
-
-        T* allocate(std::size_t n)
-        {
-            return reinterpret_cast<T*>(allocator->allocate(n * sizeof(T)));
-        }
-
-        void deallocate(T* ptr, std::size_t n) 
-        {
-            allocator->deallocate((std::byte*)ptr, n * sizeof(T));
-        }
-    
-    private:
-        PoolAllocator* allocator;
-    };
-
-    template <typename T, typename U>
-    constexpr bool operator == (const PoolAllocatorStdWrap<T>&, const PoolAllocatorStdWrap<U>&) noexcept
-    {
-        return true;
-    }
-
-    template <typename T, typename U>
-    constexpr bool operator != (const PoolAllocatorStdWrap<T>&, const PoolAllocatorStdWrap<U>&) noexcept
-    {
-        return false;
-    }
 }
 
 #endif

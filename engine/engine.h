@@ -54,6 +54,8 @@
 #include "engine/platform/platform_thread_event.h"
 #include "engine/platform/platform_thread_utilities.h"
 #include "engine/ecs/ecs.h"
+#include "engine/scene/scene_transform.h"
+#include "engine/scene/scene.h"
 #ifdef AL_PLATFORM_WIN32
 #   include "engine/platform/win32/win32_backend.h"
 #   include "engine/platform/win32/window/os_window_win32.h"
@@ -95,6 +97,8 @@
 #include "engine/startup/alfina_engine_application.cpp"
 #include "startup/entry_point.cpp"
 #include "engine/ecs/ecs.cpp"
+#include "engine/scene/scene_transform.cpp"
+#include "engine/scene/scene.cpp"
 #ifdef AL_PLATFORM_WIN32
 #   include "engine/platform/win32/window/os_window_win32.cpp"
 #   include "engine/platform/win32/platform_thread_event_win32.cpp"

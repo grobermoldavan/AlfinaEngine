@@ -15,66 +15,64 @@
 
 namespace al::engine
 {
-    using ComponentFlags = Flags128;
-    constexpr uint64_t MAX_COMPONENTS{ 128 };
-
-    using EntityHandle = uint64_t;
-    using ArchetypeHandle = uint64_t;
-
-    template <typename T> concept entity_handle = std::is_same_v<EntityHandle, T>;
-
-    struct al_align Entity
-    {
-        ComponentFlags componentFlags;
-        ArchetypeHandle archetypeHandle;
-        uint64_t arrayIndex;
-    };
-
-    class ComponentCounter
-    {
-    protected:
-        static uint64_t count;
-    };
-
-    template<typename T>
-    class ComponentTypeInfo : public ComponentCounter
-    {
-    public:
-        inline static uint64_t get_id() noexcept
-        {
-            static uint64_t id = count++;
-            return id;
-        }
-
-        inline static uint64_t get_size() noexcept
-        {
-            return sizeof(T);
-        }
-    };
-
-    struct al_align ComponentRuntimeInfo
-    {
-        uint64_t sizeBytes = 0;
-    };
-
-    struct ComponentArray
-    {
-        uint64_t componentId;
-        DynamicArray<uint8_t*> chunks;
-    };
-
-    struct al_align Archetype
-    {
-        ComponentFlags componentFlags;
-        ArchetypeHandle selfHandle;
-        uint64_t size;
-        uint64_t capacity;
-        DynamicArray<EntityHandle*> entityHandlesChunks;
-        ComponentArray components[MAX_COMPONENTS];
-    };
+    using EcsSizeT      = uint64_t;
+    using EntityHandle  = EcsSizeT;
 
     class EcsWorld : public NonCopyable
     {
+    private:
+        using ArchetypeHandle   = EcsSizeT;
+        using ComponentId       = EcsSizeT;
+        using ComponentFlags    = Flags128;
+
+        static constexpr EcsSizeT MAX_COMPONENTS{ 128 }; // Must correlate with ComponentFlags type
+
+        struct al_align Entity
+        {
+            ComponentFlags componentFlags;
+            ArchetypeHandle archetypeHandle;
+            EcsSizeT arrayIndex;
+        };
+
+        struct ComponentCounter { static ComponentId count; };
+
+        template<typename T>
+        class ComponentTypeInfo : public ComponentCounter
+        {
+        public:
+            inline static ComponentId get_id() noexcept
+            {
+                static ComponentId id = count++;
+                return id;
+            }
+
+            inline static EcsSizeT get_size() noexcept
+            {
+                return sizeof(T);
+            }
+        };
+
+        struct al_align ComponentRuntimeInfo
+        {
+            EcsSizeT sizeBytes = 0;
+        };
+
+        struct ComponentArray
+        {
+            ComponentId componentId;
+            DynamicArray<uint8_t*> chunks;
+        };
+
+        struct al_align Archetype
+        {
+            ComponentFlags componentFlags;
+            ArchetypeHandle selfHandle;
+            EcsSizeT size;
+            EcsSizeT capacity;
+            DynamicArray<EntityHandle*> entityHandlesChunks;
+            ComponentArray components[MAX_COMPONENTS];
+        };
+
     public:
         EcsWorld() noexcept;
         ~EcsWorld() noexcept;
@@ -103,7 +101,7 @@ namespace al::engine
 
                                                 Entity*                 entity                          (EntityHandle handle)                                           noexcept;
                                                 Archetype*              archetype                       (ArchetypeHandle handle)                                        noexcept;
-                                                ComponentRuntimeInfo*   component_info                  (uint64_t componentId)                                          noexcept;
+                                                ComponentRuntimeInfo*   component_info                  (ComponentId componentId)                                       noexcept;
         template<typename T>                    bool                    is_component_registered         ()                                                              noexcept;
         template<typename T, typename ... U>    bool                    is_components_registered        (bool value = true)                                             noexcept;
         template<typename T>                    void                    register_component              ()                                                              noexcept;
@@ -113,16 +111,16 @@ namespace al::engine
                                                 ArchetypeHandle         match_or_create_archetype       (EntityHandle handle)                                           noexcept;
                                                 ArchetypeHandle         create_archetype                (ComponentFlags flags)                                          noexcept;
                                                 void                    allocate_chunks                 (ArchetypeHandle handle)                                        noexcept;
-                                                uint64_t                reserve_position                (ArchetypeHandle handle)                                        noexcept;
-                                                void                    free_position                   (ArchetypeHandle handle, uint64_t index)                        noexcept;
+                                                EcsSizeT                reserve_position                (ArchetypeHandle handle)                                        noexcept;
+                                                void                    free_position                   (ArchetypeHandle handle, EcsSizeT index)                        noexcept;
                                                 void                    move_entity_superset            (ArchetypeHandle from, ArchetypeHandle to, EntityHandle handle) noexcept;
                                                 void                    move_entity_subset              (ArchetypeHandle from, ArchetypeHandle to, EntityHandle handle) noexcept;
-        template<typename T>                    T*                      accsess_component_template      (Archetype* archetypePtr, uint64_t index)                       noexcept;
-        template<typename T>                    T*                      accsess_component_template      (ComponentArray* array, uint64_t index)                         noexcept;
-                                                uint8_t*                accsess_component               (ComponentArray* array, uint64_t index)                         noexcept;
-                                                EntityHandle*           accsess_entity_handle           (ArchetypeHandle handle, uint64_t index)                        noexcept;
-                                                EntityHandle*           accsess_entity_handle           (Archetype* archetypePtr, uint64_t index)                       noexcept;
-                                                ComponentArray*         accsess_component_array         (ArchetypeHandle handle, uint64_t componentId)                  noexcept;
+        template<typename T>                    T*                      accsess_component_template      (Archetype* archetypePtr, EcsSizeT index)                       noexcept;
+        template<typename T>                    T*                      accsess_component_template      (ComponentArray* array, EcsSizeT index)                         noexcept;
+                                                uint8_t*                accsess_component               (ComponentArray* array, EcsSizeT index)                         noexcept;
+                                                EntityHandle*           accsess_entity_handle           (ArchetypeHandle handle, EcsSizeT index)                        noexcept;
+                                                EntityHandle*           accsess_entity_handle           (Archetype* archetypePtr, EcsSizeT index)                       noexcept;
+                                                ComponentArray*         accsess_component_array         (ArchetypeHandle handle, ComponentId componentId)               noexcept;
                                                 bool                    is_valid_subset                 (ComponentFlags subset, ComponentFlags superset)                noexcept;
                                                 bool                    is_valid_component_array        (ComponentArray* array)                                         noexcept;
     };

@@ -11,6 +11,7 @@
 #include "engine/debug/debug.h"
 #include "engine/rendering/renderer.h"
 #include "engine/ecs/ecs.h"
+#include "engine/scene/scene.h"
 #include "engine/game_cameras/fly_camera.h"
 #include "engine/platform/platform_thread_utilities.h"
 
@@ -41,9 +42,10 @@ namespace al::engine
     protected:
         static constexpr const char* LOG_CATEGORY_BASE_APPLICATION = "Engine";
 
-        EcsWorld* defaultEcsWorld;
-        OsWindow* window;
-        Renderer* renderer;
+        EcsWorld*   defaultEcsWorld;
+        Scene*      defaultScene;
+        OsWindow*   window;
+        Renderer*   renderer;
 
         Toggle<OsWindowInput> inputState;
         uint64_t frameCount;

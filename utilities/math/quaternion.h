@@ -3,6 +3,7 @@
 
 #include <cmath>
 #include <numbers>
+#include <limits>
 
 #include "vectors.h"
 #include "matrices.h"
@@ -29,6 +30,7 @@ namespace al
         float3      get_euler_angles()                              const   noexcept;
         void        set_rotation_mat(const float4x4& mat)                   noexcept;
         float4x4    get_rotation_mat()                              const   noexcept;
+        void        set_mat(const float4x4& mat)                            noexcept;
 
         Quaternion add(const Quaternion& other) const noexcept;
         Quaternion sub(const Quaternion& other) const noexcept;
@@ -43,6 +45,7 @@ namespace al
         Quaternion  normalized()        const   noexcept;
         void        invert()                    noexcept;
         Quaternion  inverted()          const   noexcept;
+        Quaternion  conjugate()         const   noexcept;
 
         friend std::ostream& operator << (std::ostream& os, const Quaternion& quat) noexcept;
 
@@ -51,12 +54,12 @@ namespace al
         {
             struct
             {
-                float3 imaginary;
                 float real;
+                float3 imaginary;
             };
             struct
             {
-                float x, y, z, w;
+                float w, x, y, z;
             };
             float elements[4];
         };
@@ -81,98 +84,56 @@ namespace al
 
     void Quaternion::set_axis_angle(const float3& axis, float angle) noexcept
     {
-        float radians = to_radians(angle);
-        real = std::cos(radians / 2.0f);
-        imaginary = axis * std::sin(radians / 2.0f);
+        // TODO : fix
     }
 
     Quaternion::AxisAngle Quaternion::get_axis_angle() const noexcept
     {
-        float acosAngle = std::acos(real);
-        float sinAngle = std::sin(acosAngle);
-
-        if (is_equal(std::abs(sinAngle), 0.0f))
-        {
-            return 
-            {
-                { 0, 1, 0 },
-                to_degrees(acosAngle * 2.0f)
-            };
-        }
-        else
-        {
-            return
-            {
-                imaginary / sinAngle,
-                to_degrees(acosAngle * 2.0f)
-            };
-        }
+        // TODO : fix
+        return {};
     }
 
     void Quaternion::set_euler_angles(const float3& angles) noexcept
     {
-        // https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
-        // xyz - zxy
-
-        // @NOTE : PHB to PYR notations conversion
-        //         pitch - x - pitch
-        //         head  - y - yaw
-        //         bank  - z - roll
-
-        float cy = std::cos(to_radians(angles.y) * 0.5f);
-        float sy = std::sin(to_radians(angles.y) * 0.5f);
-        float cx = std::cos(to_radians(angles.x) * 0.5f);
-        float sx = std::sin(to_radians(angles.x) * 0.5f);
-        float cz = std::cos(to_radians(angles.z) * 0.5f);
-        float sz = std::sin(to_radians(angles.z) * 0.5f);
-
-        x = cz * sx * cy + sz * cx * sy;
-        y = cz * cx * sy - sz * sx * cy;
-        z = sz * cx * cy - cz * sx * sy;
-        w = cz * cx * cy + sz * sx * sy;
+        // TODO : fix
     }
 
     float3 Quaternion::get_euler_angles() const noexcept
     {
-        // https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
-        // xyz - zxy
-
-        float3 result;
-        float sinp = 2.0f * (w * x - y * z);
-        if (std::abs(sinp) >= 1.0f)
-        {
-            result.x = to_degrees(std::copysign(std::numbers::pi_v<float> / 2.0f, sinp));
-        }
-        else
-        {
-            result.x = to_degrees(std::asin(sinp));
-        }
-        result.y = to_degrees(std::atan2(2.0f * (w * y + z * x), 1.0f - 2.0f * (x * x + y * y)));
-        result.z = to_degrees(std::atan2(2.0f * (w * z + x * y), 1.0f - 2.0f * (z * z + x * x)));
-        return result;
+        // TODO : fix
+        return {};
     }
 
     void Quaternion::set_rotation_mat(const float4x4& mat) noexcept
     {
-        // https://www.euclideanspace.com/maths/geometry/rotations/conversions/matrixToQuaternion/index.htm
-
-        w = std::sqrt(1.0f + mat.m[0][0] + mat.m[1][1] + mat.m[2][2]) / 2.0f;
-        x = (mat.m[2][1] - mat.m[1][2]) / (4.0f * w);
-        y = (mat.m[0][2] - mat.m[2][0]) / (4.0f * w);
-        z = (mat.m[1][0] - mat.m[0][1]) / (4.0f * w);
+        // TODO : fix
     }
 
     float4x4 Quaternion::get_rotation_mat() const noexcept
     {
-        // https://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToMatrix/index.htm
+        // TODO : fix
+        return {};
+    }
 
-        return
+    void Quaternion::set_mat(const float4x4& mat) noexcept
+    {
+        float3 inversedScale
         {
-            1.0f - 2.0f * y * y - 2.0f * z * z  , 2.0f * x * y - 2.0f * z * w       , 2.0f * x * z + 2.0f * y * w       , 0.0f,
-            2.0f * x * y + 2.0f * z * w         , 1.0f - 2.0f * x * x - 2.0f * z * z, 2.0f * y * z + 2.0f * x * w       , 0.0f,
-            2.0f * x * z - 2.0f * y * w         , 2.0f * y * z + 2.0f * x * w       , 1.0f - 2.0f * x * x - 2.0f * y * y, 0.0f,
-            0.0f                                , 0.0f                              , 0.0f                              , 1.0f
+            float3{ mat._00, mat._01, mat._02 }.len(),
+            float3{ mat._10, mat._11, mat._12 }.len(),
+            float3{ mat._20, mat._21, mat._22 }.len()
         };
+        inversedScale.x = is_equal(inversedScale.x, 0.0f) ?  std::numeric_limits<float>::max() : 1.0f / inversedScale.x;
+        inversedScale.y = is_equal(inversedScale.y, 0.0f) ?  std::numeric_limits<float>::max() : 1.0f / inversedScale.y;
+        inversedScale.z = is_equal(inversedScale.z, 0.0f) ?  std::numeric_limits<float>::max() : 1.0f / inversedScale.z;
+        float4x4 rotationMatrix
+        {
+            mat._00 * inversedScale.x, mat._01 * inversedScale.y, mat._02 * inversedScale.z, 0.0f,
+            mat._10 * inversedScale.x, mat._11 * inversedScale.y, mat._12 * inversedScale.z, 0.0f,
+            mat._20 * inversedScale.x, mat._21 * inversedScale.y, mat._22 * inversedScale.z, 0.0f,
+            0.0f                     , 0.0f                     , 0.0f                     , 1.0f
+        };
+        set_rotation_mat(rotationMatrix);
     }
 
     Quaternion Quaternion::add(const Quaternion& other) const noexcept
@@ -196,7 +157,6 @@ namespace al
     Quaternion Quaternion::mul(const Quaternion& other) const noexcept
     {
         // https://www.cprogramming.com/tutorial/3d/quaternions.html
-
         return
         {
             {
@@ -265,6 +225,14 @@ namespace al
             imaginary * -1.0f,
             real
         };
+    }
+
+    Quaternion Quaternion::conjugate() const noexcept
+    {
+        Quaternion result;
+        result.imaginary = imaginary * -1.0f;
+        result.real = real;
+        return result;
     }
 
     std::ostream& operator << (std::ostream& os, const Quaternion& quat) noexcept

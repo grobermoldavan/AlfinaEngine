@@ -54,10 +54,10 @@ namespace al::engine
         {
             thread.join();
         }
-        catch(const std::system_error& e)
+        catch(const std::exception& e)
         {
             // @TODO : handle system error
-            al_assert(false);
+            al_assert_msg(false, "Unable to join thread - exception was thrown. Message : %s", e.what());
         }
     }
 

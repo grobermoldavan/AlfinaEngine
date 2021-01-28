@@ -89,7 +89,7 @@ namespace al
     {
     public:
         StaticStack()
-            : Stack{ storage, Capacity }
+            : Stack<T>{ storage, Capacity }
         { }
 
     private:

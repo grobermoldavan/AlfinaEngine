@@ -2,6 +2,7 @@
 #define AL_MATRICES_H
 
 #include <iostream>
+#include <cmath>
 
 #include "utilities/concepts.h"
 #include "utilities/constexpr_functions.h"
@@ -186,6 +187,63 @@ namespace al
         0, 0, 1, 0,
         0, 0, 0, 1
     };
+
+    template<typename T>
+    mat4x4<T> construct_translation_mat(const vec3<T>& position) noexcept
+    {
+        return
+        {
+            1, 0, 0, position.x,
+            0, 1, 0, position.y,
+            0, 0, 1, position.z,
+            0, 0, 0, 1,
+        };
+    }
+
+    template<typename T>
+    mat4x4<T> construct_rotation_mat(const vec3<T>& eulerAngles) noexcept
+    {
+        const T cosPitch    = static_cast<T>(std::cos(to_radians(eulerAngles.x)));
+        const T sinPitch    = static_cast<T>(std::sin(to_radians(eulerAngles.x)));
+        const T cosYaw      = static_cast<T>(std::cos(to_radians(eulerAngles.y)));
+        const T sinYaw      = static_cast<T>(std::sin(to_radians(eulerAngles.y)));
+        const T cosRoll     = static_cast<T>(std::cos(to_radians(eulerAngles.z)));
+        const T sinRoll     = static_cast<T>(std::sin(to_radians(eulerAngles.z)));
+        const mat4x4<T> pitch
+        {
+            1, 0       , 0        , 0,
+            0, cosPitch, -sinPitch, 0,
+            0, sinPitch,  cosPitch, 0,
+            0, 0       , 0        , 1
+        };
+        const mat4x4<T> yaw
+        {
+            cosYaw , 0, sinYaw, 0,
+            0      , 1, 0     , 0,
+            -sinYaw, 0, cosYaw, 0,
+            0      , 0, 0     , 1
+        };
+        const mat4x4<T> roll
+        {
+            cosRoll, -sinRoll, 0, 0,
+            sinRoll,  cosRoll, 0, 0,
+            0      , 0       , 1, 0,
+            0      , 0       , 0, 1
+        };
+        return yaw * pitch * roll;
+    }
+
+    template<typename T>
+    mat4x4<T> construct_scale_mat(const vec3<T>& scale) noexcept
+    {
+        return
+        {
+            scale.x , 0         , 0         , 0,
+            0       , scale.y   , 0         , 0,
+            0       , 0         , scale.z   , 0,
+            0       , 0         , 0         , 1
+        };
+    }
 }
 
 #endif

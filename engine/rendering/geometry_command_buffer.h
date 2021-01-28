@@ -15,7 +15,7 @@ namespace al::engine
 
     struct GeometryCommandData : public CommandDataBase<GeometryCommandKey>
     {
-        Transform trf;
+        deprecated_Transform trf;
         class VertexArray* va;
         class Texture2d* diffuseTexture;
         class Texture2d* specularTexture;

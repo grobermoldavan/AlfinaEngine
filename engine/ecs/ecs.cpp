@@ -10,7 +10,7 @@
 
 namespace al::engine
 {
-    uint64_t ComponentCounter::count{ 1 };
+    EcsWorld::ComponentId EcsWorld::ComponentCounter::count{ 1 };
 
     EcsWorld::EcsWorld() noexcept
         : componentInfos{ }
@@ -25,7 +25,7 @@ namespace al::engine
     {
         al_log_message(EngineConfig::ECS_LOG_CATEGORY, "============================================================");
         al_log_message(EngineConfig::ECS_LOG_CATEGORY, "Current ECS world state is :");
-        for (uint64_t it = 1; it < archetypes.size(); it++)
+        for (EcsSizeT it = 1; it < archetypes.size(); it++)
         {
             al_log_message(EngineConfig::ECS_LOG_CATEGORY, "Archetype %d :", it);
             al_log_message(EngineConfig::ECS_LOG_CATEGORY, "    Size        : %d", archetype(it)->size);
@@ -39,7 +39,7 @@ namespace al::engine
                     continue;
                 }
                 al_log_message(EngineConfig::ECS_LOG_CATEGORY, "        Component with id : %d", array.componentId);
-                uint64_t memoryAllocated = component_info(array.componentId)->sizeBytes * array.chunks.size() * EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK;
+                EcsSizeT memoryAllocated = component_info(array.componentId)->sizeBytes * array.chunks.size() * EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK;
                 al_log_message(EngineConfig::ECS_LOG_CATEGORY, "        Memory allocated  : %d bytes", memoryAllocated);
             }
         }
@@ -106,16 +106,16 @@ namespace al::engine
     {
         ComponentFlags requestFlags{ };
         set_component_flags<T...>(&requestFlags);
-        const uint64_t archetypesSize = archetypes.size();
-        for (uint64_t it = 1; it < archetypesSize; it++)
+        const EcsSizeT archetypesSize = archetypes.size();
+        for (EcsSizeT it = 1; it < archetypesSize; it++)
         {
             if (!is_valid_subset(requestFlags, archetypes[it].componentFlags))
             {
                 continue;
             }
             Archetype* archetypePtr = &archetypes[it];
-            const uint64_t archetypeSize = archetypePtr->size;
-            for (uint64_t entityIt = 0; entityIt < archetypeSize; entityIt++)
+            const EcsSizeT archetypeSize = archetypePtr->size;
+            for (EcsSizeT entityIt = 0; entityIt < archetypeSize; entityIt++)
             {
                 func(this, *accsess_entity_handle(archetypePtr, entityIt), accsess_component_template<T>(archetypePtr, entityIt)...);
             }
@@ -127,33 +127,33 @@ namespace al::engine
     {
         ComponentFlags requestFlags{ };
         set_component_flags<T...>(&requestFlags);
-        const uint64_t archetypesSize = archetypes.size();
-        for (uint64_t it = 1; it < archetypesSize; it++)
+        const EcsSizeT archetypesSize = archetypes.size();
+        for (EcsSizeT it = 1; it < archetypesSize; it++)
         {
             if (!is_valid_subset(requestFlags, archetypes[it].componentFlags))
             {
                 continue;
             }
             Archetype* archetypePtr = &archetypes[it];
-            const uint64_t archetypeSize = archetypePtr->size;
-            for (uint64_t entityIt = 0; entityIt < archetypeSize; entityIt++)
+            const EcsSizeT archetypeSize = archetypePtr->size;
+            for (EcsSizeT entityIt = 0; entityIt < archetypeSize; entityIt++)
             {
                 func(this, *accsess_entity_handle(archetypePtr, entityIt), accsess_component_template<T>(archetypePtr, entityIt)...);
             }
         }
     }
 
-    inline Entity* EcsWorld::entity(EntityHandle handle) noexcept
+    inline EcsWorld::Entity* EcsWorld::entity(EntityHandle handle) noexcept
     {
         return &entities[handle];
     }
 
-    inline Archetype* EcsWorld::archetype(ArchetypeHandle handle) noexcept
+    inline EcsWorld::Archetype* EcsWorld::archetype(ArchetypeHandle handle) noexcept
     {
         return &archetypes[handle];
     }
 
-    inline ComponentRuntimeInfo* EcsWorld::component_info(uint64_t componentId) noexcept
+    inline EcsWorld::ComponentRuntimeInfo* EcsWorld::component_info(ComponentId componentId) noexcept
     {
         return &componentInfos[componentId];
     }
@@ -169,7 +169,7 @@ namespace al::engine
         bool result = value && is_component_registered<T>();
         if constexpr (sizeof...(U) != 0)
         {
-            result &&= is_components_registered<U...>();
+            result = result && is_components_registered<U...>();
         }
         return result;
     }
@@ -215,7 +215,7 @@ namespace al::engine
         }
     }
 
-    ArchetypeHandle EcsWorld::match_or_create_archetype(EntityHandle handle) noexcept
+    EcsWorld::ArchetypeHandle EcsWorld::match_or_create_archetype(EntityHandle handle) noexcept
     {
         for (Archetype& archetype : archetypes)
         {
@@ -227,7 +227,7 @@ namespace al::engine
         return create_archetype(entity(handle)->componentFlags);
     }
 
-    ArchetypeHandle EcsWorld::create_archetype(ComponentFlags flags) noexcept
+    EcsWorld::ArchetypeHandle EcsWorld::create_archetype(ComponentFlags flags) noexcept
     {
         ArchetypeHandle handle = archetypes.size();
         archetypes.push_back
@@ -240,7 +240,7 @@ namespace al::engine
             .components = { 0 }
         });
         Archetype* archetypePtr = archetype(handle);
-        for (uint64_t it = 0; it < MAX_COMPONENTS; it++)
+        for (EcsSizeT it = 0; it < MAX_COMPONENTS; it++)
         {
             if (!archetypePtr->componentFlags.get_flag(it))
             {
@@ -265,7 +265,7 @@ namespace al::engine
             {
                 continue;
             }
-            const uint64_t componentSize = component_info(array.componentId)->sizeBytes;
+            const EcsSizeT componentSize = component_info(array.componentId)->sizeBytes;
             std::byte* memory = MemoryManager::get_pool()->allocate(componentSize * EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK);
             std::memset(memory, 0, componentSize * EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK);
             array.chunks.push_back(reinterpret_cast<uint8_t*>(memory));
@@ -276,10 +276,10 @@ namespace al::engine
         archetypePtr->capacity += EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK;
     }
 
-    uint64_t EcsWorld::reserve_position(ArchetypeHandle handle) noexcept
+    EcsSizeT EcsWorld::reserve_position(ArchetypeHandle handle) noexcept
     {
         Archetype* archetypePtr = archetype(handle);
-        uint64_t position = archetypePtr->size;
+        EcsSizeT position = archetypePtr->size;
         archetypePtr->size += 1;
         if (archetypePtr->size >= archetypePtr->capacity)
         {
@@ -288,7 +288,7 @@ namespace al::engine
         return position;
     }
 
-    void EcsWorld::free_position(ArchetypeHandle handle, uint64_t index) noexcept
+    void EcsWorld::free_position(ArchetypeHandle handle, EcsSizeT index) noexcept
     {
         if (handle == EMPTY_ARCHETYPE)
         {
@@ -310,7 +310,7 @@ namespace al::engine
             archetypePtr->size -= 1;
             return;
         }
-        uint64_t lastIndex = archetypePtr->size - 1;
+        EcsSizeT lastIndex = archetypePtr->size - 1;
         for (ComponentArray& array : archetypePtr->components)
         {
             if (!is_valid_component_array(&array))
@@ -332,8 +332,8 @@ namespace al::engine
         Archetype* fromPtr = archetype(from);
         Archetype* toPtr = archetype(to);
         Entity* entityPtr = entity(handle);
-        uint64_t fromIndex = entityPtr->arrayIndex;
-        uint64_t toIndex = reserve_position(to);
+        EcsSizeT fromIndex = entityPtr->arrayIndex;
+        EcsSizeT toIndex = reserve_position(to);
         for (ComponentArray& fromArray : fromPtr->components)
         {
             if (!is_valid_component_array(&fromArray))
@@ -356,8 +356,8 @@ namespace al::engine
         Archetype* fromPtr = archetype(from);
         Archetype* toPtr = archetype(to);
         Entity* entityPtr = entity(handle);
-        uint64_t fromIndex = entityPtr->arrayIndex;
-        uint64_t toIndex = reserve_position(to);
+        EcsSizeT fromIndex = entityPtr->arrayIndex;
+        EcsSizeT toIndex = reserve_position(to);
         for (ComponentArray& toArray : toPtr->components)
         {
             if (!is_valid_component_array(&toArray))
@@ -376,42 +376,42 @@ namespace al::engine
     }
 
     template<typename T>
-    inline T* EcsWorld::accsess_component_template(Archetype* archetypePtr, uint64_t index) noexcept
+    inline T* EcsWorld::accsess_component_template(Archetype* archetypePtr, EcsSizeT index) noexcept
     {
         return accsess_component_template<T>(&archetypePtr->components[ComponentTypeInfo<T>::get_id()], index);
     }
 
     template<typename T>
-    inline T* EcsWorld::accsess_component_template(ComponentArray* array, uint64_t index) noexcept
+    inline T* EcsWorld::accsess_component_template(ComponentArray* array, EcsSizeT index) noexcept
     {
         al_assert(array->componentId == ComponentTypeInfo<T>::get_id());
-        const uint64_t chunkIndex = index / EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK;
-        const uint64_t inChunkIndex = index % EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK;
+        const EcsSizeT chunkIndex = index / EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK;
+        const EcsSizeT inChunkIndex = index % EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK;
         return &reinterpret_cast<T*>(array->chunks[chunkIndex])[inChunkIndex];
     }
 
-    inline uint8_t* EcsWorld::accsess_component(ComponentArray* array, uint64_t index) noexcept
+    inline uint8_t* EcsWorld::accsess_component(ComponentArray* array, EcsSizeT index) noexcept
     {
-        const uint64_t chunkIndex = index / EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK;
-        const uint64_t inChunkIndex = index % EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK;
+        const EcsSizeT chunkIndex = index / EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK;
+        const EcsSizeT inChunkIndex = index % EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK;
         return &array->chunks[chunkIndex][inChunkIndex * component_info(array->componentId)->sizeBytes];
     }
 
-    inline EntityHandle* EcsWorld::accsess_entity_handle(ArchetypeHandle handle, uint64_t index) noexcept
+    inline EntityHandle* EcsWorld::accsess_entity_handle(ArchetypeHandle handle, EcsSizeT index) noexcept
     {
-        const uint64_t chunkIndex = index / EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK;
-        const uint64_t inChunkIndex = index % EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK;
+        const EcsSizeT chunkIndex = index / EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK;
+        const EcsSizeT inChunkIndex = index % EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK;
         return &archetype(handle)->entityHandlesChunks[chunkIndex][inChunkIndex];
     }
 
-    inline EntityHandle* EcsWorld::accsess_entity_handle(Archetype* archetypePtr, uint64_t index) noexcept
+    inline EntityHandle* EcsWorld::accsess_entity_handle(Archetype* archetypePtr, EcsSizeT index) noexcept
     {
-        const uint64_t chunkIndex = index / EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK;
-        const uint64_t inChunkIndex = index % EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK;
+        const EcsSizeT chunkIndex = index / EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK;
+        const EcsSizeT inChunkIndex = index % EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK;
         return &archetypePtr->entityHandlesChunks[chunkIndex][inChunkIndex];
     }
 
-    ComponentArray* EcsWorld::accsess_component_array(ArchetypeHandle handle, uint64_t componentId) noexcept
+    EcsWorld::ComponentArray* EcsWorld::accsess_component_array(ArchetypeHandle handle, ComponentId componentId) noexcept
     {
         Archetype* archetypePtr = archetype(handle);
         return &archetypePtr->components[componentId];

@@ -22,7 +22,7 @@ namespace al::engine
         static constexpr std::size_t                MEMORY_SIZE{ gigabytes<std::size_t>(1) };
         static constexpr std::size_t                POOL_ALLOCATOR_MAX_BUCKETS{ 5 };
         static constexpr std::size_t                POOL_ALLOCATOR_MAX_PTR_SIZE_PAIRS{ 64 };
-        static constexpr std::uint64_t              DEFAULT_MEMORY_ALIGNMENT{ 8 };  // Must be power of two
+        static constexpr std::size_t                DEFAULT_MEMORY_ALIGNMENT{ 8 };  // Must be power of two
 
         // File System settings
         static constexpr std::size_t                MAX_FILE_HANDLES{ 4096 };
@@ -65,7 +65,12 @@ namespace al::engine
 
         // ECS settings
         static constexpr const char*                ECS_LOG_CATEGORY{ "ECS" };
-        static constexpr uint64_t                   NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK{ 64 };
+        static constexpr std::size_t                NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK{ 64 };
+
+        // Scene settings
+        static constexpr std::size_t                MAX_NUMBER_OF_SCENE_NODES{ 1024 };
+        static constexpr std::size_t                MAX_NUMBER_OF_NODE_CHILDS{ 8 };
+        static constexpr std::size_t                MAX_SCENE_NODE_NAME_LENGTH{ 64 };
     };
 }
 

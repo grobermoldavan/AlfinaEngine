@@ -16,6 +16,9 @@ namespace al::engine
         defaultEcsWorld = MemoryManager::get_stack()->allocate_as<EcsWorld>();
         ::new(defaultEcsWorld) EcsWorld{ };
 
+        defaultScene = MemoryManager::get_stack()->allocate_as<Scene>();
+        ::new(defaultScene) Scene{ defaultEcsWorld };
+
         OsWindowParams windowParams;
         windowParams.isFullscreen = false;
         window = create_window(&windowParams);
@@ -37,6 +40,7 @@ namespace al::engine
         destroy_renderer<EngineConfig::DEFAULT_RENDERER_TYPE>(renderer);
         destroy_window(window);
 
+        defaultScene->~Scene();
         defaultEcsWorld->~EcsWorld();
 
         FileSystem::destruct();
@@ -79,8 +83,8 @@ namespace al::engine
             simulate(dt);
             renderer->wait_for_command_buffers_toggled();
             dbg_render();
-            renderer->wait_for_render_finish();
             process_end_frame();
+            renderer->wait_for_render_finish();
         }
         defaultEcsWorld->log_world_state();
     }
@@ -144,16 +148,19 @@ namespace al::engine
 
         static bool isInited = false;
         static float time = 0.0f;
-        static Transform transform{ };
-        transform.set_scale({ 1.0f, 1.0f, 1.0f });
+        // static Transform transform{ };
+        // transform.set_scale({ 1.0f, 1.0f, 1.0f });
 
-        constexpr uint64_t MONKES_NUM = 100;
-        static EntityHandle monkes[MONKES_NUM];
-        constexpr float radius = 10.0f;
-        constexpr float step = 360.0f / (float)MONKES_NUM;
-        static uint64_t count = 0;
+        // constexpr uint64_t MONKES_NUM = 100;
+        // static EntityHandle monkes[MONKES_NUM];
+        // constexpr float radius = 10.0f;
+        // constexpr float step = 360.0f / (float)MONKES_NUM;
+        // static uint64_t count = 0;
 
-        static Geometry geom = load_geometry_from_obj(FileSystem::sync_load("assets\\geometry\\monke\\monke.obj", FileLoadMode::READ));
+        // assets\\geometry\\monke\\monke.obj
+        static Geometry geom = load_geometry_from_obj(FileSystem::sync_load("assets\\geometry\\cube.obj", FileLoadMode::READ));
+
+        static SceneNodeHandle parent;
 
         if (!isInited)
         {
@@ -171,38 +178,52 @@ namespace al::engine
                 va->set_index_buffer(ib);
                 diffuseTexture = create_texture_2d<EngineConfig::DEFAULT_RENDERER_TYPE>("assets\\materials\\metal_plate\\diffuse.png");
             });
-            for (EntityHandle& monke : monkes)
-            {
-                monke = defaultEcsWorld->create_entity();
-                defaultEcsWorld->add_components<Transform>(monke);
-            }
-            defaultEcsWorld->for_each<Transform>([&](EcsWorld* world, EntityHandle handle, Transform* trf)
-            {
-                float posX = radius * std::sin(to_radians((float)count * step));
-                float posZ = radius * std::cos(to_radians((float)count * step));
-                ::new(trf) Transform{ };
-                trf->set_position({ posX, 0, posZ });
-                count += 1;
-            });
+
+            // parent = defaultScene->create_node();
+            // auto* parentTrf = defaultEcsWorld->get_component<SceneLocalTransform>(defaultScene->scene_node(parent)->entityHandle);
+            // parentTrf->trf.set_scale({ 1.0f, 1.0f, 1.0f });
+            // defaultEcsWorld->add_components<Renderable>(defaultScene->scene_node(parent)->entityHandle);
+
+            // SceneNodeHandle child = defaultScene->create_node();
+            // auto* childTrf = defaultEcsWorld->get_component<SceneLocalTransform>(defaultScene->scene_node(child)->entityHandle);
+            // childTrf->trf.set_position({ -2, -2, -2 });
+            // defaultEcsWorld->add_components<Renderable>(defaultScene->scene_node(child)->entityHandle);
+
+            // defaultScene->set_parent(child, parent);
+
+            // SceneNodeHandle child2 = defaultScene->create_node();
+            // auto* childTrf2 = defaultEcsWorld->get_component<SceneLocalTransform>(defaultScene->scene_node(child2)->entityHandle);
+            // childTrf2->trf.set_position({ -4, -4, -4 });
+            // defaultEcsWorld->add_components<Renderable>(defaultScene->scene_node(child2)->entityHandle);
+
+            // defaultScene->set_parent(child2, parent);
+
             isInited = true;
         }
         else if (vb && ib && va && diffuseTexture)
         {
-            defaultEcsWorld->for_each<Transform>([&](EcsWorld* world, EntityHandle handle, Transform* trf)
-            {
-                GeometryCommandKey key = 0;
-                GeometryCommandData* data = renderer->add_geometry(key);
-                data->trf = *trf;
-                data->va = va;
-                data->diffuseTexture = diffuseTexture;
-            });
+            // defaultEcsWorld->for_each<SceneLocalTransform>([&](EcsWorld* world, EntityHandle handle, SceneLocalTransform* trf)
+            // {
+            //     float3 rot = trf->trf.get_rotation();
+            //     rot.y += 1.f;
+            //     trf->trf.set_rotation(rot);
+            // });
+
+            // defaultEcsWorld->for_each<SceneWorldTransform, Renderable>([&](EcsWorld* world, EntityHandle handle, SceneWorldTransform* trf, Renderable* renderable)
+            // {
+            //     GeometryCommandKey key = 0;
+            //     GeometryCommandData* data = renderer->add_geometry(key);
+            //     data->trf = trf->trf;
+            //     data->va = /*renderable->*/va;
+            //     data->diffuseTexture = /*renderable->*/diffuseTexture;
+            // });
         }
     }
 
     void AlfinaEngineApplication::process_end_frame() noexcept
     {
         al_profile_function();
-
+        defaultScene->update_transforms();
         FileSystem::remove_finished_jobs();
         {
             al_profile_scope("Print log buffer");
@@ -270,7 +291,6 @@ namespace al::engine
         for (uint64_t it = 0; it < programThreadsCount; it++)
         {
             const uint64_t mask = uint64_t{1} << (it % maxThreads);
-            std::cout << " M " << mask << std::endl;
             set_thread_affinity_mask(threads[it], mask);
         }
     }
