@@ -230,7 +230,7 @@ namespace al
             0      , 0       , 1, 0,
             0      , 0       , 0, 1
         };
-        return yaw * pitch * roll;
+        return yaw * roll * pitch;
     }
 
     template<typename T>

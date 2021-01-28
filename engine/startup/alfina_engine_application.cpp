@@ -202,6 +202,12 @@ namespace al::engine
         }
         else if (vb && ib && va && diffuseTexture)
         {
+            GeometryCommandKey key = 0;
+            GeometryCommandData* data = renderer->add_geometry(key);
+            data->trf = deprecated_Transform{ IDENTITY4 };
+            data->va = va;
+            data->diffuseTexture = diffuseTexture;
+
             // defaultEcsWorld->for_each<SceneLocalTransform>([&](EcsWorld* world, EntityHandle handle, SceneLocalTransform* trf)
             // {
             //     float3 rot = trf->trf.get_rotation();
