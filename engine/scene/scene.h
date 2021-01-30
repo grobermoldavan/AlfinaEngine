@@ -23,7 +23,6 @@ namespace al::engine
     struct al_align SceneNode
     {
         using ChildContainer = ArrayContainer<SceneNodeHandle, EngineConfig::MAX_NUMBER_OF_NODE_CHILDS>;
-
         EntityHandle    entityHandle;
         Scene*          scene;
         SceneNodeHandle parent;
@@ -45,6 +44,8 @@ namespace al::engine
 
         void set_parent(SceneNodeHandle child, SceneNodeHandle parent) noexcept;
         void update_transforms() noexcept;
+
+        EcsWorld* get_ecs_world() noexcept;
 
     private:
         EcsWorld* world;

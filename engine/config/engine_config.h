@@ -71,6 +71,7 @@ namespace al::engine
         static constexpr std::size_t                MAX_NUMBER_OF_SCENE_NODES{ 1024 };
         static constexpr std::size_t                MAX_NUMBER_OF_NODE_CHILDS{ 8 };
         static constexpr std::size_t                MAX_SCENE_NODE_NAME_LENGTH{ 64 };
+        static constexpr const char*                SCENE_ROOT_NODE_NAME{ "RootNode" };
     };
 }
 

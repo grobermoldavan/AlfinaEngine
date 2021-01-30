@@ -11,10 +11,10 @@ namespace al::engine
     {
     public:
         PerspectiveRenderCamera() noexcept;
-        PerspectiveRenderCamera(deprecated_Transform transform, float aspectRatio, float nearPlane, float farPlane, float fovDeg) noexcept;
+        PerspectiveRenderCamera(Transform transform, float aspectRatio, float nearPlane, float farPlane, float fovDeg) noexcept;
         ~PerspectiveRenderCamera() = default;
 
-        virtual deprecated_Transform* get_transform() noexcept override;
+        virtual Transform* get_transform() noexcept override;
         virtual float4x4 get_projection() const noexcept override;
         virtual float4x4 get_view() const noexcept override;
         virtual void look_at(const float3& target, const float3& up) noexcept override;
@@ -25,7 +25,7 @@ namespace al::engine
         float get_aspect_ratio() const noexcept;
 
     private:
-        deprecated_Transform   transform;
+        Transform   transform;
         float       aspectRatio;
         float       nearPlane;
         float       farPlane;

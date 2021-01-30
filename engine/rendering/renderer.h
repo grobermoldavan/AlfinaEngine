@@ -26,6 +26,11 @@
 
 namespace al::engine
 {
+    struct Renderable
+    {
+        /* TODO : implement */
+    };
+
     class Renderer
     {
     public:

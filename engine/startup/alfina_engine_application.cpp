@@ -145,22 +145,9 @@ namespace al::engine
         static IndexBuffer* ib = nullptr;
         static VertexArray* va = nullptr;
         static Texture2d* diffuseTexture = nullptr;
-
         static bool isInited = false;
-        static float time = 0.0f;
-        // static Transform transform{ };
-        // transform.set_scale({ 1.0f, 1.0f, 1.0f });
 
-        // constexpr uint64_t MONKES_NUM = 100;
-        // static EntityHandle monkes[MONKES_NUM];
-        // constexpr float radius = 10.0f;
-        // constexpr float step = 360.0f / (float)MONKES_NUM;
-        // static uint64_t count = 0;
-
-        // assets\\geometry\\monke\\monke.obj
         static Geometry geom = load_geometry_from_obj(FileSystem::sync_load("assets\\geometry\\cube.obj", FileLoadMode::READ));
-
-        static SceneNodeHandle parent;
 
         if (!isInited)
         {
@@ -178,51 +165,58 @@ namespace al::engine
                 va->set_index_buffer(ib);
                 diffuseTexture = create_texture_2d<EngineConfig::DEFAULT_RENDERER_TYPE>("assets\\materials\\metal_plate\\diffuse.png");
             });
-
-            // parent = defaultScene->create_node();
-            // auto* parentTrf = defaultEcsWorld->get_component<SceneLocalTransform>(defaultScene->scene_node(parent)->entityHandle);
-            // parentTrf->trf.set_scale({ 1.0f, 1.0f, 1.0f });
-            // defaultEcsWorld->add_components<Renderable>(defaultScene->scene_node(parent)->entityHandle);
-
-            // SceneNodeHandle child = defaultScene->create_node();
-            // auto* childTrf = defaultEcsWorld->get_component<SceneLocalTransform>(defaultScene->scene_node(child)->entityHandle);
-            // childTrf->trf.set_position({ -2, -2, -2 });
-            // defaultEcsWorld->add_components<Renderable>(defaultScene->scene_node(child)->entityHandle);
-
-            // defaultScene->set_parent(child, parent);
-
-            // SceneNodeHandle child2 = defaultScene->create_node();
-            // auto* childTrf2 = defaultEcsWorld->get_component<SceneLocalTransform>(defaultScene->scene_node(child2)->entityHandle);
-            // childTrf2->trf.set_position({ -4, -4, -4 });
-            // defaultEcsWorld->add_components<Renderable>(defaultScene->scene_node(child2)->entityHandle);
-
-            // defaultScene->set_parent(child2, parent);
-
+            SceneNodeHandle parent;
+            {
+                parent = defaultScene->create_node();
+                auto* parentTrf = defaultEcsWorld->get_component<SceneTransform>(defaultScene->scene_node(parent)->entityHandle);
+                Transform localTransform = parentTrf->get_local_transform();
+                localTransform.set_scale({ 1.0f, 1.0f, 1.0f });
+                parentTrf->set_local_transform(localTransform.matrix);
+                EntityHandle entity = defaultScene->scene_node(parent)->entityHandle;
+                defaultScene->get_ecs_world()->add_components<Renderable>(entity);
+            }
+            SceneNodeHandle child;
+            {
+                child = defaultScene->create_node();
+                auto* childTrf = defaultEcsWorld->get_component<SceneTransform>(defaultScene->scene_node(child)->entityHandle);
+                Transform localTransform = childTrf->get_local_transform();
+                localTransform.set_position({ -2, -2, -2 });
+                childTrf->set_local_transform(localTransform.matrix);
+                defaultScene->set_parent(child, parent);
+                EntityHandle entity = defaultScene->scene_node(child)->entityHandle;
+                defaultScene->get_ecs_world()->add_components<Renderable>(entity);
+            }
+            SceneNodeHandle child2;
+            {
+                child2 = defaultScene->create_node();
+                auto* childTrf = defaultEcsWorld->get_component<SceneTransform>(defaultScene->scene_node(child2)->entityHandle);
+                Transform localTransform = childTrf->get_local_transform();
+                localTransform.set_position({ -2, -2, -2 });
+                childTrf->set_local_transform(localTransform.matrix);
+                defaultScene->set_parent(child2, child);
+                EntityHandle entity = defaultScene->scene_node(child2)->entityHandle;
+                defaultScene->get_ecs_world()->add_components<Renderable>(entity);
+            }
             isInited = true;
         }
         else if (vb && ib && va && diffuseTexture)
         {
-            GeometryCommandKey key = 0;
-            GeometryCommandData* data = renderer->add_geometry(key);
-            data->trf = deprecated_Transform{ IDENTITY4 };
-            data->va = va;
-            data->diffuseTexture = diffuseTexture;
-
-            // defaultEcsWorld->for_each<SceneLocalTransform>([&](EcsWorld* world, EntityHandle handle, SceneLocalTransform* trf)
-            // {
-            //     float3 rot = trf->trf.get_rotation();
-            //     rot.y += 1.f;
-            //     trf->trf.set_rotation(rot);
-            // });
-
-            // defaultEcsWorld->for_each<SceneWorldTransform, Renderable>([&](EcsWorld* world, EntityHandle handle, SceneWorldTransform* trf, Renderable* renderable)
-            // {
-            //     GeometryCommandKey key = 0;
-            //     GeometryCommandData* data = renderer->add_geometry(key);
-            //     data->trf = trf->trf;
-            //     data->va = /*renderable->*/va;
-            //     data->diffuseTexture = /*renderable->*/diffuseTexture;
-            // });
+            defaultEcsWorld->for_each<SceneTransform>([&](EcsWorld* world, EntityHandle handle, SceneTransform* trf)
+            {
+                Transform localTrf = trf->get_local_transform();
+                float3 rot = localTrf.get_rotation();
+                rot.y += 1.f;
+                localTrf.set_rotation(rot);
+                trf->set_local_transform(localTrf.matrix);
+            });
+            defaultEcsWorld->for_each<SceneTransform, Renderable>([&](EcsWorld* world, EntityHandle handle, SceneTransform* trf, Renderable*)
+            {
+                GeometryCommandKey key = 0;
+                GeometryCommandData* data = renderer->add_geometry(key);
+                data->trf = trf->get_world_transform();
+                data->va = va;
+                data->diffuseTexture = diffuseTexture;
+            });
         }
     }
 

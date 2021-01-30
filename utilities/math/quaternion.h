@@ -14,6 +14,8 @@ namespace al
     //
     // Quaternion conversions are taken from www.euclideanspace.com
     //
+    // @TODO :  optimize conversions
+    //
     class Quaternion
     {
     public:
@@ -111,12 +113,15 @@ namespace al
 
     void Quaternion::set_euler_angles(const float3& angles) noexcept
     {
-        const float c1 = std::cos(to_radians(angles.y) * 0.5f);
-        const float s1 = std::sin(to_radians(angles.y) * 0.5f);
-        const float c2 = std::cos(to_radians(angles.z) * 0.5f);
-        const float s2 = std::sin(to_radians(angles.z) * 0.5f);
-        const float c3 = std::cos(to_radians(angles.x) * 0.5f);
-        const float s3 = std::sin(to_radians(angles.x) * 0.5f);
+        const float halfY = to_radians(angles.y) * 0.5f;
+        const float halfZ = to_radians(angles.z) * 0.5f;
+        const float halfX = to_radians(angles.x) * 0.5f;
+        const float c1 = std::cos(halfY);
+        const float s1 = std::sin(halfY);
+        const float c2 = std::cos(halfZ);
+        const float s2 = std::sin(halfZ);
+        const float c3 = std::cos(halfX);
+        const float s3 = std::sin(halfX);
         const float c1c2 = c1 * c2;
         const float s1s2 = s1 * s2;
         w = c1c2 * c3 - s1s2 * s3;

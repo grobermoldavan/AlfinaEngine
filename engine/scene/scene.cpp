@@ -14,7 +14,7 @@ namespace al::engine
     {
         root = nodes.get();
         al_assert(root);
-        initialize_node_no_parent(root, "RootNode");
+        initialize_node_no_parent(root, EngineConfig::SCENE_ROOT_NODE_NAME);
     }
 
     Scene::~Scene() noexcept
@@ -53,7 +53,10 @@ namespace al::engine
         // Set new parent
         childNode->parent = parent;
         // Add to new parent
-        parentNode->childs.push(child);
+        if (parent != EMPTY_NODE_HANDLE)
+        {
+            parentNode->childs.push(child);
+        }
     }
 
     void Scene::update_transforms() noexcept
@@ -77,14 +80,9 @@ namespace al::engine
             .name               = { 0 }
         };
         std::memcpy(node->name, name.data(), name.length());
-        // // Each scene node has world transform
-        // world->add_components<SceneWorldTransform>(node->entityHandle);
-        // auto* worldTrf = world->get_component<SceneWorldTransform>(node->entityHandle);
-        // new(worldTrf) SceneWorldTransform{ };
-        // // Each scene node has local transform
-        // world->add_components<SceneLocalTransform>(node->entityHandle);
-        // auto* localTrf = world->get_component<SceneLocalTransform>(node->entityHandle);
-        // new(localTrf) SceneLocalTransform{  };
+        world->add_components<SceneTransform>(node->entityHandle);
+        auto* sceneTransform = world->get_component<SceneTransform>(node->entityHandle);
+        new(sceneTransform) SceneTransform{ };
     }
 
     void Scene::initialize_node(SceneNodeHandle handle, SceneNodeHandle parent, std::string_view name) noexcept
@@ -96,13 +94,17 @@ namespace al::engine
     void Scene::update_transform(SceneNodeHandle handle) noexcept
     {
         SceneNode* node = scene_node(handle);
-        // auto* parentWorldTransform = world->get_component<SceneWorldTransform>(node->parent->entityHandle);
-        // auto* currentWorldTransform = world->get_component<SceneWorldTransform>(node->entityHandle);
-        // auto* currentLocalTransform = world->get_component<SceneLocalTransform>(node->entityHandle);
-        // currentWorldTransform->trf.set_full_transform(parentWorldTransform->trf.get_full_transform() * currentLocalTransform->trf.get_full_transform());
-        // for (SceneNodeHandle child : node->childs)
-        // {
-        //     update_transform(child);
-        // }
+        auto* parentSceneTransform = world->get_component<SceneTransform>(node->parent->entityHandle);
+        auto* currentSceneTransform = world->get_component<SceneTransform>(node->entityHandle);
+        currentSceneTransform->worldTransform.matrix = parentSceneTransform->get_world_transform().matrix * currentSceneTransform->get_local_transform().matrix;
+        for (SceneNodeHandle child : node->childs)
+        {
+            update_transform(child);
+        }
+    }
+
+    inline EcsWorld* Scene::get_ecs_world() noexcept
+    {
+        return world;
     }
 }

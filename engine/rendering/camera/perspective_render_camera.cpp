@@ -11,7 +11,7 @@ namespace al::engine
         , fovDeg{ 90.0f }
     { }
 
-    PerspectiveRenderCamera::PerspectiveRenderCamera(deprecated_Transform transform, float aspectRatio, float nearPlane, float farPlane, float fovDeg) noexcept
+    PerspectiveRenderCamera::PerspectiveRenderCamera(Transform transform, float aspectRatio, float nearPlane, float farPlane, float fovDeg) noexcept
         : transform{ transform }
         , aspectRatio{ aspectRatio }
         , nearPlane{ nearPlane }
@@ -19,7 +19,7 @@ namespace al::engine
         , fovDeg{ fovDeg }
     { }
 
-    deprecated_Transform* PerspectiveRenderCamera::get_transform() noexcept
+    Transform* PerspectiveRenderCamera::get_transform() noexcept
     {
         return &transform;
     }
@@ -38,7 +38,7 @@ namespace al::engine
 
     float4x4 PerspectiveRenderCamera::get_view() const noexcept
     {
-        return transform.get_full_transform().inverted();
+        return transform.matrix.inverted();
     }
 
     void PerspectiveRenderCamera::look_at(const float3& target, const float3& up) noexcept
@@ -56,7 +56,7 @@ namespace al::engine
         rotation.m[2][0] = right.z;
         rotation.m[2][1] = correctedUp.z;
         rotation.m[2][2] = forward.z;
-        transform.rotation = rotation;
+        transform.set_rotation(rotation);
     }
 
     void PerspectiveRenderCamera::set_fov(float fov) noexcept

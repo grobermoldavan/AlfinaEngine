@@ -190,7 +190,7 @@ namespace al::engine
                             return;
                         }
                         data->diffuseTexture->bind(EngineConfig::DEFFERED_GEOMETRY_PASS_DIFFUSE_TEXTURE_LOCATION);
-                        gpassShader->set_mat4(EngineConfig::SHADER_MODEL_MATRIX_UNIFORM_NAME, data->trf.get_full_transform().transposed());
+                        gpassShader->set_mat4(EngineConfig::SHADER_MODEL_MATRIX_UNIFORM_NAME, data->trf.matrix.transposed());
                         draw(data->va);
                     });
                     current.clear();
