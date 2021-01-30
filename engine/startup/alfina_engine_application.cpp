@@ -147,7 +147,7 @@ namespace al::engine
         static Texture2d* diffuseTexture = nullptr;
         static bool isInited = false;
 
-        static Geometry geom = load_geometry_from_obj(FileSystem::sync_load("assets\\geometry\\cube.obj", FileLoadMode::READ));
+        static Geometry geom = load_geometry_from_obj(FileSystem::sync_load(construct_path("assets", "geometry", "cube.obj"), FileLoadMode::READ));
 
         if (!isInited)
         {
@@ -163,12 +163,12 @@ namespace al::engine
                 va = create_vertex_array<EngineConfig::DEFAULT_RENDERER_TYPE>();
                 va->set_vertex_buffer(vb);
                 va->set_index_buffer(ib);
-                diffuseTexture = create_texture_2d<EngineConfig::DEFAULT_RENDERER_TYPE>("assets\\materials\\metal_plate\\diffuse.png");
+                diffuseTexture = create_texture_2d<EngineConfig::DEFAULT_RENDERER_TYPE>(construct_path("assets", "materials", "metal_plate", "diffuse.png"));
             });
             SceneNodeHandle parent;
             {
                 parent = defaultScene->create_node();
-                auto* parentTrf = defaultEcsWorld->get_component<SceneTransform>(defaultScene->scene_node(parent)->entityHandle);
+                auto* parentTrf = defaultScene->get_ecs_world()->get_component<SceneTransform>(defaultScene->scene_node(parent)->entityHandle);
                 Transform localTransform = parentTrf->get_local_transform();
                 localTransform.set_scale({ 1.0f, 1.0f, 1.0f });
                 parentTrf->set_local_transform(localTransform.matrix);
@@ -178,7 +178,7 @@ namespace al::engine
             SceneNodeHandle child;
             {
                 child = defaultScene->create_node();
-                auto* childTrf = defaultEcsWorld->get_component<SceneTransform>(defaultScene->scene_node(child)->entityHandle);
+                auto* childTrf = defaultScene->get_ecs_world()->get_component<SceneTransform>(defaultScene->scene_node(child)->entityHandle);
                 Transform localTransform = childTrf->get_local_transform();
                 localTransform.set_position({ -2, -2, -2 });
                 childTrf->set_local_transform(localTransform.matrix);
@@ -189,7 +189,7 @@ namespace al::engine
             SceneNodeHandle child2;
             {
                 child2 = defaultScene->create_node();
-                auto* childTrf = defaultEcsWorld->get_component<SceneTransform>(defaultScene->scene_node(child2)->entityHandle);
+                auto* childTrf = defaultScene->get_ecs_world()->get_component<SceneTransform>(defaultScene->scene_node(child2)->entityHandle);
                 Transform localTransform = childTrf->get_local_transform();
                 localTransform.set_position({ -2, -2, -2 });
                 childTrf->set_local_transform(localTransform.matrix);

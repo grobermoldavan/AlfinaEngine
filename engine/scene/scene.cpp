@@ -67,6 +67,16 @@ namespace al::engine
         }
     }
 
+    inline EcsWorld* Scene::get_ecs_world() noexcept
+    {
+        return world;
+    }
+
+    inline std::span<SceneNode> Scene::get_nodes() noexcept
+    {
+        return { nodes.data(), nodes.get_current_size() };
+    }
+
     void Scene::initialize_node_no_parent(SceneNodeHandle handle, std::string_view name) noexcept
     {
         al_assert(name.length() < EngineConfig::MAX_SCENE_NODE_NAME_LENGTH);
@@ -101,10 +111,5 @@ namespace al::engine
         {
             update_transform(child);
         }
-    }
-
-    inline EcsWorld* Scene::get_ecs_world() noexcept
-    {
-        return world;
     }
 }

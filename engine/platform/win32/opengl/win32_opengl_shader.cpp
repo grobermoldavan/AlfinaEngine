@@ -7,7 +7,7 @@
 
 namespace al::engine
 {
-    template<> [[nodiscard]] Shader* create_shader<RendererType::OPEN_GL>(const char* vertexShaderSrc, const char* fragmentShaderSrc) noexcept
+    template<> [[nodiscard]] Shader* create_shader<RendererType::OPEN_GL>(std::string_view vertexShaderSrc, std::string_view fragmentShaderSrc) noexcept
     {
         Shader* shader = MemoryManager::get_pool()->allocate_as<Win32OpenglShader>();
         ::new(shader) Win32OpenglShader{ vertexShaderSrc, fragmentShaderSrc };
@@ -20,7 +20,7 @@ namespace al::engine
         MemoryManager::get_pool()->deallocate(reinterpret_cast<std::byte*>(shader), sizeof(Win32OpenglShader));
     }
 
-    Win32OpenglShader::Win32OpenglShader(const char* vertexShaderSrc, const char* fragmentShaderSrc) noexcept
+    Win32OpenglShader::Win32OpenglShader(std::string_view vertexShaderSrc, std::string_view fragmentShaderSrc) noexcept
     {
         sources[ShaderType::VERTEX] = vertexShaderSrc;
         sources[ShaderType::FRAGMENT] = fragmentShaderSrc;
@@ -42,7 +42,7 @@ namespace al::engine
 
         for (size_t it = 0; it < ShaderType::__size; it++)
         {
-            if (!sources[it])
+            if (sources[it].empty())
             {
                 isShaderIdSpecified[it] = false;
                 continue;
@@ -51,7 +51,7 @@ namespace al::engine
             ShaderType type = static_cast<ShaderType>(it);
             GLuint shaderId = ::glCreateShader(SHADER_TYPE_TO_GL_ENUM[type]);
 
-            const GLchar* source = sources[it];
+            const GLchar* source = sources[it].data();
             ::glShaderSource(shaderId, 1, &source, 0);
 
             ::glCompileShader(shaderId);
@@ -105,9 +105,9 @@ namespace al::engine
         al_log_error("Shader", "%s", &infoLog[0]);
     }
 
-    Win32OpenglShader::GetUniformLocationResult Win32OpenglShader::get_uniform_location(const char* name) const noexcept
+    Win32OpenglShader::GetUniformLocationResult Win32OpenglShader::get_uniform_location(std::string_view name) const noexcept
     {
-        GLint location = ::glGetUniformLocation(rendererId, name);
+        GLint location = ::glGetUniformLocation(rendererId, name.data());
         if (location == -1)
         {
             al_log_error("Shader", "Unable to find uniform location. Uniform name is %s", name);
@@ -116,67 +116,67 @@ namespace al::engine
         return { true, location };
     }
 
-    void Win32OpenglShader::set_int(const char* name, const int value) const noexcept
+    void Win32OpenglShader::set_int(std::string_view name, const int value) const noexcept
     {
         auto [isFound, location] = get_uniform_location(name);
         if (isFound) { ::glUniform1i(location, value); }
     }
 
-    void Win32OpenglShader::set_int2(const char* name, const al::int32_2& value) const noexcept
+    void Win32OpenglShader::set_int2(std::string_view name, const al::int32_2& value) const noexcept
     {
         auto [isFound, location] = get_uniform_location(name);
         if (isFound) { ::glUniform2i(location, value.x, value.y); }
     }
 
-    void Win32OpenglShader::set_int3(const char* name, const al::int32_3& value) const noexcept
+    void Win32OpenglShader::set_int3(std::string_view name, const al::int32_3& value) const noexcept
     {
         auto [isFound, location] = get_uniform_location(name);
         if (isFound) { ::glUniform3i(location, value.x, value.y, value.z); }
     }
 
-    void Win32OpenglShader::set_int4(const char* name, const al::int32_4& value) const noexcept
+    void Win32OpenglShader::set_int4(std::string_view name, const al::int32_4& value) const noexcept
     {
         auto [isFound, location] = get_uniform_location(name);
         if (isFound) { ::glUniform4i(location, value.x, value.y, value.z, value.w); }
     }
 
-    void Win32OpenglShader::set_int_array(const char* name, const int* values, uint32_t count) const noexcept
+    void Win32OpenglShader::set_int_array(std::string_view name, const int* values, uint32_t count) const noexcept
     {
         auto [isFound, location] = get_uniform_location(name);
         if (isFound) { ::glUniform1iv(location, count, values); }
     }
 
-    void Win32OpenglShader::set_float(const char* name, const float value) const noexcept
+    void Win32OpenglShader::set_float(std::string_view name, const float value) const noexcept
     {
         auto [isFound, location] = get_uniform_location(name);
         if (isFound) { ::glUniform1f(location, value); }
     }
 
-    void Win32OpenglShader::set_float2(const char* name, const al::float2& value) const noexcept
+    void Win32OpenglShader::set_float2(std::string_view name, const al::float2& value) const noexcept
     {
         auto [isFound, location] = get_uniform_location(name);
         if (isFound) { ::glUniform2f(location, value.x, value.y); }
     }
 
-    void Win32OpenglShader::set_float3(const char* name, const al::float3& value) const noexcept
+    void Win32OpenglShader::set_float3(std::string_view name, const al::float3& value) const noexcept
     {
         auto [isFound, location] = get_uniform_location(name);
         if (isFound) { ::glUniform3f(location, value.x, value.y, value.z); }
     }
 
-    void Win32OpenglShader::set_float4(const char* name, const al::float4& value) const noexcept
+    void Win32OpenglShader::set_float4(std::string_view name, const al::float4& value) const noexcept
     {
         auto [isFound, location] = get_uniform_location(name);
         if (isFound) { ::glUniform4f(location, value.x, value.y, value.z, value.w); }
     }
 
-    void Win32OpenglShader::set_float_array(const char* name, const float* values, uint32_t count) const noexcept
+    void Win32OpenglShader::set_float_array(std::string_view name, const float* values, uint32_t count) const noexcept
     {
         auto [isFound, location] = get_uniform_location(name);
         if (isFound) { ::glUniform1fv(location, count, values); }
     }
 
-    void Win32OpenglShader::set_mat4(const char* name, const al::float4x4& value) const noexcept
+    void Win32OpenglShader::set_mat4(std::string_view name, const al::float4x4& value) const noexcept
     {
         auto [isFound, location] = get_uniform_location(name);
         if (isFound) { ::glUniformMatrix4fv(location, 1, GL_FALSE, value.elements); }

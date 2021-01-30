@@ -22,6 +22,11 @@
 #include "utilities/thread_safe/thread_safe_only_growing_stack.h"
 #include "utilities/thread_safe/thread_safe_queue.h"
 
+// @NOTE :  This file declares file system path separator for
+//          target platform type. It #ifdef's different platforms
+//          all by itself.
+#include "engine/platform/platform_file_system_config.h"
+
 #include "engine/config/engine_config.h"
 #include "engine/containers/containers.h"
 #include "engine/debug/debug.h"
@@ -53,10 +58,11 @@
 #include "engine/startup/alfina_engine_application.h"
 #include "engine/platform/platform_thread_event.h"
 #include "engine/platform/platform_thread_utilities.h"
+#include "engine/platform/platform_file_system_utilities.h"
 #include "engine/ecs/ecs.h"
 #include "engine/scene/scene_transform.h"
 #include "engine/scene/scene.h"
-#ifdef AL_PLATFORM_WIN32
+#ifdef _WIN32
 #   include "engine/platform/win32/win32_backend.h"
 #   include "engine/platform/win32/window/os_window_win32.h"
 #   include "engine/platform/win32/platform_thread_event_win32.h"
@@ -99,7 +105,7 @@
 #include "engine/ecs/ecs.cpp"
 #include "engine/scene/scene_transform.cpp"
 #include "engine/scene/scene.cpp"
-#ifdef AL_PLATFORM_WIN32
+#ifdef _WIN32
 #   include "engine/platform/win32/window/os_window_win32.cpp"
 #   include "engine/platform/win32/platform_thread_event_win32.cpp"
 #   include "engine/platform/win32/opengl/win32_opengl_vertex_buffer.cpp"

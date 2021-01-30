@@ -6,7 +6,7 @@
 
 namespace al::engine
 {
-    template<> [[nodiscard]] Texture2d* create_texture_2d<RendererType::OPEN_GL>(const char* path) noexcept
+    template<> [[nodiscard]] Texture2d* create_texture_2d<RendererType::OPEN_GL>(std::string_view path) noexcept
     {
         Texture2d* tex = MemoryManager::get_pool()->allocate_as<Win32OpenglTexure2d>();
         ::new(tex) Win32OpenglTexure2d{ path };
@@ -19,7 +19,7 @@ namespace al::engine
         MemoryManager::get_pool()->deallocate(reinterpret_cast<std::byte*>(tex), sizeof(Win32OpenglTexure2d));
     }
 
-    Win32OpenglTexure2d::Win32OpenglTexure2d(const char* path) noexcept
+    Win32OpenglTexure2d::Win32OpenglTexure2d(std::string_view path) noexcept
     {
         al_profile_function();
 
@@ -30,7 +30,7 @@ namespace al::engine
         // @NOTE :  stbi reads image in different order compared to the one, that opengl expects,
         //          so image needs to be flipped
         ::stbi_set_flip_vertically_on_load(1);
-        stbi_uc* data = ::stbi_load(path, &stbi_width, &stbi_height, &stbi_channels, 0);
+        stbi_uc* data = ::stbi_load(path.data(), &stbi_width, &stbi_height, &stbi_channels, 0);
 
         // Unable to load the image
         al_assert(data);

@@ -7,6 +7,7 @@
 #include "engine/config/engine_config.h"
 
 #include "file_load.h"
+#include "engine/platform/platform_file_system_utilities.h"
 #include "engine/memory/memory_manager.h"
 #include "engine/job_system/job_system.h"
 #include "engine/debug/debug.h"

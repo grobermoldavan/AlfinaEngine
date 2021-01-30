@@ -3,7 +3,7 @@
 
 namespace al::engine
 {
-    [[nodiscard]] Texture2d* create_texture_2d(RendererType type, const char* path) noexcept
+    [[nodiscard]] Texture2d* create_texture_2d(RendererType type, std::string_view path) noexcept
     {
         switch (type)
         {

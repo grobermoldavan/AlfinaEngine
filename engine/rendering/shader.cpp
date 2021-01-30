@@ -3,7 +3,7 @@
 
 namespace al::engine
 {
-    [[nodiscard]] Shader* create_shader(RendererType type, const char* vertexShaderSrc, const char* fragmentShaderSrc) noexcept
+    [[nodiscard]] Shader* create_shader(RendererType type, std::string_view vertexShaderSrc, std::string_view fragmentShaderSrc) noexcept
     {
         switch (type)
         {

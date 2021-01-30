@@ -2,6 +2,7 @@
 #define AL_SCENE_H
 
 #include <string_view>
+#include <span>
 
 #include "scene_transform.h"
 #include "engine/config/engine_config.h"
@@ -32,10 +33,9 @@ namespace al::engine
 
     class Scene
     {
-    private:
+    public:
         static constexpr SceneNodeHandle EMPTY_NODE_HANDLE = nullptr;
 
-    public:
         Scene(EcsWorld* ecsWorld) noexcept;
         ~Scene() noexcept;
 
@@ -46,6 +46,7 @@ namespace al::engine
         void update_transforms() noexcept;
 
         EcsWorld* get_ecs_world() noexcept;
+        std::span<SceneNode> get_nodes() noexcept;
 
     private:
         EcsWorld* world;

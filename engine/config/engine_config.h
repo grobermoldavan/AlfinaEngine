@@ -7,12 +7,15 @@
 #include <cstddef>
 #include <chrono>
 
+#include "engine/platform/platform_file_system_config.h"
 #include "engine/rendering/render_core.h"
 
 #include "utilities/constexpr_functions.h"
 
 namespace al::engine
 {
+    extern constexpr const char* path_sep() noexcept;
+
     struct EngineConfig
     {
         // Thread settings
@@ -50,11 +53,11 @@ namespace al::engine
         static constexpr const char*                SHADER_MODEL_MATRIX_UNIFORM_NAME{ "al_modelMatrix" };
         static constexpr const char*                SHADER_VIEW_PROJECTION_MATRIX_UNIFORM_NAME{ "al_vpMatrix" };
 
-        static constexpr const char*                DRAW_FRAMEBUFFER_TO_SCREEN_VERT_SHADER_PATH{ "assets\\shaders\\draw_framebuffer_to_screen.vert" };
-        static constexpr const char*                DRAW_FRAMEBUFFER_TO_SCREEN_FRAG_SHADER_PATH{ "assets\\shaders\\draw_framebuffer_to_screen.frag" };
+        static constexpr const char*                DRAW_FRAMEBUFFER_TO_SCREEN_VERT_SHADER_PATH{ "assets" AL_PATH_SEPARATOR "shaders" AL_PATH_SEPARATOR "draw_framebuffer_to_screen.vert" };
+        static constexpr const char*                DRAW_FRAMEBUFFER_TO_SCREEN_FRAG_SHADER_PATH{ "assets" AL_PATH_SEPARATOR "shaders" AL_PATH_SEPARATOR "draw_framebuffer_to_screen.frag" };
 
-        static constexpr const char*                DEFFERED_GEOMETRY_PASS_VERT_SHADER_PATH{ "assets\\shaders\\deffered_geometry_pass.vert" };
-        static constexpr const char*                DEFFERED_GEOMETRY_PASS_FRAG_SHADER_PATH{ "assets\\shaders\\deffered_geometry_pass.frag" };
+        static constexpr const char*                DEFFERED_GEOMETRY_PASS_VERT_SHADER_PATH{ "assets" AL_PATH_SEPARATOR "shaders" AL_PATH_SEPARATOR "deffered_geometry_pass.vert" };
+        static constexpr const char*                DEFFERED_GEOMETRY_PASS_FRAG_SHADER_PATH{ "assets" AL_PATH_SEPARATOR "shaders" AL_PATH_SEPARATOR "deffered_geometry_pass.frag" };
         static constexpr uint32_t                   DEFFERED_GEOMETRY_PASS_DIFFUSE_TEXTURE_LOCATION{ 0 };
         static constexpr const char*                DEFFERED_GEOMETRY_PASS_DIFFUSE_TEXTURE_NAME{ "texDiffuse" };
 

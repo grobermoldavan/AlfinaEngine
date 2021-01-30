@@ -136,20 +136,10 @@ namespace al::engine
     void FileSystem::instance_remove_finished_jobs() noexcept
     {
         al_profile_function();
-        // Wait for cleanup if job is still running
-        JobSystem::wait_for(&cleanupJob);
-        // Clean up job simply removes all finished jobs from the list
-        ::new(&cleanupJob) Job
+        std::lock_guard<std::mutex> lock{ jobsListMutex };
+        jobs.remove_by_condition([](AsyncFileReadJob* job) -> bool
         {
-            [this](Job*)
-            {
-                std::lock_guard<std::mutex> lock{ jobsListMutex };
-                jobs.remove_by_condition([](AsyncFileReadJob* job) -> bool
-                {
-                    return job->is_finished();
-                });
-            }
-        };
-        JobSystem::add_job(&cleanupJob);
+            return job->is_finished();
+        });
     }
 }

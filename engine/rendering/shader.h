@@ -2,6 +2,7 @@
 #define AL_SHADER_H
 
 #include <cstdint>
+#include <string_view>
 
 #include "render_core.h"
 #include "engine/debug/debug.h"
@@ -18,24 +19,24 @@ namespace al::engine
         virtual void bind           () const noexcept = 0;
         virtual void unbind         () const noexcept = 0;
 
-        virtual void set_int        (const char* name, const int value)                     const noexcept = 0;
-        virtual void set_int2       (const char* name, const int32_2& value)                const noexcept = 0;
-        virtual void set_int3       (const char* name, const int32_3& value)                const noexcept = 0;
-        virtual void set_int4       (const char* name, const int32_4& value)                const noexcept = 0;
-        virtual void set_int_array  (const char* name, const int* values, uint32_t count)   const noexcept = 0;
+        virtual void set_int        (std::string_view name, const int value)                     const noexcept = 0;
+        virtual void set_int2       (std::string_view name, const int32_2& value)                const noexcept = 0;
+        virtual void set_int3       (std::string_view name, const int32_3& value)                const noexcept = 0;
+        virtual void set_int4       (std::string_view name, const int32_4& value)                const noexcept = 0;
+        virtual void set_int_array  (std::string_view name, const int* values, uint32_t count)   const noexcept = 0;
 
-        virtual void set_float      (const char* name, const float value)                   const noexcept = 0;
-        virtual void set_float2     (const char* name, const float2& value)                 const noexcept = 0;
-        virtual void set_float3     (const char* name, const float3& value)                 const noexcept = 0;
-        virtual void set_float4     (const char* name, const float4& value)                 const noexcept = 0;
-        virtual void set_float_array(const char* name, const float* values, uint32_t count) const noexcept = 0;
+        virtual void set_float      (std::string_view name, const float value)                   const noexcept = 0;
+        virtual void set_float2     (std::string_view name, const float2& value)                 const noexcept = 0;
+        virtual void set_float3     (std::string_view name, const float3& value)                 const noexcept = 0;
+        virtual void set_float4     (std::string_view name, const float4& value)                 const noexcept = 0;
+        virtual void set_float_array(std::string_view name, const float* values, uint32_t count) const noexcept = 0;
 
         // @TODO : add mat3 and implment this method
-        // virtual void set_mat3        (const char* name, const float3x3& value)            const noexcept = 0;
-        virtual void set_mat4        (const char* name, const float4x4& value)              const noexcept = 0;
+        // virtual void set_mat3        (std::string_view name, const float3x3& value)            const noexcept = 0;
+        virtual void set_mat4        (std::string_view name, const float4x4& value)              const noexcept = 0;
     };
 
-    template<RendererType type> [[nodiscard]] Shader* create_shader(const char* vertexShaderSrc, const char* fragmentShaderSrc) noexcept
+    template<RendererType type> [[nodiscard]] Shader* create_shader(std::string_view vertexShaderSrc, std::string_view fragmentShaderSrc) noexcept
     {
         al_log_error("Renderer", "Unsupported rendering API");
         al_assert(false);
@@ -48,7 +49,7 @@ namespace al::engine
         al_assert(false);
     }
 
-    [[nodiscard]] Shader* create_shader(RendererType type, const char* vertexShaderSrc, const char* fragmentShaderSrc) noexcept;
+    [[nodiscard]] Shader* create_shader(RendererType type, std::string_view vertexShaderSrc, std::string_view fragmentShaderSrc) noexcept;
     void destroy_shader(RendererType type, Shader* shader) noexcept;
 }
 
