@@ -148,6 +148,7 @@ namespace al::engine
         static bool isInited = false;
 
         static Geometry geom = load_geometry_from_obj(FileSystem::sync_load(construct_path("assets", "geometry", "cube.obj"), FileLoadMode::READ));
+        // static Mesh mesh = load_mesh_from_obj(FileSystem::sync_load(construct_path("assets", "geometry", "multiple_cubes.obj"), FileLoadMode::READ));
 
         if (!isInited)
         {
