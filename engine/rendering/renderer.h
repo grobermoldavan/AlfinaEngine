@@ -23,6 +23,7 @@
 #include "utilities/function.h"
 #include "utilities/thread_safe/thread_safe_only_growing_stack.h"
 #include "utilities/math.h"
+#include "utilities/static_unordered_list.h"
 
 namespace al::engine
 {
@@ -30,6 +31,25 @@ namespace al::engine
     {
         /* TODO : implement */
     };
+
+    struct RendererHandleT
+    {
+        union
+        {
+            struct
+            {
+                uint64_t isValid : 1;
+                uint64_t index : 63;
+            };
+            uint64_t value;
+        };
+    };
+
+    using IndexBufferHandle     = RendererHandleT;
+    using VertexBufferHandle    = RendererHandleT;
+    using VertexArrayHandle     = RendererHandleT;
+    using ShaderHandle          = RendererHandleT;
+    using FramebufferHandle     = RendererHandleT;
 
     class Renderer
     {
@@ -40,7 +60,7 @@ namespace al::engine
         Renderer(OsWindow* window) noexcept;
         ~Renderer() = default;
 
-        std::thread* get_thread() noexcept;
+        std::thread* get_render_thread() noexcept;
 
         void terminate() noexcept;
         void start_process_frame() noexcept;
@@ -48,13 +68,34 @@ namespace al::engine
         void wait_for_command_buffers_toggled() noexcept;
         void set_camera(const RenderCamera* camera) noexcept;
         void add_render_command(const RenderCommand& command) noexcept;
-        [[nodiscard]] GeometryCommandData* add_geometry(GeometryCommandKey key) noexcept;
+        [[nodiscard]] GeometryCommandData* add_geometry_command(GeometryCommandKey key) noexcept;
+
+        IndexBufferHandle create_index_buffer(uint32_t* indices, std::size_t count) noexcept;
+        IndexBuffer* index_buffer(IndexBufferHandle handle) noexcept;
+
+        VertexBufferHandle create_vertex_buffer(const void* data, std::size_t size) noexcept;
+        VertexBuffer* vertex_buffer(VertexBufferHandle handle) noexcept;
+
+        VertexArrayHandle create_vertex_array() noexcept;
+        VertexArray* vertex_array(VertexArrayHandle handle) noexcept;
+
+        ShaderHandle create_shader(std::string_view vertexShaderSrc, std::string_view fragmentShaderSrc) noexcept;
+        Shader* shader(ShaderHandle handle) noexcept;
+
+        FramebufferHandle create_framebuffer(const FramebufferDescription& description) noexcept;
+        Framebuffer* framebuffer(FramebufferHandle handle) noexcept;
 
     protected:
         static constexpr const char* LOG_CATEGORY_RENDERER = "Renderer";
 
-        Toggle<RenderCommandBuffer> renderCommandBuffer;
-        Toggle<GeometryCommandBuffer> geometryCommandBuffer;
+        SuList<IndexBuffer* , EngineConfig::MAX_INDEX_BUFFERS>  indexBuffers;
+        SuList<VertexBuffer*, EngineConfig::MAX_VERTEX_BUFFERS> vertexBuffers;
+        SuList<VertexArray* , EngineConfig::MAX_VERTEX_ARRAYS>  vertexArrays;
+        SuList<Shader*      , EngineConfig::MAX_SHADERS>        shaders;
+        SuList<Framebuffer* , EngineConfig::MAX_FRAMEBUFFERS>   framebuffers;
+
+        Toggle<RenderCommandBuffer>     renderCommandBuffer;
+        Toggle<GeometryCommandBuffer>   geometryCommandBuffer;
 
         ThreadEvent* onFrameProcessStart;
         ThreadEvent* onFrameProcessEnd;
@@ -67,13 +108,13 @@ namespace al::engine
 
         const RenderCamera* renderCamera;
 
-        Shader* gpassShader;
-        Framebuffer* gbuffer;        
+        ShaderHandle gpassShader;
+        FramebufferHandle gbuffer;        
 
-        Shader* drawFramebufferToScreenShader;
-        VertexBuffer* screenRectangleVb;
-        IndexBuffer* screenRectangleIb;
-        VertexArray* screenRectangleVa;
+        ShaderHandle drawFramebufferToScreenShader;
+        VertexBufferHandle screenRectangleVb;
+        IndexBufferHandle screenRectangleIb;
+        VertexArrayHandle screenRectangleVa;
 
         virtual void clear_buffers() noexcept = 0;
         virtual void swap_buffers() noexcept = 0;

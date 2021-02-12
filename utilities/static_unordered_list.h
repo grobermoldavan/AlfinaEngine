@@ -221,6 +221,22 @@ namespace al
             }
         }
 
+        T* direct_accsess(std::size_t index) noexcept
+        {
+            if (index > Size)
+            {
+                return nullptr;
+            }
+            return &nodes[index].value;
+        }
+
+        // @NOTE :  unsafe
+        std::size_t get_direct_index(T* listMember)
+        {
+            SuListNode* node = reinterpret_cast<SuListNode*>(listMember);
+            return static_cast<std::size_t>(node - &nodes[0]);
+        }
+
         void dbg_print() const noexcept
         {
             for_each([](T* node)

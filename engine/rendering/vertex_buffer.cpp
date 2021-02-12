@@ -44,7 +44,7 @@ namespace al::engine
         stride = offset;
     }
 
-    [[nodiscard]] VertexBuffer* create_vertex_buffer(RendererType type, const void* data, uint32_t size) noexcept
+    [[nodiscard]] VertexBuffer* create_vertex_buffer(RendererType type, const void* data, std::size_t size) noexcept
     {
         switch (type)
         {

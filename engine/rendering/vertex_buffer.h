@@ -82,7 +82,7 @@ namespace al::engine
         virtual const BufferLayout* get_layout  ()                                      const   noexcept = 0;
     };
 
-    template<RendererType type> [[nodiscard]] VertexBuffer* create_vertex_buffer(const void* data, uint32_t size) noexcept
+    template<RendererType type> [[nodiscard]] VertexBuffer* create_vertex_buffer(const void* data, std::size_t size) noexcept
     {
         al_log_error("Renderer", "Unsupported rendering API");
         al_assert(false);
@@ -95,7 +95,7 @@ namespace al::engine
         al_assert(false);
     }
 
-    [[nodiscard]] VertexBuffer* create_vertex_buffer(RendererType type, const void* data, uint32_t size) noexcept;
+    [[nodiscard]] VertexBuffer* create_vertex_buffer(RendererType type, const void* data, std::size_t size) noexcept;
     void destroy_vertex_buffer(RendererType type, VertexBuffer* vb) noexcept;
 }
 

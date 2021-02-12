@@ -86,6 +86,7 @@ namespace al::engine
         template<typename ... T>
         using ForEachFunction = void(*)(EcsWorld*, EntityHandle, T*...);
 
+        // @NOTE :  This version of for_each is faster than the one below
         template<typename ... T>
         void for_each_fp(ForEachFunction<T...> func) noexcept;
 
