@@ -12,24 +12,27 @@ namespace al::engine
                 (type == FramebufferAttachmentType::DEPTH_32F_STENCIL_8);
     }
 
-    [[nodiscard]] Framebuffer* create_framebuffer(RendererType type, const FramebufferDescription& description) noexcept
+    namespace internal
     {
-        switch (type)
+        [[nodiscard]] Framebuffer* create_framebuffer(RendererType type, const FramebufferDescription& description) noexcept
         {
-            case RendererType::OPEN_GL: return create_framebuffer<RendererType::OPEN_GL>(description);
+            switch (type)
+            {
+                case RendererType::OPEN_GL: return create_framebuffer<RendererType::OPEN_GL>(description);
+            }
+            // Unknown RendererType
+            al_assert(false);
+            return nullptr;
         }
-        // Unknown RendererType
-        al_assert(false);
-        return nullptr;
-    }
 
-    void destroy_framebuffer(RendererType type, Framebuffer* fb) noexcept
-    {
-        switch (type)
+        void destroy_framebuffer(RendererType type, Framebuffer* fb) noexcept
         {
-            case RendererType::OPEN_GL: destroy_framebuffer<RendererType::OPEN_GL>(fb); return;
+            switch (type)
+            {
+                case RendererType::OPEN_GL: destroy_framebuffer<RendererType::OPEN_GL>(fb); return;
+            }
+            // Unknown RendererType
+            al_assert(false);
         }
-        // Unknown RendererType
-        al_assert(false);
     }
 }

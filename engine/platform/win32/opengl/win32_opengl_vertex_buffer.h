@@ -9,8 +9,11 @@
 
 namespace al::engine
 {
-    template<> [[nodiscard]] VertexBuffer* create_vertex_buffer<RendererType::OPEN_GL>(const void* data, std::size_t size) noexcept;
-    template<> void destroy_vertex_buffer<RendererType::OPEN_GL>(VertexBuffer* vb) noexcept;
+    namespace internal
+    {
+        template<> [[nodiscard]] VertexBuffer* create_vertex_buffer<RendererType::OPEN_GL>(const void* data, std::size_t size) noexcept;
+        template<> void destroy_vertex_buffer<RendererType::OPEN_GL>(VertexBuffer* vb) noexcept;
+    }
 
     class Win32OpenglVertexBuffer : public VertexBuffer
     {

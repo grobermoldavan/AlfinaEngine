@@ -5,17 +5,20 @@
 
 namespace al::engine
 {
-    template<> [[nodiscard]] VertexArray* create_vertex_array<RendererType::OPEN_GL>() noexcept
+    namespace internal
     {
-        VertexArray* va = MemoryManager::get_pool()->allocate_as<Win32OpenglVertexArray>();
-        ::new(va) Win32OpenglVertexArray{ };
-        return va;
-    }
+        template<> [[nodiscard]] VertexArray* create_vertex_array<RendererType::OPEN_GL>() noexcept
+        {
+            VertexArray* va = MemoryManager::get_pool()->allocate_as<Win32OpenglVertexArray>();
+            ::new(va) Win32OpenglVertexArray{ };
+            return va;
+        }
 
-    template<> void destroy_vertex_array<RendererType::OPEN_GL>(VertexArray* va) noexcept
-    {
-        va->~VertexArray();
-        MemoryManager::get_pool()->deallocate(reinterpret_cast<std::byte*>(va), sizeof(Win32OpenglVertexArray));
+        template<> void destroy_vertex_array<RendererType::OPEN_GL>(VertexArray* va) noexcept
+        {
+            va->~VertexArray();
+            MemoryManager::get_pool()->deallocate(reinterpret_cast<std::byte*>(va), sizeof(Win32OpenglVertexArray));
+        }
     }
 
     Win32OpenglVertexArray::Win32OpenglVertexArray() noexcept

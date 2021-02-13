@@ -38,6 +38,19 @@ namespace al
             std::memset(buffer, 0, Size);
         }
 
+        bool append(const char* cstr) noexcept
+        {
+            std::size_t currentLength = std::strlen(buffer);
+            std::size_t appendLength = std::strlen(cstr);
+            if (currentLength + appendLength > Size - 1)
+            {
+                // Not enough space
+                return false;
+            }
+            std::memcpy(buffer + currentLength, cstr, appendLength);
+            return true;
+        }
+
         operator char* () noexcept
         {
             return buffer;
@@ -48,7 +61,13 @@ namespace al
             set(cstr);
             return *this;
         }
-        
+
+        FixedSizeString<Size>& operator += (const char* cstr) noexcept
+        {
+            append(cstr);
+            return *this;
+        }
+
     private:
         char buffer[Size];
     };

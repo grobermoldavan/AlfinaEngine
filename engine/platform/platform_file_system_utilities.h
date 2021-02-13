@@ -9,11 +9,19 @@
 namespace al::engine
 {
     template<typename ... Args>
-    String construct_path(Args ... args) noexcept
+    StaticString construct_path(Args ... args) noexcept
     {
-        String result;
+        StaticString result;
         int count = sizeof...(Args);
-        int unpack[]{0, (result += args, count -= 1, (count > 0) ? result += AL_PATH_SEPARATOR : result, 0)...};
+        bool appendResult = true;
+        int unpack[]
+        {
+            0, (appendResult = appendResult && result.append(args), 
+            count -= 1, 
+            (count > 0) ? appendResult = appendResult && result.append(AL_PATH_SEPARATOR) : result, 0)...
+        };
+        // StaticString is not long enough to hold full path 
+        al_assert(appendResult);
         return result;
     }
 }

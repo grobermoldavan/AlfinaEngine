@@ -3,24 +3,27 @@
 
 namespace al::engine
 {
-    [[nodiscard]] Texture2d* create_texture_2d(RendererType type, std::string_view path) noexcept
+    namespace internal
     {
-        switch (type)
+        [[nodiscard]] Texture2d* create_texture_2d(RendererType type, std::string_view path) noexcept
         {
-            case RendererType::OPEN_GL: return create_texture_2d<RendererType::OPEN_GL>(path);
+            switch (type)
+            {
+                case RendererType::OPEN_GL: return create_texture_2d<RendererType::OPEN_GL>(path);
+            }
+            // Unknown RendererType
+            al_assert(false);
+            return nullptr;
         }
-        // Unknown RendererType
-        al_assert(false);
-        return nullptr;
-    }
 
-    void destroy_texture_2d(RendererType type, Texture2d* tex) noexcept
-    {
-        switch (type)
+        void destroy_texture_2d(RendererType type, Texture2d* tex) noexcept
         {
-            case RendererType::OPEN_GL: destroy_texture_2d<RendererType::OPEN_GL>(tex); return;
+            switch (type)
+            {
+                case RendererType::OPEN_GL: destroy_texture_2d<RendererType::OPEN_GL>(tex); return;
+            }
+            // Unknown RendererType
+            al_assert(false);
         }
-        // Unknown RendererType
-        al_assert(false);
     }
 }

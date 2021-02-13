@@ -3,24 +3,27 @@
 
 namespace al::engine
 {
-    [[nodiscard]] Shader* create_shader(RendererType type, std::string_view vertexShaderSrc, std::string_view fragmentShaderSrc) noexcept
+    namespace internal
     {
-        switch (type)
+        [[nodiscard]] Shader* create_shader(RendererType type, std::string_view vertexShaderSrc, std::string_view fragmentShaderSrc) noexcept
         {
-            case RendererType::OPEN_GL: return create_shader<RendererType::OPEN_GL>(vertexShaderSrc, fragmentShaderSrc);
+            switch (type)
+            {
+                case RendererType::OPEN_GL: return create_shader<RendererType::OPEN_GL>(vertexShaderSrc, fragmentShaderSrc);
+            }
+            // Unknown RendererType
+            al_assert(false);
+            return nullptr;
         }
-        // Unknown RendererType
-        al_assert(false);
-        return nullptr;
-    }
 
-    void destroy_shader(RendererType type, Shader* shader) noexcept
-    {
-        switch (type)
+        void destroy_shader(RendererType type, Shader* shader) noexcept
         {
-            case RendererType::OPEN_GL: destroy_shader<RendererType::OPEN_GL>(shader); return;
+            switch (type)
+            {
+                case RendererType::OPEN_GL: destroy_shader<RendererType::OPEN_GL>(shader); return;
+            }
+            // Unknown RendererType
+            al_assert(false);
         }
-        // Unknown RendererType
-        al_assert(false);
     }
 }

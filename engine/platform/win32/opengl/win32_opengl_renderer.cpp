@@ -7,20 +7,6 @@
 
 namespace al::engine
 {
-    template<> [[nodiscard]] Renderer* create_renderer<RendererType::OPEN_GL>(OsWindow* window) noexcept
-    {
-        Renderer* renderer = MemoryManager::get_stack()->allocate_as<Win32OpenglRenderer>();
-        ::new(renderer) Win32OpenglRenderer{ window };
-        return renderer;
-    }
-
-    template<> void destroy_renderer<RendererType::OPEN_GL>(Renderer* renderer) noexcept
-    {
-        renderer->terminate();
-        renderer->~Renderer();
-        MemoryManager::get_stack()->deallocate(reinterpret_cast<std::byte*>(renderer), sizeof(Win32OpenglRenderer));
-    }
-
     void GLAPIENTRY OpenGlCallback( GLenum source,
                                     GLenum type,
                                     GLuint id,
@@ -204,5 +190,18 @@ namespace al::engine
     void Win32OpenglRenderer::set_vsync_state(bool isEnabled) noexcept
     {
         ::wglSwapIntervalEXT(isEnabled ? 1 : 0);
+    }
+
+    namespace internal
+    {
+        template<> void internal::placement_create_renderer<RendererType::OPEN_GL>(Renderer* ptr, OsWindow* window) noexcept
+        {
+            ::new(ptr) Win32OpenglRenderer{ window };
+        }
+
+        template<> std::size_t internal::get_renderer_size_bytes<RendererType::OPEN_GL>() noexcept
+        {
+            return sizeof(Win32OpenglRenderer);
+        }
     }
 }

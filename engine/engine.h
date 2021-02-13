@@ -45,7 +45,6 @@
 #include "engine/rendering/camera/render_camera.h"
 #include "engine/rendering/camera/perspective_render_camera.h"
 #include "engine/rendering/geometry/geometry.h"
-#include "engine/rendering/geometry/mesh.h"
 #include "engine/rendering/render_core.h"
 #include "engine/rendering/command_buffer.h"
 #include "engine/rendering/geometry_command_buffer.h"
@@ -64,6 +63,7 @@
 #include "engine/ecs/ecs.h"
 #include "engine/scene/scene_transform.h"
 #include "engine/scene/scene.h"
+#include "engine/resources/resource_manager.h"
 #ifdef _WIN32
 #   include "engine/platform/win32/win32_backend.h"
 #   include "engine/platform/win32/window/os_window_win32.h"
@@ -94,7 +94,6 @@
 #include "engine/memory/system_allocator.cpp"
 #include "engine/rendering/camera/perspective_render_camera.cpp"
 #include "engine/rendering/geometry/geometry.cpp"
-#include "engine/rendering/geometry/mesh.cpp"
 #include "engine/rendering/framebuffer.cpp"
 #include "engine/rendering/index_buffer.cpp"
 #include "engine/rendering/shader.cpp"
@@ -108,6 +107,7 @@
 #include "engine/ecs/ecs.cpp"
 #include "engine/scene/scene_transform.cpp"
 #include "engine/scene/scene.cpp"
+#include "engine/resources/resource_manager.cpp"
 #ifdef _WIN32
 #   include "engine/platform/win32/window/os_window_win32.cpp"
 #   include "engine/platform/win32/platform_thread_event_win32.cpp"

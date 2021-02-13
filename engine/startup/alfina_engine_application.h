@@ -2,7 +2,6 @@
 #define AL_ALFINA_ENGINE_APPLICATION_H
 
 #include <span>
-#include <vector>
 
 #include "engine/memory/memory_manager.h"
 #include "engine/job_system/job_system.h"
@@ -12,6 +11,7 @@
 #include "engine/rendering/renderer.h"
 #include "engine/ecs/ecs.h"
 #include "engine/scene/scene.h"
+#include "engine/resources/resource_manager.h"
 #include "engine/game_cameras/fly_camera.h"
 #include "engine/platform/platform_thread_utilities.h"
 
@@ -45,7 +45,6 @@ namespace al::engine
         EcsWorld*   defaultEcsWorld;
         Scene*      defaultScene;
         OsWindow*   window;
-        Renderer*   renderer;
 
         Toggle<OsWindowInput> inputState;
         uint64_t frameCount;

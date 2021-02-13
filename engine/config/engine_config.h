@@ -14,8 +14,6 @@
 
 namespace al::engine
 {
-    extern constexpr const char* path_sep() noexcept;
-
     struct EngineConfig
     {
         // Thread settings
@@ -66,6 +64,15 @@ namespace al::engine
 
         static constexpr const char*                OPENGL_RENDERER_LOG_CATEGORY{ "OpenGL" };
 
+        static constexpr std::size_t                GPU_MESH_MAX_SUBMESHES{ 16 };
+
+        static constexpr std::size_t                RENDERER_MAX_INDEX_BUFFERS{ 1024 };
+        static constexpr std::size_t                RENDERER_MAX_VERTEX_BUFFERS{ 1024 };
+        static constexpr std::size_t                RENDERER_MAX_VERTEX_ARRAYS{ 1024 };
+        static constexpr std::size_t                RENDERER_MAX_SHADERS{ 1024 };
+        static constexpr std::size_t                RENDERER_MAX_FRAMEBUFFERS{ 1024 };
+        static constexpr std::size_t                RENDERER_MAX_TEXTURES_2D{ 1024 };
+
         // ECS settings
         static constexpr const char*                ECS_LOG_CATEGORY{ "ECS" };
         static constexpr std::size_t                NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK{ 64 };
@@ -75,6 +82,12 @@ namespace al::engine
         static constexpr std::size_t                MAX_NUMBER_OF_NODE_CHILDS{ 8 };
         static constexpr std::size_t                MAX_SCENE_NODE_NAME_LENGTH{ 64 };
         static constexpr const char*                SCENE_ROOT_NODE_NAME{ "RootNode" };
+
+        // Containers settings
+        static constexpr std::size_t                STATIC_STRING_LENGTH{ 256 };
+
+        // Resource manager settings
+        static constexpr std::size_t                MAX_TEXTURES{ 1024 };
     };
 }
 

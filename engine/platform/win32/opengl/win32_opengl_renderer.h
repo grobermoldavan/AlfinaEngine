@@ -15,9 +15,6 @@
 
 namespace al::engine
 {
-    template<> [[nodiscard]] Renderer* create_renderer<RendererType::OPEN_GL>(OsWindow* window) noexcept;
-    template<> void destroy_renderer<RendererType::OPEN_GL>(Renderer* renderer) noexcept;
-
     class Win32OpenglRenderer : public Renderer
     {
     public:
@@ -38,6 +35,12 @@ namespace al::engine
         virtual void set_depth_test_state(bool isEnabled) noexcept override;
         virtual void set_vsync_state(bool isEnabled) noexcept override;
     };
+
+    namespace internal
+    {
+        template<> void placement_create_renderer<RendererType::OPEN_GL>(Renderer* ptr, OsWindow* window) noexcept;
+        template<> std::size_t get_renderer_size_bytes<RendererType::OPEN_GL>() noexcept;
+    }
 }
 
 #endif

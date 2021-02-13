@@ -88,6 +88,11 @@ namespace al
             return invoke(&memory, args...);
         }
 
+        ReturnType call(const Args&... args) noexcept
+        {
+            return invoke(&memory, args...);
+        }
+
         void* get_host_object() noexcept
         {
             void** object = reinterpret_cast<void**>(&memory);

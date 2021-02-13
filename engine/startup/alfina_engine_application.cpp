@@ -12,6 +12,16 @@ namespace al::engine
         debug::Logger::construct();
         JobSystem::construct(get_number_of_job_system_threads());
         FileSystem::construct();
+        {
+            OsWindowParams params;
+            params.isFullscreen = false;
+            window = create_window(&params);
+        }
+        Renderer::allocate_space();
+        Renderer::construct(EngineConfig::DEFAULT_RENDERER_TYPE, window);
+        ResourceManager::construct();
+
+        distribute_threads_to_cpu_cores();
 
         defaultEcsWorld = MemoryManager::get_stack()->allocate_as<EcsWorld>();
         ::new(defaultEcsWorld) EcsWorld{ };
@@ -19,16 +29,8 @@ namespace al::engine
         defaultScene = MemoryManager::get_stack()->allocate_as<Scene>();
         ::new(defaultScene) Scene{ defaultEcsWorld };
 
-        OsWindowParams windowParams;
-        windowParams.isFullscreen = false;
-        window = create_window(&windowParams);
-
-        renderer = create_renderer<EngineConfig::DEFAULT_RENDERER_TYPE>(window);
-
-        distribute_threads_to_cpu_cores();
-
         dbgFlyCamera.get_render_camera()->set_aspect_ratio(static_cast<float>(window->get_params()->width) / static_cast<float>(window->get_params()->height));
-        renderer->set_camera(dbgFlyCamera.get_render_camera());
+        Renderer::get()->set_camera(dbgFlyCamera.get_render_camera());
 
         al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Initialized engine components");
     }
@@ -37,12 +39,12 @@ namespace al::engine
     {
         al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Terminating engine components");
 
-        destroy_renderer<EngineConfig::DEFAULT_RENDERER_TYPE>(renderer);
-        destroy_window(window);
-
         defaultScene->~Scene();
         defaultEcsWorld->~EcsWorld();
 
+        ResourceManager::destruct();
+        Renderer::destruct();
+        destroy_window(window);
         FileSystem::destruct();
         JobSystem::destruct();
         debug::Logger::destruct();
@@ -78,13 +80,13 @@ namespace al::engine
                     break;
                 }
             }
-            renderer->start_process_frame();
+            Renderer::get()->start_process_frame();
             update_input();
             simulate(dt);
-            renderer->wait_for_command_buffers_toggled();
+            Renderer::get()->wait_for_command_buffers_toggled();
             dbg_render();
             process_end_frame();
-            renderer->wait_for_render_finish();
+            Renderer::get()->wait_for_render_finish();
         }
         defaultEcsWorld->log_world_state();
     }
@@ -132,7 +134,7 @@ namespace al::engine
     {
         static SmoothAverage<float> fps;
         fps.push(dt);
-        al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Fps : %f", 1.0f / fps.get());
+        // al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Fps : %f", 1.0f / fps.get());
 
         dbgFlyCamera.process_inputs(&inputState.get_current(), dt);
     }
@@ -152,7 +154,7 @@ namespace al::engine
 
         // if (!isInited)
         // {
-        //     renderer->add_render_command([&]()
+        //     Renderer::get()->add_render_command([&]()
         //     {
         //         vb = create_vertex_buffer<EngineConfig::DEFAULT_RENDERER_TYPE>(geom.vertices.data(), geom.vertices.size() * sizeof(GeometryVertex));
         //         vb->set_layout(BufferLayout::ElementContainer{
@@ -213,7 +215,7 @@ namespace al::engine
         //     defaultEcsWorld->for_each<SceneTransform, Renderable>([&](EcsWorld* world, EntityHandle handle, SceneTransform* trf, Renderable*)
         //     {
         //         GeometryCommandKey key = 0;
-        //         GeometryCommandData* data = renderer->add_geometry_command(key);
+        //         GeometryCommandData* data = Renderer::get()->add_geometry_command(key);
         //         data->trf = trf->get_world_transform();
         //         data->va = va;
         //         data->diffuseTexture = diffuseTexture;
@@ -261,7 +263,7 @@ namespace al::engine
         // Collect handles to all threads used by the program
         ArrayContainer<ThreadHandle, EngineConfig::MAX_SUPPORTED_THREADS> threads;
         threads.push(get_current_thread_handle());
-        threads.push(renderer->get_render_thread()->native_handle());
+        threads.push(Renderer::get()->get_render_thread()->native_handle());
         std::span<JobSystemThread> jobSystemThread = JobSystem::get_threads();
         for (JobSystemThread& jobSystemThread : jobSystemThread)
         {

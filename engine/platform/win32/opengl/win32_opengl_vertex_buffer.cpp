@@ -5,17 +5,20 @@
 
 namespace al::engine
 {
-    template<> [[nodiscard]] VertexBuffer* create_vertex_buffer<RendererType::OPEN_GL>(const void* data, std::size_t size) noexcept
+    namespace internal
     {
-        VertexBuffer* vb = MemoryManager::get_pool()->allocate_as<Win32OpenglVertexBuffer>();
-        ::new(vb) Win32OpenglVertexBuffer{ data, size };
-        return vb;
-    }
+        template<> [[nodiscard]] VertexBuffer* create_vertex_buffer<RendererType::OPEN_GL>(const void* data, std::size_t size) noexcept
+        {
+            VertexBuffer* vb = MemoryManager::get_pool()->allocate_as<Win32OpenglVertexBuffer>();
+            ::new(vb) Win32OpenglVertexBuffer{ data, size };
+            return vb;
+        }
 
-    template<> void destroy_vertex_buffer<RendererType::OPEN_GL>(VertexBuffer* vb) noexcept
-    {
-        vb->~VertexBuffer();
-        MemoryManager::get_pool()->deallocate(reinterpret_cast<std::byte*>(vb), sizeof(Win32OpenglVertexBuffer));
+        template<> void destroy_vertex_buffer<RendererType::OPEN_GL>(VertexBuffer* vb) noexcept
+        {
+            vb->~VertexBuffer();
+            MemoryManager::get_pool()->deallocate(reinterpret_cast<std::byte*>(vb), sizeof(Win32OpenglVertexBuffer));
+        }
     }
 
     Win32OpenglVertexBuffer::Win32OpenglVertexBuffer(const void* data, std::size_t size) noexcept

@@ -18,21 +18,24 @@ namespace al::engine
         virtual void unbind() const noexcept = 0;
     };
 
-    template<RendererType type> [[nodiscard]] Texture2d* create_texture_2d(std::string_view path) noexcept
+    namespace internal
     {
-        al_log_error("Renderer", "Unsupported rendering API");
-        al_assert(false);
-        return nullptr;
-    }
+        template<RendererType type> [[nodiscard]] Texture2d* create_texture_2d(std::string_view path) noexcept
+        {
+            al_log_error("Renderer", "Unsupported rendering API");
+            al_assert(false);
+            return nullptr;
+        }
 
-    template<RendererType type> void destroy_texture_2d(Texture2d* tex) noexcept
-    {
-        al_log_error("Renderer", "Unsupported rendering API");
-        al_assert(false);
-    }
+        template<RendererType type> void destroy_texture_2d(Texture2d* tex) noexcept
+        {
+            al_log_error("Renderer", "Unsupported rendering API");
+            al_assert(false);
+        }
 
-    [[nodiscard]] Texture2d* create_texture_2d(RendererType type, std::string_view path) noexcept;
-    void destroy_texture_2d(RendererType type, Texture2d* tex) noexcept;
+        [[nodiscard]] Texture2d* create_texture_2d(RendererType type, std::string_view path) noexcept;
+        void destroy_texture_2d(RendererType type, Texture2d* tex) noexcept;
+    }
 }
 
 #endif

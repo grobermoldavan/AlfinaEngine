@@ -9,8 +9,11 @@
 
 namespace al::engine
 {
-    template<> [[nodiscard]] Texture2d* create_texture_2d<RendererType::OPEN_GL>(std::string_view path) noexcept;
-    template<> void destroy_texture_2d<RendererType::OPEN_GL>(Texture2d* tex) noexcept;
+    namespace internal
+    {
+        template<> [[nodiscard]] Texture2d* create_texture_2d<RendererType::OPEN_GL>(std::string_view path) noexcept;
+        template<> void destroy_texture_2d<RendererType::OPEN_GL>(Texture2d* tex) noexcept;
+    }
 
     class Win32OpenglTexure2d : public Texture2d
     {

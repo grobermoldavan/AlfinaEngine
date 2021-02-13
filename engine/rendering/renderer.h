@@ -45,17 +45,30 @@ namespace al::engine
         };
     };
 
-    using IndexBufferHandle     = RendererHandleT;
-    using VertexBufferHandle    = RendererHandleT;
-    using VertexArrayHandle     = RendererHandleT;
-    using ShaderHandle          = RendererHandleT;
-    using FramebufferHandle     = RendererHandleT;
+    using RendererIndexBufferHandle     = RendererHandleT;
+    using RendererVertexBufferHandle    = RendererHandleT;
+    using RendererVertexArrayHandle     = RendererHandleT;
+    using RendererShaderHandle          = RendererHandleT;
+    using RendererFramebufferHandle     = RendererHandleT;
+    using RendererTexture2dHandle       = RendererHandleT;
+
+    using IndexBufferCallback   = Function<void(RendererIndexBufferHandle)>;
+    using VertexBufferCallback  = Function<void(RendererVertexBufferHandle)>;
+    using VertexArrayCallback   = Function<void(RendererVertexArrayHandle)>;
+    using ShaderCallback        = Function<void(RendererShaderHandle)>;
+    using FramebufferCallback   = Function<void(RendererFramebufferHandle)>;
+    using Texture2dCallback     = Function<void(RendererTexture2dHandle)>;
 
     class Renderer
     {
     public:
-        using RenderCommand = Function<void()>;
+        using RenderCommand = Function<void(), 256>;
         using RenderCommandBuffer = ThreadSafeOnlyGrowingStack<RenderCommand, EngineConfig::RENDER_COMMAND_STACK_SIZE>;
+
+        static void allocate_space() noexcept;
+        static void construct(RendererType type, OsWindow* window) noexcept;
+        static void destruct() noexcept;
+        static Renderer* get() noexcept;
 
         Renderer(OsWindow* window) noexcept;
         ~Renderer() = default;
@@ -70,29 +83,35 @@ namespace al::engine
         void add_render_command(const RenderCommand& command) noexcept;
         [[nodiscard]] GeometryCommandData* add_geometry_command(GeometryCommandKey key) noexcept;
 
-        IndexBufferHandle create_index_buffer(uint32_t* indices, std::size_t count) noexcept;
-        IndexBuffer* index_buffer(IndexBufferHandle handle) noexcept;
+        RendererIndexBufferHandle create_index_buffer(uint32_t* indices, std::size_t count, IndexBufferCallback cb = IndexBufferCallback{ }) noexcept;
+        IndexBuffer*& index_buffer(RendererIndexBufferHandle handle) noexcept;
 
-        VertexBufferHandle create_vertex_buffer(const void* data, std::size_t size) noexcept;
-        VertexBuffer* vertex_buffer(VertexBufferHandle handle) noexcept;
+        RendererVertexBufferHandle create_vertex_buffer(const void* data, std::size_t size, VertexBufferCallback cb = VertexBufferCallback{ }) noexcept;
+        VertexBuffer*& vertex_buffer(RendererVertexBufferHandle handle) noexcept;
 
-        VertexArrayHandle create_vertex_array() noexcept;
-        VertexArray* vertex_array(VertexArrayHandle handle) noexcept;
+        RendererVertexArrayHandle create_vertex_array(VertexArrayCallback cb = VertexArrayCallback{ }) noexcept;
+        VertexArray*& vertex_array(RendererVertexArrayHandle handle) noexcept;
 
-        ShaderHandle create_shader(std::string_view vertexShaderSrc, std::string_view fragmentShaderSrc) noexcept;
-        Shader* shader(ShaderHandle handle) noexcept;
+        RendererShaderHandle create_shader(std::string_view vertexShaderSrc, std::string_view fragmentShaderSrc, ShaderCallback cb = ShaderCallback{ }) noexcept;
+        Shader*& shader(RendererShaderHandle handle) noexcept;
 
-        FramebufferHandle create_framebuffer(const FramebufferDescription& description) noexcept;
-        Framebuffer* framebuffer(FramebufferHandle handle) noexcept;
+        RendererFramebufferHandle create_framebuffer(const FramebufferDescription& description, FramebufferCallback cb = FramebufferCallback{ }) noexcept;
+        Framebuffer*& framebuffer(RendererFramebufferHandle handle) noexcept;
+
+        RendererTexture2dHandle create_texture_2d(std::string_view path, Texture2dCallback cb = Texture2dCallback{ }) noexcept;
+        Texture2d*& texture_2d(RendererTexture2dHandle handle) noexcept;
 
     protected:
+        static Renderer* instance;
+
         static constexpr const char* LOG_CATEGORY_RENDERER = "Renderer";
 
-        SuList<IndexBuffer* , EngineConfig::MAX_INDEX_BUFFERS>  indexBuffers;
-        SuList<VertexBuffer*, EngineConfig::MAX_VERTEX_BUFFERS> vertexBuffers;
-        SuList<VertexArray* , EngineConfig::MAX_VERTEX_ARRAYS>  vertexArrays;
-        SuList<Shader*      , EngineConfig::MAX_SHADERS>        shaders;
-        SuList<Framebuffer* , EngineConfig::MAX_FRAMEBUFFERS>   framebuffers;
+        SuList<IndexBuffer* , EngineConfig::RENDERER_MAX_INDEX_BUFFERS>     indexBuffers;
+        SuList<VertexBuffer*, EngineConfig::RENDERER_MAX_VERTEX_BUFFERS>    vertexBuffers;
+        SuList<VertexArray* , EngineConfig::RENDERER_MAX_VERTEX_ARRAYS>     vertexArrays;
+        SuList<Shader*      , EngineConfig::RENDERER_MAX_SHADERS>           shaders;
+        SuList<Framebuffer* , EngineConfig::RENDERER_MAX_FRAMEBUFFERS>      framebuffers;
+        SuList<Texture2d*   , EngineConfig::RENDERER_MAX_TEXTURES_2D>       texture2ds;
 
         Toggle<RenderCommandBuffer>     renderCommandBuffer;
         Toggle<GeometryCommandBuffer>   geometryCommandBuffer;
@@ -108,13 +127,13 @@ namespace al::engine
 
         const RenderCamera* renderCamera;
 
-        ShaderHandle gpassShader;
-        FramebufferHandle gbuffer;        
+        RendererShaderHandle gpassShader;
+        RendererFramebufferHandle gbuffer;        
 
-        ShaderHandle drawFramebufferToScreenShader;
-        VertexBufferHandle screenRectangleVb;
-        IndexBufferHandle screenRectangleIb;
-        VertexArrayHandle screenRectangleVa;
+        RendererShaderHandle drawFramebufferToScreenShader;
+        RendererVertexBufferHandle screenRectangleVb;
+        RendererIndexBufferHandle screenRectangleIb;
+        RendererVertexArrayHandle screenRectangleVa;
 
         virtual void clear_buffers() noexcept = 0;
         virtual void swap_buffers() noexcept = 0;
@@ -131,19 +150,27 @@ namespace al::engine
         void notify_command_buffers_toggled() noexcept;
     };
 
-    template<RendererType type>
-    [[nodiscard]] Renderer* create_renderer(OsWindow* window) noexcept
+    namespace internal
     {
-        al_log_error("Renderer", "Unsupported rendering API");
-        al_assert(false);
-        return nullptr;
-    }
+        template<RendererType type>
+        [[nodiscard]] void placement_create_renderer(Renderer* ptr, OsWindow* window) noexcept
+        {
+            // @NOTE :  This method is implemented at platform layer and it simply calls placement new
+            //          with appropriate renderer type.
+            al_log_error("Renderer", "Unsupported rendering API");
+            al_assert(false);
+            return nullptr;
+        }
 
-    template<RendererType type>
-    void destroy_renderer(Renderer* renderer) noexcept
-    {
-        al_log_error("Renderer", "Unsupported rendering API");
-        al_assert(false);
+        template<RendererType type>
+        std::size_t get_renderer_size_bytes() noexcept
+        {
+            // @NOTE :  This method is implemented at platform layer and it simply returns
+            //          size of appropriate renderer type.
+            return 0;
+        }
+
+        std::size_t get_max_renderer_size_bytes() noexcept;
     }
 }
 

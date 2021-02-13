@@ -9,8 +9,11 @@
 
 namespace al::engine
 {
-    template<> [[nodiscard]] VertexArray* create_vertex_array<RendererType::OPEN_GL>() noexcept;
-    template<> void destroy_vertex_array<RendererType::OPEN_GL>(VertexArray* va) noexcept;
+    namespace internal
+    {
+        template<> [[nodiscard]] VertexArray* create_vertex_array<RendererType::OPEN_GL>() noexcept;
+        template<> void destroy_vertex_array<RendererType::OPEN_GL>(VertexArray* va) noexcept;
+    }
     
     class Win32OpenglVertexArray : public VertexArray
     {

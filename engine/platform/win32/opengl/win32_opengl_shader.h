@@ -9,8 +9,11 @@
 
 namespace al::engine
 {
-    template<> [[nodiscard]] Shader* create_shader<RendererType::OPEN_GL>(std::string_view vertexShaderSrc, std::string_view fragmentShaderSrc) noexcept;
-    template<> void destroy_shader<RendererType::OPEN_GL>(Shader* shader) noexcept;
+    namespace internal
+    {
+        template<> [[nodiscard]] Shader* create_shader<RendererType::OPEN_GL>(std::string_view vertexShaderSrc, std::string_view fragmentShaderSrc) noexcept;
+        template<> void destroy_shader<RendererType::OPEN_GL>(Shader* shader) noexcept;
+    }
 
     class Win32OpenglShader : public Shader
     {

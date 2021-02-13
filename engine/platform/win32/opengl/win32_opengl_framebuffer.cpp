@@ -7,17 +7,20 @@
 
 namespace al::engine
 {
-    template<> [[nodiscard]] Framebuffer* create_framebuffer<RendererType::OPEN_GL>(const FramebufferDescription& description) noexcept
+    namespace internal
     {
-        Framebuffer* fb = MemoryManager::get_pool()->allocate_as<Win32OpenglFramebuffer>();
-        ::new(fb) Win32OpenglFramebuffer{ description };
-        return fb;
-    }
+        template<> [[nodiscard]] Framebuffer* create_framebuffer<RendererType::OPEN_GL>(const FramebufferDescription& description) noexcept
+        {
+            Framebuffer* fb = MemoryManager::get_pool()->allocate_as<Win32OpenglFramebuffer>();
+            ::new(fb) Win32OpenglFramebuffer{ description };
+            return fb;
+        }
 
-    template<> void destroy_framebuffer<RendererType::OPEN_GL>(Framebuffer* fb) noexcept
-    {
-        fb->~Framebuffer();
-        MemoryManager::get_pool()->deallocate(reinterpret_cast<std::byte*>(fb), sizeof(Win32OpenglFramebuffer));
+        template<> void destroy_framebuffer<RendererType::OPEN_GL>(Framebuffer* fb) noexcept
+        {
+            fb->~Framebuffer();
+            MemoryManager::get_pool()->deallocate(reinterpret_cast<std::byte*>(fb), sizeof(Win32OpenglFramebuffer));
+        }
     }
 
     GLint Win32OpenglFramebuffer::get_max_color_attachments()

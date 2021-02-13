@@ -16,6 +16,14 @@ namespace al::engine
         {
             return reinterpret_cast<T*>(allocate(sizeof(T)));
         }
+
+        template<typename T, typename ... Args>
+        inline [[nodiscard]] T* allocate_and_construct(Args ... args)
+        {
+            T* instance = allocate_as<T>();
+            ::new(instance) T{ args... };
+            return instance;
+        }
     };
 }
 
