@@ -11,8 +11,7 @@ namespace al::engine
     {
         template<> [[nodiscard]] Framebuffer* create_framebuffer<RendererType::OPEN_GL>(const FramebufferDescription& description) noexcept
         {
-            Framebuffer* fb = MemoryManager::get_pool()->allocate_as<Win32OpenglFramebuffer>();
-            ::new(fb) Win32OpenglFramebuffer{ description };
+            Framebuffer* fb = MemoryManager::get_pool()->allocate_and_construct<Win32OpenglFramebuffer>(description);
             return fb;
         }
 

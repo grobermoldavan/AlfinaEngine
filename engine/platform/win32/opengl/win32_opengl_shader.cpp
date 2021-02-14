@@ -11,8 +11,7 @@ namespace al::engine
     {
         template<> [[nodiscard]] Shader* create_shader<RendererType::OPEN_GL>(std::string_view vertexShaderSrc, std::string_view fragmentShaderSrc) noexcept
         {
-            Shader* shader = MemoryManager::get_pool()->allocate_as<Win32OpenglShader>();
-            ::new(shader) Win32OpenglShader{ vertexShaderSrc, fragmentShaderSrc };
+            Shader* shader = MemoryManager::get_pool()->allocate_and_construct<Win32OpenglShader>(vertexShaderSrc, fragmentShaderSrc);
             return shader;
         }
 

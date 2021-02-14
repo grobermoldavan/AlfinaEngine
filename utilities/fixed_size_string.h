@@ -20,8 +20,18 @@ namespace al
             set(cstr);
         }
 
+        FixedSizeString(const FixedSizeString& other) noexcept
+            : buffer{ 0 }
+        {
+            std::memcpy(buffer, other.buffer, Size);
+        }
+
         bool set(const char* cstr) noexcept
         {
+            if (!cstr)
+            {
+                return false;
+            }
             std::size_t length = std::strlen(cstr);
             if (length > Size - 1)
             {
@@ -40,6 +50,10 @@ namespace al
 
         bool append(const char* cstr) noexcept
         {
+            if (!cstr)
+            {
+                return false;
+            }
             std::size_t currentLength = std::strlen(buffer);
             std::size_t appendLength = std::strlen(cstr);
             if (currentLength + appendLength > Size - 1)
@@ -49,6 +63,11 @@ namespace al
             }
             std::memcpy(buffer + currentLength, cstr, appendLength);
             return true;
+        }
+
+        bool is_equal(const FixedSizeString& other)
+        {
+            return std::strncmp(buffer, other.buffer, Size) == 0;
         }
 
         operator char* () noexcept
@@ -66,6 +85,11 @@ namespace al
         {
             append(cstr);
             return *this;
+        }
+
+        bool operator == (const FixedSizeString& other)
+        {
+            return is_equal(other);
         }
 
     private:

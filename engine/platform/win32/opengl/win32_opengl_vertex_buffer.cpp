@@ -9,8 +9,7 @@ namespace al::engine
     {
         template<> [[nodiscard]] VertexBuffer* create_vertex_buffer<RendererType::OPEN_GL>(const void* data, std::size_t size) noexcept
         {
-            VertexBuffer* vb = MemoryManager::get_pool()->allocate_as<Win32OpenglVertexBuffer>();
-            ::new(vb) Win32OpenglVertexBuffer{ data, size };
+            VertexBuffer* vb = MemoryManager::get_pool()->allocate_and_construct<Win32OpenglVertexBuffer>(data, size);
             return vb;
         }
 

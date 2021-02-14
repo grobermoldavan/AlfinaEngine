@@ -149,6 +149,12 @@ namespace al::engine
         // static Texture2d* diffuseTexture = nullptr;
         // static bool isInited = false;
 
+        static TextureResourceHandle tex{ 0 };
+        if (!tex.isValid)
+        {
+            tex = ResourceManager::get()->add_texture_resource(construct_path("assets", "materials", "metal_plate", "diffuse.png"));
+        }
+
         // // static Geometry geom = load_geometry_from_obj(FileSystem::sync_load(construct_path("assets", "geometry", "cube.obj"), FileLoadMode::READ));
         // static CpuMesh mesh = load_cpu_mesh_from_obj(FileSystem::sync_load(construct_path("assets", "geometry", "cube.obj"), FileLoadMode::READ));
 

@@ -9,8 +9,7 @@ namespace al::engine
     {
         template<> [[nodiscard]] IndexBuffer* create_index_buffer<RendererType::OPEN_GL>(uint32_t* indices, std::size_t count) noexcept
         {
-            IndexBuffer* ib = MemoryManager::get_pool()->allocate_as<Win32OpenglIndexBuffer>();
-            ::new(ib) Win32OpenglIndexBuffer{ indices, count };
+            IndexBuffer* ib = MemoryManager::get_pool()->allocate_and_construct<Win32OpenglIndexBuffer>(indices, count);
             return ib;
         }
 

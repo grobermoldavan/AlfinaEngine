@@ -18,6 +18,7 @@
 #include "engine/debug/debug.h"
 #include "engine/window/os_window.h"
 #include "engine/platform/platform_thread_event.h"
+#include "engine/containers/containers.h"
 
 #include "utilities/toggle.h"
 #include "utilities/function.h"
@@ -74,6 +75,7 @@ namespace al::engine
         ~Renderer() = default;
 
         std::thread* get_render_thread() noexcept;
+        bool is_render_thread() const noexcept;
 
         void terminate() noexcept;
         void start_process_frame() noexcept;
@@ -83,22 +85,34 @@ namespace al::engine
         void add_render_command(const RenderCommand& command) noexcept;
         [[nodiscard]] GeometryCommandData* add_geometry_command(GeometryCommandKey key) noexcept;
 
-        RendererIndexBufferHandle create_index_buffer(uint32_t* indices, std::size_t count, IndexBufferCallback cb = IndexBufferCallback{ }) noexcept;
+        RendererIndexBufferHandle reserve_index_buffer() noexcept;
+        void create_index_buffer(RendererIndexBufferHandle handle, uint32_t* indices, std::size_t count, IndexBufferCallback cb = IndexBufferCallback{ }) noexcept;
+        void destroy_index_buffer(RendererIndexBufferHandle handle) noexcept;
         IndexBuffer*& index_buffer(RendererIndexBufferHandle handle) noexcept;
 
-        RendererVertexBufferHandle create_vertex_buffer(const void* data, std::size_t size, VertexBufferCallback cb = VertexBufferCallback{ }) noexcept;
+        RendererVertexBufferHandle reserve_vertex_buffer() noexcept;
+        void create_vertex_buffer(RendererVertexBufferHandle handle, const void* data, std::size_t size, VertexBufferCallback cb = VertexBufferCallback{ }) noexcept;
+        void destroy_vertex_buffer(RendererVertexBufferHandle handle) noexcept;
         VertexBuffer*& vertex_buffer(RendererVertexBufferHandle handle) noexcept;
 
-        RendererVertexArrayHandle create_vertex_array(VertexArrayCallback cb = VertexArrayCallback{ }) noexcept;
+        RendererVertexArrayHandle reserve_vertex_array() noexcept;
+        void create_vertex_array(RendererVertexArrayHandle handle, VertexArrayCallback cb = VertexArrayCallback{ }) noexcept;
+        void destroy_vertex_array(RendererVertexArrayHandle handle) noexcept;
         VertexArray*& vertex_array(RendererVertexArrayHandle handle) noexcept;
 
-        RendererShaderHandle create_shader(std::string_view vertexShaderSrc, std::string_view fragmentShaderSrc, ShaderCallback cb = ShaderCallback{ }) noexcept;
+        RendererShaderHandle reserve_shader() noexcept;
+        void create_shader(RendererShaderHandle handle, std::string_view vertexShaderSrc, std::string_view fragmentShaderSrc, ShaderCallback cb = ShaderCallback{ }) noexcept;
+        void destroy_shader(RendererShaderHandle handle) noexcept;
         Shader*& shader(RendererShaderHandle handle) noexcept;
 
-        RendererFramebufferHandle create_framebuffer(const FramebufferDescription& description, FramebufferCallback cb = FramebufferCallback{ }) noexcept;
+        RendererFramebufferHandle reserve_framebuffer() noexcept;
+        void create_framebuffer(RendererFramebufferHandle handle, const FramebufferDescription& description, FramebufferCallback cb = FramebufferCallback{ }) noexcept;
+        void destroy_framebuffer(RendererFramebufferHandle handle) noexcept;
         Framebuffer*& framebuffer(RendererFramebufferHandle handle) noexcept;
 
-        RendererTexture2dHandle create_texture_2d(std::string_view path, Texture2dCallback cb = Texture2dCallback{ }) noexcept;
+        RendererTexture2dHandle reserve_texture_2d() noexcept;
+        void create_texture_2d(RendererTexture2dHandle handle, std::string_view path, Texture2dCallback cb = Texture2dCallback{ }) noexcept;
+        void destroy_texture_2d(RendererTexture2dHandle handle) noexcept;
         Texture2d*& texture_2d(RendererTexture2dHandle handle) noexcept;
 
     protected:

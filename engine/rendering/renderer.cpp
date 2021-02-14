@@ -70,6 +70,11 @@ namespace al::engine
         return &renderThread;
     }
 
+    bool Renderer::is_render_thread() const noexcept
+    {
+        return std::this_thread::get_id() == renderThread.get_id();
+    }
+
     void Renderer::terminate() noexcept
     {
         // @NOTE :  Can't join render in the destructor because on joining thread will call
@@ -89,7 +94,6 @@ namespace al::engine
     void Renderer::wait_for_render_finish() noexcept
     {
         al_profile_function();
-
         const bool waitResult = onFrameProcessEnd->wait_for(std::chrono::seconds{ 1 });
         al_assert(waitResult); // Event was not fired. Probably something happend to render thread
     }
@@ -97,7 +101,6 @@ namespace al::engine
     void Renderer::wait_for_command_buffers_toggled() noexcept
     {
         al_profile_function();
-
         const bool waitResult = onCommandBufferToggled->wait_for(std::chrono::seconds{ 1 });
         al_assert(waitResult); // Event was not fired. Probably something happend to render thread
         onCommandBufferToggled->reset();
@@ -121,159 +124,369 @@ namespace al::engine
         return result;
     }
 
-    RendererIndexBufferHandle Renderer::create_index_buffer(uint32_t* indices, std::size_t count, IndexBufferCallback cb) noexcept
+    RendererIndexBufferHandle Renderer::reserve_index_buffer() noexcept
     {
+        al_profile_function();
         IndexBuffer** ib = indexBuffers.get();
         al_assert(ib);
         *ib = nullptr;
-        RendererIndexBufferHandle handle
+        return
         {
-            .isValid = true,
+            .isValid = 1,
             .index = static_cast<uint64_t>(indexBuffers.get_direct_index(ib))
         };
-        add_render_command([this, handle, indices, count, cb]()
+    }
+
+    void Renderer::create_index_buffer(RendererIndexBufferHandle handle, uint32_t* indices, std::size_t count, IndexBufferCallback cb) noexcept
+    {
+        al_profile_function();
+        if (is_render_thread())
         {
-            index_buffer(handle) = ::al::engine::internal::create_index_buffer<EngineConfig::DEFAULT_RENDERER_TYPE>(indices, count);
+            index_buffer(handle) = internal::create_index_buffer<EngineConfig::DEFAULT_RENDERER_TYPE>(indices, count);
             if (cb)
             {
                 const_cast<IndexBufferCallback*>(&cb)->call(handle);
             }
-        });
-        return handle;
+        }
+        else
+        {
+            add_render_command([this, handle, indices, count, cb]()
+            {
+                index_buffer(handle) = internal::create_index_buffer<EngineConfig::DEFAULT_RENDERER_TYPE>(indices, count);
+                if (cb)
+                {
+                    const_cast<IndexBufferCallback*>(&cb)->call(handle);
+                }
+            });
+        }
+    }
+
+    void Renderer::destroy_index_buffer(RendererIndexBufferHandle handle) noexcept
+    {
+        al_profile_function();
+        if (is_render_thread())
+        {
+            internal::destroy_index_buffer<EngineConfig::DEFAULT_RENDERER_TYPE>(index_buffer(handle));
+            index_buffer(handle) = nullptr;
+        }
+        else
+        {
+            add_render_command([this, handle]()
+            {
+                internal::destroy_index_buffer<EngineConfig::DEFAULT_RENDERER_TYPE>(index_buffer(handle));
+                index_buffer(handle) = nullptr;
+            });
+        }
     }
 
     inline IndexBuffer*& Renderer::index_buffer(RendererIndexBufferHandle handle) noexcept
     {
+        al_assert(handle.value != 0);
         return *indexBuffers.direct_accsess(static_cast<std::size_t>(handle.index));
     }
 
-    RendererVertexBufferHandle Renderer::create_vertex_buffer(const void* data, std::size_t size, VertexBufferCallback cb) noexcept
+    RendererVertexBufferHandle Renderer::reserve_vertex_buffer() noexcept
     {
+        al_profile_function();
         VertexBuffer** vb = vertexBuffers.get();
         al_assert(vb);
         *vb = nullptr;
-        RendererVertexBufferHandle handle
+        return
         {
-            .isValid = true,
+            .isValid = 1,
             .index = static_cast<uint64_t>(vertexBuffers.get_direct_index(vb))
         };
-        add_render_command([this, handle, data, size, cb]()
+    }
+
+    void Renderer::create_vertex_buffer(RendererVertexBufferHandle handle, const void* data, std::size_t size, VertexBufferCallback cb) noexcept
+    {
+        al_profile_function();
+        if (is_render_thread())
         {
-            vertex_buffer(handle) = ::al::engine::internal::create_vertex_buffer<EngineConfig::DEFAULT_RENDERER_TYPE>(data, size);
+            vertex_buffer(handle) = internal::create_vertex_buffer<EngineConfig::DEFAULT_RENDERER_TYPE>(data, size);
             if (cb)
             {
                 const_cast<VertexBufferCallback*>(&cb)->call(handle);
             }
-        });
-        return handle;
+        }
+        else
+        {
+            add_render_command([this, handle, data, size, cb]()
+            {
+                vertex_buffer(handle) = internal::create_vertex_buffer<EngineConfig::DEFAULT_RENDERER_TYPE>(data, size);
+                if (cb)
+                {
+                    const_cast<VertexBufferCallback*>(&cb)->call(handle);
+                }
+            });
+        }
+    }
+
+    void Renderer::destroy_vertex_buffer(RendererVertexBufferHandle handle) noexcept
+    {
+        al_profile_function();
+        if (is_render_thread())
+        {
+            internal::destroy_vertex_buffer<EngineConfig::DEFAULT_RENDERER_TYPE>(vertex_buffer(handle));
+            vertex_buffer(handle) = nullptr;
+        }
+        else
+        {
+            add_render_command([this, handle]()
+            {
+                internal::destroy_vertex_buffer<EngineConfig::DEFAULT_RENDERER_TYPE>(vertex_buffer(handle));
+                vertex_buffer(handle) = nullptr;
+            });
+        }
     }
 
     inline VertexBuffer*& Renderer::vertex_buffer(RendererVertexBufferHandle handle) noexcept
     {
+        al_assert(handle.value != 0);
         return *vertexBuffers.direct_accsess(static_cast<std::size_t>(handle.index));
     }
 
-    RendererVertexArrayHandle Renderer::create_vertex_array(VertexArrayCallback cb) noexcept
+    RendererVertexArrayHandle Renderer::reserve_vertex_array() noexcept
     {
+        al_profile_function();
         VertexArray** va = vertexArrays.get();
         al_assert(va);
         *va = nullptr;
-        RendererVertexArrayHandle handle
+        return
         {
-            .isValid = true,
+            .isValid = 1,
             .index = static_cast<uint64_t>(vertexArrays.get_direct_index(va))
         };
-        add_render_command([this, handle, cb]()
+    }
+
+    void Renderer::create_vertex_array(RendererVertexArrayHandle handle, VertexArrayCallback cb) noexcept
+    {
+        al_profile_function();
+        if (is_render_thread())
         {
-            vertex_array(handle) = ::al::engine::internal::create_vertex_array<EngineConfig::DEFAULT_RENDERER_TYPE>();
+            vertex_array(handle) = internal::create_vertex_array<EngineConfig::DEFAULT_RENDERER_TYPE>();
             if (cb)
             {
                 const_cast<VertexArrayCallback*>(&cb)->call(handle);
             }
-        });
-        return handle;
+        }
+        else
+        {
+            add_render_command([this, handle, cb]()
+            {
+                vertex_array(handle) = internal::create_vertex_array<EngineConfig::DEFAULT_RENDERER_TYPE>();
+                if (cb)
+                {
+                    const_cast<VertexArrayCallback*>(&cb)->call(handle);
+                }
+            });
+        }
+    }
+
+    void Renderer::destroy_vertex_array(RendererVertexArrayHandle handle) noexcept
+    {
+        al_profile_function();
+        if (is_render_thread())
+        {
+            internal::destroy_vertex_array<EngineConfig::DEFAULT_RENDERER_TYPE>(vertex_array(handle));
+            vertex_array(handle) = nullptr;
+        }
+        else
+        {
+            add_render_command([this, handle]()
+            {
+                internal::destroy_vertex_array<EngineConfig::DEFAULT_RENDERER_TYPE>(vertex_array(handle));
+                vertex_array(handle) = nullptr;
+            });
+        }
     }
 
     inline VertexArray*& Renderer::vertex_array(RendererVertexArrayHandle handle) noexcept
     {
+        al_assert(handle.value != 0);
         return *vertexArrays.direct_accsess(static_cast<std::size_t>(handle.index));
     }
 
-    RendererShaderHandle Renderer::create_shader(std::string_view vertexShaderSrc, std::string_view fragmentShaderSrc, ShaderCallback cb) noexcept
+    RendererShaderHandle Renderer::reserve_shader() noexcept
     {
+        al_profile_function();
         Shader** s = shaders.get();
         al_assert(s);
         *s = nullptr;
-        RendererShaderHandle handle
+        return
         {
-            .isValid = true,
+            .isValid = 1,
             .index = static_cast<uint64_t>(shaders.get_direct_index(s))
         };
-        add_render_command([this, handle, vertexShaderSrc, fragmentShaderSrc, cb]()
+    }
+
+    void Renderer::create_shader(RendererShaderHandle handle, std::string_view vertexShaderSrc, std::string_view fragmentShaderSrc, ShaderCallback cb) noexcept
+    {
+        al_profile_function();
+        if (is_render_thread())
         {
-            shader(handle) = ::al::engine::internal::create_shader<EngineConfig::DEFAULT_RENDERER_TYPE>(vertexShaderSrc, fragmentShaderSrc);
+            shader(handle) = internal::create_shader<EngineConfig::DEFAULT_RENDERER_TYPE>(vertexShaderSrc, fragmentShaderSrc);
             if (cb)
             {
                 const_cast<ShaderCallback*>(&cb)->call(handle);
             }
-        });
-        return handle;
+        }
+        else
+        {
+            add_render_command([this, handle, vertexShaderSrc, fragmentShaderSrc, cb]()
+            {
+                shader(handle) = internal::create_shader<EngineConfig::DEFAULT_RENDERER_TYPE>(vertexShaderSrc, fragmentShaderSrc);
+                if (cb)
+                {
+                    const_cast<ShaderCallback*>(&cb)->call(handle);
+                }
+            });
+        }
+    }
+
+    void Renderer::destroy_shader(RendererShaderHandle handle) noexcept
+    {
+        al_profile_function();
+        if (is_render_thread())
+        {
+            internal::destroy_shader<EngineConfig::DEFAULT_RENDERER_TYPE>(shader(handle));
+            shader(handle) = nullptr;
+        }
+        else
+        {
+            add_render_command([this, handle]()
+            {
+                internal::destroy_shader<EngineConfig::DEFAULT_RENDERER_TYPE>(shader(handle));
+                shader(handle) = nullptr;
+            });
+        }
     }
 
     inline Shader*& Renderer::shader(RendererShaderHandle handle) noexcept
     {
+        al_assert(handle.value != 0);
         return *shaders.direct_accsess(static_cast<std::size_t>(handle.index));
     }
 
-    RendererFramebufferHandle Renderer::create_framebuffer(const FramebufferDescription& description, FramebufferCallback cb) noexcept
+    RendererFramebufferHandle Renderer::reserve_framebuffer() noexcept
     {
+        al_profile_function();
         Framebuffer** f = framebuffers.get();
         al_assert(f);
         *f = nullptr;
-        RendererFramebufferHandle handle
+        return
         {
-            .isValid = true,
+            .isValid = 1,
             .index = static_cast<uint64_t>(framebuffers.get_direct_index(f))
         };
-        add_render_command([this, handle, description, cb]()
+    }
+
+    void Renderer::create_framebuffer(RendererFramebufferHandle handle, const FramebufferDescription& description, FramebufferCallback cb) noexcept
+    {
+        al_profile_function();
+        if (is_render_thread())
         {
-            framebuffer(handle) = ::al::engine::internal::create_framebuffer<EngineConfig::DEFAULT_RENDERER_TYPE>(description);
+            framebuffer(handle) = internal::create_framebuffer<EngineConfig::DEFAULT_RENDERER_TYPE>(description);
             if (cb)
             {
                 const_cast<FramebufferCallback*>(&cb)->call(handle);
             }
-        });
-        return handle;
+        }
+        else
+        {
+            add_render_command([this, handle, description, cb]()
+            {
+                framebuffer(handle) = internal::create_framebuffer<EngineConfig::DEFAULT_RENDERER_TYPE>(description);
+                if (cb)
+                {
+                    const_cast<FramebufferCallback*>(&cb)->call(handle);
+                }
+            });
+        }
+    }
+
+    void Renderer::destroy_framebuffer(RendererFramebufferHandle handle) noexcept
+    {
+        al_profile_function();
+        if (is_render_thread())
+        {
+            internal::destroy_framebuffer<EngineConfig::DEFAULT_RENDERER_TYPE>(framebuffer(handle));
+            framebuffer(handle) = nullptr;
+        }
+        else
+        {
+            add_render_command([this, handle]()
+            {
+                internal::destroy_framebuffer<EngineConfig::DEFAULT_RENDERER_TYPE>(framebuffer(handle));
+                framebuffer(handle) = nullptr;
+            });
+        }
     }
 
     inline Framebuffer*& Renderer::framebuffer(RendererFramebufferHandle handle) noexcept
     {
+        al_assert(handle.value != 0);
         return *framebuffers.direct_accsess(static_cast<std::size_t>(handle.index));
     }
 
-    RendererTexture2dHandle Renderer::create_texture_2d(std::string_view path, Texture2dCallback cb) noexcept
+    RendererTexture2dHandle Renderer::reserve_texture_2d() noexcept
     {
+        al_profile_function();
         Texture2d** tex = texture2ds.get();
         al_assert(tex);
         *tex = nullptr;
-        RendererTexture2dHandle handle
+        return
         {
-            .isValid = true,
+            .isValid = 1,
             .index = static_cast<uint64_t>(texture2ds.get_direct_index(tex))
         };
-        add_render_command([this, handle, path, cb]()
+    }
+
+    void Renderer::create_texture_2d(RendererTexture2dHandle handle, std::string_view path, Texture2dCallback cb) noexcept
+    {
+        al_profile_function();
+        if (is_render_thread())
         {
-            texture_2d(handle) = ::al::engine::internal::create_texture_2d<EngineConfig::DEFAULT_RENDERER_TYPE>(path);
+            texture_2d(handle) = internal::create_texture_2d<EngineConfig::DEFAULT_RENDERER_TYPE>(path);
             if (cb)
             {
                 const_cast<Texture2dCallback*>(&cb)->call(handle);
             }
-        });
-        return handle;
+        }
+        else
+        {
+            add_render_command([this, handle, path, cb]()
+            {
+                texture_2d(handle) = internal::create_texture_2d<EngineConfig::DEFAULT_RENDERER_TYPE>(path);
+                if (cb)
+                {
+                    const_cast<Texture2dCallback*>(&cb)->call(handle);
+                }
+            });
+        }
+    }
+
+    void Renderer::destroy_texture_2d(RendererTexture2dHandle handle) noexcept
+    {
+        al_profile_function();
+        if (is_render_thread())
+        {
+            internal::destroy_texture_2d<EngineConfig::DEFAULT_RENDERER_TYPE>(texture_2d(handle));
+            texture_2d(handle) = nullptr;
+        }
+        else
+        {
+            add_render_command([this, handle]()
+            {
+                internal::destroy_texture_2d<EngineConfig::DEFAULT_RENDERER_TYPE>(texture_2d(handle));
+                texture_2d(handle) = nullptr;
+            });
+        }
     }
 
     inline Texture2d*& Renderer::texture_2d(RendererTexture2dHandle handle) noexcept
     {
+        al_assert(handle.value != 0);
         return *texture2ds.direct_accsess(static_cast<std::size_t>(handle.index));
     }
 
@@ -293,14 +506,16 @@ namespace al::engine
                 };
                 gbufferDesciption.width = window->get_params()->width;
                 gbufferDesciption.height = window->get_params()->height;
-                gbuffer = create_framebuffer(gbufferDesciption);
+                gbuffer = reserve_framebuffer();
+                create_framebuffer(gbuffer, gbufferDesciption);
             }
             {
                 FileHandle* vertGpassShaderSrc = FileSystem::sync_load(EngineConfig::DEFFERED_GEOMETRY_PASS_VERT_SHADER_PATH, FileLoadMode::READ);
                 FileHandle* fragGpassShaderSrc = FileSystem::sync_load(EngineConfig::DEFFERED_GEOMETRY_PASS_FRAG_SHADER_PATH, FileLoadMode::READ);
                 const char* vertGpassShaderStr = reinterpret_cast<const char*>(vertGpassShaderSrc->memory);
                 const char* fragGpassShaderStr = reinterpret_cast<const char*>(fragGpassShaderSrc->memory);
-                gpassShader = create_shader(vertGpassShaderStr, fragGpassShaderStr, [this, vertGpassShaderSrc, fragGpassShaderSrc](RendererShaderHandle handle)
+                gpassShader = reserve_shader();
+                create_shader(gpassShader, vertGpassShaderStr, fragGpassShaderStr, [this, vertGpassShaderSrc, fragGpassShaderSrc](RendererShaderHandle handle)
                 {
                     FileSystem::free_handle(vertGpassShaderSrc);
                     FileSystem::free_handle(fragGpassShaderSrc);
@@ -313,7 +528,8 @@ namespace al::engine
                 FileHandle* fragDrawFramebufferToScreenShaderSrc = FileSystem::sync_load(EngineConfig::DRAW_FRAMEBUFFER_TO_SCREEN_FRAG_SHADER_PATH, FileLoadMode::READ);
                 const char* vertDrawFramebufferToScreenShaderStr = reinterpret_cast<const char*>(vertDrawFramebufferToScreenShaderSrc->memory);
                 const char* fragDrawFramebufferToScreenShaderStr = reinterpret_cast<const char*>(fragDrawFramebufferToScreenShaderSrc->memory);
-                drawFramebufferToScreenShader = create_shader(vertDrawFramebufferToScreenShaderStr, fragDrawFramebufferToScreenShaderStr, 
+                drawFramebufferToScreenShader = reserve_shader();
+                create_shader(drawFramebufferToScreenShader, vertDrawFramebufferToScreenShaderStr, fragDrawFramebufferToScreenShaderStr, 
                 [vertDrawFramebufferToScreenShaderSrc, fragDrawFramebufferToScreenShaderSrc](RendererShaderHandle handle)
                 {
                     FileSystem::free_handle(vertDrawFramebufferToScreenShaderSrc);
@@ -333,15 +549,18 @@ namespace al::engine
                     0, 1, 2,
                     2, 1, 3
                 };
-                screenRectangleVb = create_vertex_buffer(screenPlaneVertices, sizeof(screenPlaneVertices), [this](RendererVertexBufferHandle handle)
+                screenRectangleVb = reserve_vertex_buffer();
+                create_vertex_buffer(screenRectangleVb, screenPlaneVertices, sizeof(screenPlaneVertices), [this](RendererVertexBufferHandle handle)
                 {
                     vertex_buffer(handle)->set_layout(BufferLayout::ElementContainer{
                         BufferElement{ ShaderDataType::Float2, false }, // Position
                         BufferElement{ ShaderDataType::Float2, false }  // Uv
                     });
                 });
-                screenRectangleIb = create_index_buffer(screenPlaneIndices, sizeof(screenPlaneIndices) / sizeof(uint32_t));
-                screenRectangleVa = create_vertex_array([this](RendererVertexArrayHandle handle)
+                screenRectangleIb = reserve_index_buffer();
+                create_index_buffer(screenRectangleIb, screenPlaneIndices, sizeof(screenPlaneIndices) / sizeof(uint32_t));
+                screenRectangleVa = reserve_vertex_array();
+                create_vertex_array(screenRectangleVa, [this](RendererVertexArrayHandle handle)
                 {
                     vertex_array(handle)->set_vertex_buffer(vertex_buffer(screenRectangleVb));
                     vertex_array(handle)->set_index_buffer(index_buffer(screenRectangleIb));
@@ -425,12 +644,12 @@ namespace al::engine
         }
         {
             al_profile_scope("Renderer pre-terminate");
-            internal::destroy_framebuffer<EngineConfig::DEFAULT_RENDERER_TYPE>(framebuffer(gbuffer));
-            internal::destroy_shader<EngineConfig::DEFAULT_RENDERER_TYPE>(shader(gpassShader));
-            internal::destroy_shader<EngineConfig::DEFAULT_RENDERER_TYPE>(shader(drawFramebufferToScreenShader));
-            internal::destroy_vertex_array<EngineConfig::DEFAULT_RENDERER_TYPE>(vertex_array(screenRectangleVa));
-            internal::destroy_vertex_buffer<EngineConfig::DEFAULT_RENDERER_TYPE>(vertex_buffer(screenRectangleVb));
-            internal::destroy_index_buffer<EngineConfig::DEFAULT_RENDERER_TYPE>(index_buffer(screenRectangleIb));
+            destroy_framebuffer(gbuffer);
+            destroy_shader(gpassShader);
+            destroy_shader(drawFramebufferToScreenShader);
+            destroy_vertex_array(screenRectangleVa);
+            destroy_vertex_buffer(screenRectangleVb);
+            destroy_index_buffer(screenRectangleIb);
         }
         terminate_renderer();
     }

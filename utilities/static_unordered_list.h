@@ -55,6 +55,7 @@ namespace al
             {
                 SuListNode& node = nodes[it];
                 node.nextNode = nullptr;
+                ::new(&node.value) T{ };
             }
         }
 
@@ -79,10 +80,8 @@ namespace al
                     node->nextNode = node;
                     head = node;
                 }
-
                 size++;
             }
-
             return reinterpret_cast<T*>(pair.node);
         }
 
@@ -92,10 +91,8 @@ namespace al
             //         - might be nullptr
             //         - might be wrong pointer (not belongs to this list)
             //         - might be a pointer to an already removed element
-
             SuListNode* node = reinterpret_cast<SuListNode*>(element);
             SuListNode* prev = find_prev_node(node);
-
             if (prev == node)
             {
                 head = nullptr;
@@ -108,10 +105,8 @@ namespace al
                     head = node->nextNode;
                 }
             }
-
             node->value.~T();
             node->nextNode = nullptr;
-
             size--;
         }
 
@@ -125,7 +120,6 @@ namespace al
                     toRemove.push(element);
                 }
             });
-
             T* element;
             while(toRemove.pop(&element))
             {
@@ -184,7 +178,6 @@ namespace al
             {
                 return;
             }
-
             while(node)
             {
                 func(reinterpret_cast<T*>(node));
@@ -204,7 +197,6 @@ namespace al
             {
                 return;
             }
-
             while(node)
             {
                 const bool result = func(reinterpret_cast<T*>(node));
@@ -212,7 +204,6 @@ namespace al
                 {
                     break;
                 }
-
                 node = node->nextNode;
                 if (node == begin)
                 {
@@ -246,7 +237,7 @@ namespace al
         }
 
     private:
-        std::array<SuListNode, Size> nodes;
+        SuListNode nodes[Size];
         SuListNode* head;
         std::size_t size;
 

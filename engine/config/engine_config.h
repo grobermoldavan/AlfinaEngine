@@ -87,7 +87,7 @@ namespace al::engine
         static constexpr std::size_t                STATIC_STRING_LENGTH{ 256 };
 
         // Resource manager settings
-        static constexpr std::size_t                MAX_TEXTURES{ 1024 };
+        static constexpr std::size_t                RESOURCE_MAX_TEXTURES{ 1024 };
     };
 }
 
