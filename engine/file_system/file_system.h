@@ -11,6 +11,7 @@
 #include "engine/memory/memory_manager.h"
 #include "engine/job_system/job_system.h"
 #include "engine/debug/debug.h"
+#include "engine/containers/containers.h"
 
 #include "utilities/static_unordered_list.h"
 #include "utilities/array_container.h"
@@ -46,7 +47,7 @@ namespace al::engine
     public:
         using Job::Job;
 
-        char fileName[EngineConfig::ASYNC_FILE_READ_JOB_FILE_NAME_SIZE];
+        StaticString fileName;
         FileLoadMode mode;
         FileHandle* handle;
     };

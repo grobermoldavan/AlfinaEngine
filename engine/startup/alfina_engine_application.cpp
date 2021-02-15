@@ -150,13 +150,18 @@ namespace al::engine
         // static bool isInited = false;
 
         static TextureResourceHandle tex{ 0 };
+        static CpuMesh mesh;
         if (!tex.isValid)
         {
             tex = ResourceManager::get()->add_texture_resource(construct_path("assets", "materials", "metal_plate", "diffuse.png"));
+            FileHandle* meshFileHandle = FileSystem::sync_load((char*)construct_path("assets", "geometry", "cube.obj"), FileLoadMode::READ);
+            defer({ FileSystem::free_handle(meshFileHandle); });
+            mesh = load_cpu_mesh_obj(meshFileHandle);
+            mesh.submeshes.for_each([](CpuSubmesh* submesh)
+            {
+                al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Loaded submesh with name %s", submesh->name);
+            });
         }
-
-        // // static Geometry geom = load_geometry_from_obj(FileSystem::sync_load(construct_path("assets", "geometry", "cube.obj"), FileLoadMode::READ));
-        // static CpuMesh mesh = load_cpu_mesh_from_obj(FileSystem::sync_load(construct_path("assets", "geometry", "cube.obj"), FileLoadMode::READ));
 
         // if (!isInited)
         // {

@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <span>
+#include <type_traits>
 
 #include "utilities/function.h"
 
@@ -24,7 +25,16 @@ namespace al
         ArrayContainer() noexcept
             : currentSize{ 0 }
             , memory{ }
-        { }
+        {
+            if constexpr (!std::is_trivially_constructible_v<T>)
+            {
+                static_assert(std::is_default_constructible_v<T>, "ArrayContainer supports only default constructible types");
+                for (std::size_t it = 0; it < Size; it++)
+                {
+                    ::new(&memory[it]) T{ };
+                }
+            }
+        }
 
         ArrayContainer(std::initializer_list<T> args) noexcept
             : ArrayContainer{ }

@@ -68,7 +68,6 @@ namespace al::engine
     [[nodiscard]] FileHandle* FileSystem::instance_async_load(std::string_view file, FileLoadMode mode) noexcept
     {
         al_profile_function();
-        al_assert(EngineConfig::ASYNC_FILE_READ_JOB_FILE_NAME_SIZE > file.size());
         FileHandle* handle = get_file_handle();
         handle->state = FileHandle::State::LOADING;
         AsyncFileReadJob* job = get_file_load_job();
@@ -77,13 +76,12 @@ namespace al::engine
             [this](Job* baseJob)
             {
                 AsyncFileReadJob* job = static_cast<AsyncFileReadJob*>(baseJob);
-                *job->handle = al::engine::sync_load(job->fileName, allocator, job->mode);
+                *job->handle = al::engine::sync_load((char*)job->fileName, allocator, job->mode);
             }
         };
         job->handle = handle;
         job->mode = mode;
-        std::memcpy(job->fileName, file.data(), file.size());
-        job->fileName[file.size()] = 0;
+        job->fileName = file.data();
         JobSystem::add_job(job);
         return handle;
     }

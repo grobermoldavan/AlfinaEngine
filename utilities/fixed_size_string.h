@@ -32,7 +32,15 @@ namespace al
             {
                 return false;
             }
-            std::size_t length = std::strlen(cstr);
+            return set_with_length(cstr, std::strlen(cstr));
+        }
+
+        bool set_with_length(const char* cstr, std::size_t length) noexcept
+        {
+            if (!cstr)
+            {
+                return false;
+            }
             if (length > Size - 1)
             {
                 // String is too long

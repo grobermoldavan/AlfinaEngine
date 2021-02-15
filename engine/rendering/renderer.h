@@ -33,26 +33,6 @@ namespace al::engine
         /* TODO : implement */
     };
 
-    struct RendererHandleT
-    {
-        union
-        {
-            struct
-            {
-                uint64_t isValid : 1;
-                uint64_t index : 63;
-            };
-            uint64_t value;
-        };
-    };
-
-    using RendererIndexBufferHandle     = RendererHandleT;
-    using RendererVertexBufferHandle    = RendererHandleT;
-    using RendererVertexArrayHandle     = RendererHandleT;
-    using RendererShaderHandle          = RendererHandleT;
-    using RendererFramebufferHandle     = RendererHandleT;
-    using RendererTexture2dHandle       = RendererHandleT;
-
     using IndexBufferCallback   = Function<void(RendererIndexBufferHandle)>;
     using VertexBufferCallback  = Function<void(RendererVertexBufferHandle)>;
     using VertexArrayCallback   = Function<void(RendererVertexArrayHandle)>;

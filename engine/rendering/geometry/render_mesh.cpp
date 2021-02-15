@@ -1,10 +1,9 @@
 
-#include "mesh.h"
+#include "render_mesh.h"
 
 #include "engine/debug/debug.h"
 
 #include "utilities/string_processing.h"
-#define AL_SAFE_CAST_ASSERT(cond) al_assert(cond)
 #include "utilities/safe_cast.h"
 
 #define fill_vertex_data(v, word, array)                                              \
@@ -23,31 +22,30 @@
 
 namespace al::engine
 {
-    Mesh load_mesh_from_obj(FileHandle* handle) noexcept
+    CpuMesh load_cpu_mesh_obj(FileHandle* handle) noexcept
     {
         al_profile_function();
-        Mesh result{ };
-        SubMesh* activeSubMesh = nullptr;
-        // @TODO : reserve space in arrays
-        DynamicArray<float3> vertices;
-        DynamicArray<float3> normals;
-        DynamicArray<float2> uvs;
+        CpuMesh result{ };
+        CpuSubmesh* activeSubmesh = nullptr;
         const char* fileText = reinterpret_cast<const char*>(handle->memory);
+        DynamicArray<float3> positions; positions.reserve(EngineConfig::CPU_MESH_DEFAULT_DYNAMIC_ARRAYS_SIZE);
+        DynamicArray<float3> normals;   normals  .reserve(EngineConfig::CPU_MESH_DEFAULT_DYNAMIC_ARRAYS_SIZE);
+        DynamicArray<float2> uvs;       uvs      .reserve(EngineConfig::CPU_MESH_DEFAULT_DYNAMIC_ARRAYS_SIZE);
         for_each_line(fileText, [&](std::string_view line)
         {
             if (is_starts_with(line.data(), "v "))
             {
-                al_assert(activeSubMesh);
-                process_vertex(3, vertices);
+                al_assert(activeSubmesh);
+                process_vertex(3, positions);
             }
             else if (is_starts_with(line.data(), "vn "))
             {
-                al_assert(activeSubMesh);
+                al_assert(activeSubmesh);
                 process_vertex(3, normals);
             }
             else if (is_starts_with(line.data(), "vt "))
             {
-                al_assert(activeSubMesh);
+                al_assert(activeSubmesh);
                 process_vertex(2, uvs);
             }
             else if (is_starts_with(line.data(), "f "))
@@ -67,7 +65,7 @@ namespace al::engine
                         al_assert(castResult);
                     }
                 };
-                al_assert(activeSubMesh);
+                al_assert(activeSubmesh);
                 std::string_view word{ line.data(), 2 };
                 // @NOTE :  Only triangulated meshes are supported
                 for (uint32_t it = 0; it < 3; it++)
@@ -75,7 +73,7 @@ namespace al::engine
                     uint32_t v = 0;
                     {
                         word = get_next_word(word.data() + word.length(), "/");
-                        cast_from_obj(vertices.size(), std::strtoll(word.data(), nullptr, 10), &v);
+                        cast_from_obj(positions.size(), std::strtoll(word.data(), nullptr, 10), &v);
                     }
                     uint32_t vt = 0;
                     if (uvs.size() > 0)
@@ -89,9 +87,9 @@ namespace al::engine
                         word = get_next_word(word.data() + word.length(), "/");
                         cast_from_obj(normals.size(), std::strtoll(word.data(), nullptr, 10), &vn);
                     }
-                    activeSubMesh->vertices.push_back(
-                    {
-                        .position = vertices[v],
+                    activeSubmesh->vertices.push_back
+                    ({
+                        .position = positions[v],
                         .normal   = normals[vn],
                         .uv       = uvs[vt]
                     });
@@ -99,34 +97,19 @@ namespace al::engine
             }
             else if (is_starts_with(line.data(), "mtllib "))
             {
-
+                // Ignored ?
             }
             else if (is_starts_with(line.data(), "usemtl "))
             {
-
+                // Ignored ?
             }
             else if (is_starts_with(line.data(), "o "))
             {
-                if (activeSubMesh)
-                {
-                    // @NOTE :  Triangle is needed to invert indices of triangles
-                    //          because opengl expects them the other way around.
-                    //          I'm not shure if it is common for all OBJ files, but
-                    //          it is the thing with files exported from blender
-                    uint32_t triangleIt = 0;
-                    for (uint32_t it = 0; it < activeSubMesh->vertices.size(); it++)
-                    {
-                        // 0 : 2, 1 : 0, 2 : -2
-                        int32_t additional = (triangleIt == 0) ? 2 : (triangleIt == 1) ? 0 : -2;
-                        activeSubMesh->indices.push_back(activeSubMesh->indices.size() + additional);
-                        triangleIt = (triangleIt + 1) % 3;
-                    }
-                }
-                activeSubMesh = result.subMeshes.get();
-                al_assert(activeSubMesh);
-                std::string_view subMeshName = get_next_word(line.data() + 2);
-                activeSubMesh->name = subMeshName.data();
-                vertices.clear();
+                activeSubmesh = result.submeshes.get();
+                al_assert(activeSubmesh);
+                std::string_view submeshName = get_next_word(line.data() + 2);
+                activeSubmesh->name.set_with_length(submeshName.data(), submeshName.length());
+                positions.clear();
                 normals.clear();
                 uvs.clear();
             }
@@ -135,6 +118,6 @@ namespace al::engine
                 // Ignored ?
             }
         });
-        return result;
+        return std::move(result);
     }
 }

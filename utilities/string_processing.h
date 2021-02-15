@@ -41,7 +41,7 @@ namespace al::engine
 
         auto isSeparatedByMainSeparators = [](const char symbol) -> bool
         {
-            return (symbol == '\0') || (symbol == ' ');
+            return (symbol == '\0') || (symbol == ' ') || (symbol == '\n');
         };
 
         auto isSeparatedByAdditionalSeparators = [](const char symbol, const char* additionalSeparators) -> bool
