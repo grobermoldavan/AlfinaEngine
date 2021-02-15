@@ -28,7 +28,6 @@ namespace al::engine
         // File System settings
         static constexpr std::size_t                MAX_FILE_HANDLES{ 4096 };
         static constexpr std::size_t                MAX_ASYNC_FILE_READ_JOBS{ 128 };
-        static constexpr std::size_t                ASYNC_FILE_READ_JOB_FILE_NAME_SIZE{ 128 };
 
         // Job System settings
         static constexpr std::size_t                MAX_JOBS{ 1024 };
@@ -64,7 +63,7 @@ namespace al::engine
 
         static constexpr const char*                OPENGL_RENDERER_LOG_CATEGORY{ "OpenGL" };
 
-        static constexpr std::size_t                GPU_MESH_MAX_SUBMESHES{ 16 };
+        static constexpr std::size_t                RENDER_MESH_MAX_SUBMESHES{ 16 };
 
         static constexpr std::size_t                RENDERER_MAX_INDEX_BUFFERS{ 1024 };
         static constexpr std::size_t                RENDERER_MAX_VERTEX_BUFFERS{ 1024 };
@@ -88,6 +87,9 @@ namespace al::engine
 
         // Resource manager settings
         static constexpr std::size_t                RESOURCE_MAX_TEXTURES{ 1024 };
+
+        // Render mesh settings
+        static constexpr std::size_t                CPU_MESH_DEFAULT_DYNAMIC_ARRAYS_SIZE{ 2048 };
     };
 }
 
