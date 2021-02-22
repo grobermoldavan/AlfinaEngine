@@ -1,5 +1,6 @@
 #define AL_LOGGING_ENABLED
 #define AL_PROFILING_ENABLED
+#define AL_DEBUG
 
 #include "engine/engine.h"
 

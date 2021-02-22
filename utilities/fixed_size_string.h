@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstring>
+#include <iostream>
 
 namespace al
 {
@@ -79,6 +80,11 @@ namespace al
         }
 
         operator char* () noexcept
+        {
+            return buffer;
+        }
+
+        operator const char* () const noexcept
         {
             return buffer;
         }

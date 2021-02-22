@@ -1,7 +1,7 @@
 #ifndef AL_ALFINA_ENGINE_APPLICATION_H
 #define AL_ALFINA_ENGINE_APPLICATION_H
 
-#include <span>
+#include <span> // for std::span
 
 #include "engine/memory/memory_manager.h"
 #include "engine/job_system/job_system.h"

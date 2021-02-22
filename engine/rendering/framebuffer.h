@@ -53,14 +53,14 @@ namespace al::engine
     {
         template<RendererType type> [[nodiscard]] Framebuffer* create_framebuffer(const FramebufferDescription& description) noexcept
         {
-            al_log_error("Renderer", "Unsupported rendering API");
+            al_log_error(EngineConfig::RENDERER_LOG_CATEGORY, "Unsupported rendering API");
             al_assert(false);
             return nullptr;
         }
 
         template<RendererType type> void destroy_framebuffer(Framebuffer* fb) noexcept
         {
-            al_log_error("Renderer", "Unsupported rendering API");
+            al_log_error(EngineConfig::RENDERER_LOG_CATEGORY, "Unsupported rendering API");
             al_assert(false);
         }
 

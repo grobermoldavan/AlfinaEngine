@@ -1,7 +1,7 @@
 #ifndef AL_ALLOCATOR_BASE_H
 #define AL_ALLOCATOR_BASE_H
 
-#include <cstddef>
+#include <cstddef> // for std::size_t
 
 namespace al::engine
 {
@@ -23,6 +23,12 @@ namespace al::engine
             T* instance = allocate_as<T>();
             ::new(instance) T{ args... };
             return instance;
+        }
+
+        template<typename T>
+        inline void deallocate_as(T* ptr)
+        {
+            deallocate(reinterpret_cast<std::byte*>(ptr), sizeof(T));
         }
     };
 }

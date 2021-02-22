@@ -1,8 +1,6 @@
 #ifndef AL_PLATFORM_FILE_SYSTEM_UTILITIES_H
 #define AL_PLATFORM_FILE_SYSTEM_UTILITIES_H
 
-#include <string_view>
-
 #include "platform_file_system_config.h"
 #include "engine/containers/containers.h"
 

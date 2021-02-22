@@ -1,20 +1,13 @@
 #ifndef AL_FILE_SYSTEM_H
 #define AL_FILE_SYSTEM_H
 
-#include <string_view>
-#include <mutex>
-
 #include "engine/config/engine_config.h"
 
 #include "file_load.h"
 #include "engine/platform/platform_file_system_utilities.h"
 #include "engine/memory/memory_manager.h"
 #include "engine/job_system/job_system.h"
-#include "engine/debug/debug.h"
 #include "engine/containers/containers.h"
-
-#include "utilities/static_unordered_list.h"
-#include "utilities/array_container.h"
 
 /*
     @TODO : Main goal - add ability to async load files in file system.
@@ -42,47 +35,37 @@
 
 namespace al::engine
 {
-    class AsyncFileReadJob : public Job
+    struct AsyncFileReadUserData
     {
-    public:
-        using Job::Job;
-
-        StaticString fileName;
+        StaticString file;
         FileLoadMode mode;
         FileHandle* handle;
+    };
+
+    struct HandleJobPair
+    {
+        FileHandle* handle;
+        Job* job;
     };
 
     class FileSystem
     {
     public:
-        static void                         construct           ()                                          noexcept;
-        static void                         destruct            ()                                          noexcept;
-        static [[nodiscard]] FileHandle*    sync_load           (std::string_view file, FileLoadMode mode)  noexcept;
-        static [[nodiscard]] FileHandle*    async_load          (std::string_view file, FileLoadMode mode)  noexcept;
-        static void                         free_handle         (FileHandle* handle)                        noexcept;
-        static void                         remove_finished_jobs()                                          noexcept;
+        static void        construct() noexcept;
+        static void        destruct() noexcept;
+        static FileSystem* get() noexcept;
+
+        [[nodiscard]] FileHandle*   sync_load   (const StaticString& file, FileLoadMode mode)   noexcept;
+        [[nodiscard]] HandleJobPair async_load  (const StaticString& file, FileLoadMode mode)   noexcept;
+        void                        free_handle (FileHandle* handle)                            noexcept;
 
     private:
         static FileSystem* instance;
 
-        ArrayContainer<FileHandle, EngineConfig::MAX_FILE_HANDLES>          handles;
-        std::mutex                                                          handlesListMutex;
-        // @NOTE :  SuList does not copy objects from one place another, so it is
-        //          more suitable for storing Jobs because Jobs can't be copied
-        SuList<AsyncFileReadJob, EngineConfig::MAX_ASYNC_FILE_READ_JOBS>    jobs;
-        std::mutex                                                          jobsListMutex;
-        AllocatorBase*                                                      allocator;
-        Job                                                                 cleanupJob;
+        AllocatorBase* allocator;
 
-        FileSystem();
-        ~FileSystem();
-
-        [[nodiscard]] FileHandle*   instance_sync_load              (std::string_view file, FileLoadMode mode)  noexcept;
-        [[nodiscard]] FileHandle*   instance_async_load             (std::string_view file, FileLoadMode mode)  noexcept;
-        void                        instance_free_handle            (FileHandle* handle)                        noexcept;
-        void                        instance_remove_finished_jobs   ()                                          noexcept;
-        FileHandle*                 get_file_handle                 ()                                          noexcept;
-        AsyncFileReadJob*           get_file_load_job               ()                                          noexcept;
+        FileSystem() noexcept;
+        ~FileSystem() noexcept;
     };
 }
 

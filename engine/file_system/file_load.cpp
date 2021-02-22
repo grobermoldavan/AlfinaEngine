@@ -4,7 +4,7 @@ namespace al::engine
 {
     FileHandle sync_load(std::string_view name, AllocatorBase* allocator, FileLoadMode mode)
     {
-        std::FILE* file = std::fopen(name.data(), SYNC_LOAD_MODE_TO_STR[static_cast<int>(mode)]);   
+        std::FILE* file = std::fopen(name.data(), LOAD_MODE_TO_STR[static_cast<int>(mode)]);   
         al_assert(file);
 
         std::size_t fileSize;

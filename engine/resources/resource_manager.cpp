@@ -38,7 +38,7 @@ namespace al::engine
     ResourceManager::~ResourceManager() noexcept
     { }
 
-    TextureResourceHandle ResourceManager::add_texture_resource(StaticString path)
+    TextureResourceHandle ResourceManager::add_texture_resource(const StaticString& path)
     {
         al_profile_function();
         al_log_message(LOG_CATEGORY_RESOURCE_MANAGER, "Adding texture resource at path : \"%s\"", path);
@@ -58,12 +58,12 @@ namespace al::engine
             handle.index = textureResources.get_direct_index(resource);
             resource->path = path;
             resource->rendererHandle = Renderer::get()->reserve_texture_2d();
-            Renderer::get()->create_texture_2d(resource->rendererHandle, (char*)resource->path);
+            Renderer::get()->create_texture_2d(resource->rendererHandle, static_cast<const char*>(resource->path));
         }
         return handle;
     }
 
-    TextureResourceHandle ResourceManager::get_texture_resource(StaticString path)
+    TextureResourceHandle ResourceManager::get_texture_resource(const StaticString& path)
     {
         al_profile_function();
         TextureResourceHandle handle{ 0 };

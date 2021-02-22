@@ -22,14 +22,14 @@ namespace al::engine
     {
         template<RendererType type> [[nodiscard]] Texture2d* create_texture_2d(std::string_view path) noexcept
         {
-            al_log_error("Renderer", "Unsupported rendering API");
+            al_log_error(EngineConfig::RENDERER_LOG_CATEGORY, "Unsupported rendering API");
             al_assert(false);
             return nullptr;
         }
 
         template<RendererType type> void destroy_texture_2d(Texture2d* tex) noexcept
         {
-            al_log_error("Renderer", "Unsupported rendering API");
+            al_log_error(EngineConfig::RENDERER_LOG_CATEGORY, "Unsupported rendering API");
             al_assert(false);
         }
 

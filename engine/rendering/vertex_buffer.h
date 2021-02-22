@@ -86,14 +86,14 @@ namespace al::engine
     {
         template<RendererType type> [[nodiscard]] VertexBuffer* create_vertex_buffer(const void* data, std::size_t size) noexcept
         {
-            al_log_error("Renderer", "Unsupported rendering API");
+            al_log_error(EngineConfig::RENDERER_LOG_CATEGORY, "Unsupported rendering API");
             al_assert(false);
             return nullptr;
         }
 
         template<RendererType type> void destroy_vertex_buffer(VertexBuffer* vb) noexcept
         {
-            al_log_error("Renderer", "Unsupported rendering API");
+            al_log_error(EngineConfig::RENDERER_LOG_CATEGORY, "Unsupported rendering API");
             al_assert(false);
         }
 

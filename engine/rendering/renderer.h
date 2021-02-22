@@ -98,8 +98,6 @@ namespace al::engine
     protected:
         static Renderer* instance;
 
-        static constexpr const char* LOG_CATEGORY_RENDERER = "Renderer";
-
         SuList<IndexBuffer* , EngineConfig::RENDERER_MAX_INDEX_BUFFERS>     indexBuffers;
         SuList<VertexBuffer*, EngineConfig::RENDERER_MAX_VERTEX_BUFFERS>    vertexBuffers;
         SuList<VertexArray* , EngineConfig::RENDERER_MAX_VERTEX_ARRAYS>     vertexArrays;
@@ -151,7 +149,7 @@ namespace al::engine
         {
             // @NOTE :  This method is implemented at platform layer and it simply calls placement new
             //          with appropriate renderer type.
-            al_log_error("Renderer", "Unsupported rendering API");
+            al_log_error(EngineConfig::RENDERER_LOG_CATEGORY, "Unsupported rendering API");
             al_assert(false);
             return nullptr;
         }

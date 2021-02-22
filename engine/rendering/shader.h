@@ -40,14 +40,14 @@ namespace al::engine
     {
         template<RendererType type> [[nodiscard]] Shader* create_shader(std::string_view vertexShaderSrc, std::string_view fragmentShaderSrc) noexcept
         {
-            al_log_error("Renderer", "Unsupported rendering API");
+            al_log_error(EngineConfig::RENDERER_LOG_CATEGORY, "Unsupported rendering API");
             al_assert(false);
             return nullptr;
         }
 
         template<RendererType type> void destroy_shader(Shader* shader) noexcept
         {
-            al_log_error("Renderer", "Unsupported rendering API");
+            al_log_error(EngineConfig::RENDERER_LOG_CATEGORY, "Unsupported rendering API");
             al_assert(false);
         }
 

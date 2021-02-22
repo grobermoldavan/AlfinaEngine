@@ -1,22 +1,17 @@
 
 #include "file_system.h"
+#include "engine/debug/debug.h"
 
 namespace al::engine
 {
     FileSystem* FileSystem::instance{ nullptr };
 
-    FileSystem::FileSystem()
-        : handles{ }
-        , allocator{ MemoryManager::get_pool() }
+    FileSystem::FileSystem() noexcept
+        : allocator{ MemoryManager::get_pool() }
     { }
 
-    FileSystem::~FileSystem()
-    {
-        handles.for_each([this](FileHandle* handle)
-        {
-            allocator->deallocate(handle->memory, handle->size);
-        });
-    }
+    FileSystem::~FileSystem() noexcept
+    { }
 
     void FileSystem::construct() noexcept
     {
@@ -37,107 +32,53 @@ namespace al::engine
         instance->~FileSystem();
     }
 
-    inline [[nodiscard]] FileHandle* FileSystem::sync_load(std::string_view file, FileLoadMode mode) noexcept
+    FileSystem* FileSystem::get() noexcept
     {
-        return instance->instance_sync_load(file, mode);
+        return instance;
     }
-
-    inline [[nodiscard]] FileHandle* FileSystem::async_load(std::string_view file, FileLoadMode mode) noexcept
-    {
-        return instance->instance_async_load(file, mode);
-    }
-
-    inline void FileSystem::free_handle(FileHandle* handle) noexcept
-    {
-        instance->instance_free_handle(handle);
-    }
-
-    inline void FileSystem::remove_finished_jobs() noexcept
-    {
-        instance->instance_remove_finished_jobs();
-    }
-
-    [[nodiscard]] FileHandle* FileSystem::instance_sync_load(std::string_view file, FileLoadMode mode) noexcept
+    
+    [[nodiscard]] FileHandle* FileSystem::sync_load(const StaticString& file, FileLoadMode mode) noexcept
     {
         al_profile_function();
-        FileHandle* handle = get_file_handle();
-        *handle = al::engine::sync_load(file, allocator, mode);
+        al_log_message( EngineConfig::FILE_SYSTEM_LOG_CATEGORY,
+                        "Requested sync load file at path %s with mode %s",
+                        file, LOAD_MODE_TO_STR[static_cast<int>(mode)]);
+        FileHandle* handle = allocator->allocate_and_construct<FileHandle>();
+        *handle = al::engine::sync_load(static_cast<const char*>(file), allocator, mode);
         return handle;
     }
 
-    [[nodiscard]] FileHandle* FileSystem::instance_async_load(std::string_view file, FileLoadMode mode) noexcept
+    [[nodiscard]] HandleJobPair FileSystem::async_load(const StaticString& file, FileLoadMode mode) noexcept
     {
         al_profile_function();
-        FileHandle* handle = get_file_handle();
+        al_log_message( EngineConfig::FILE_SYSTEM_LOG_CATEGORY,
+                        "Requested async load file at path %s with mode %s",
+                        file, LOAD_MODE_TO_STR[static_cast<int>(mode)]);
+        FileHandle* handle = allocator->allocate_and_construct<FileHandle>();
         handle->state = FileHandle::State::LOADING;
-        AsyncFileReadJob* job = get_file_load_job();
-        ::new(job) AsyncFileReadJob
+        AsyncFileReadUserData* userData = allocator->allocate_and_construct<AsyncFileReadUserData>();
+        userData->file = file;
+        userData->mode = mode;
+        userData->handle = handle;
+        Job* job = JobSystem::get()->get_job();
+        job->configure([this](Job* job)
         {
-            [this](Job* baseJob)
-            {
-                AsyncFileReadJob* job = static_cast<AsyncFileReadJob*>(baseJob);
-                *job->handle = al::engine::sync_load((char*)job->fileName, allocator, job->mode);
-            }
-        };
-        job->handle = handle;
-        job->mode = mode;
-        job->fileName = file.data();
-        JobSystem::add_job(job);
-        return handle;
+            AsyncFileReadUserData* userData = reinterpret_cast<AsyncFileReadUserData*>(job->get_user_data());
+            al_log_message( EngineConfig::FILE_SYSTEM_LOG_CATEGORY,
+                            "Processing async load of file at path %s with mode %s",
+                            userData->file, LOAD_MODE_TO_STR[static_cast<int>(userData->mode)]);
+            *userData->handle = al::engine::sync_load(static_cast<const char*>(userData->file), allocator, userData->mode);
+        }, userData);
+        JobSystem::get()->start_job(job);
+        return { handle, job };
     }
 
-    void FileSystem::instance_free_handle(FileHandle* handle) noexcept
+    void FileSystem::free_handle(FileHandle* handle) noexcept
     {
         al_profile_function();
         // @TODO : implement freeing currently loading handle
         al_assert(handle->state != FileHandle::State::LOADING);
         allocator->deallocate(handle->memory, handle->size);
-        {
-            std::lock_guard<std::mutex> lock{ handlesListMutex };
-            handles.remove_by_condition([&](FileHandle* containerHandle) -> bool
-            {
-                return containerHandle == handle;
-            });
-        }
-    }
-
-    FileHandle* FileSystem::get_file_handle() noexcept
-    {
-        al_profile_function();
-        FileHandle* handle = nullptr;
-        {
-            std::lock_guard<std::mutex> lock{ handlesListMutex };
-            handle = handles.get();
-        }
-        // Out of handles
-        al_assert(handle);
-        return handle;
-    }
-
-    AsyncFileReadJob* FileSystem::get_file_load_job() noexcept
-    {
-        al_profile_function();
-        AsyncFileReadJob* job = nullptr;
-        {
-            std::lock_guard<std::mutex> lock{ jobsListMutex };
-            job = jobs.get();
-        }
-        // Out of jobs
-        al_assert(job);
-        return job;
-    }
-
-    // @NOTE :  after async load job has been finished it will not be removed
-    //          until this method is called. So, this method must be called if
-    //          there is no more jobs left in sulist, or regularly (each frame
-    //          every other frame, for example)
-    void FileSystem::instance_remove_finished_jobs() noexcept
-    {
-        al_profile_function();
-        std::lock_guard<std::mutex> lock{ jobsListMutex };
-        jobs.remove_by_condition([](AsyncFileReadJob* job) -> bool
-        {
-            return job->is_finished();
-        });
+        allocator->deallocate_as<FileHandle>(handle);
     }
 }

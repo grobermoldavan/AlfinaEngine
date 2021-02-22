@@ -55,6 +55,7 @@ namespace al::engine
     {
         using ClockT = std::chrono::steady_clock;
         using DtDuration = std::chrono::duration<float>;
+        al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Starting application");
         {
             al_profile_scope("Print log buffer");
             debug::Logger::print_log_buffer();
@@ -63,7 +64,6 @@ namespace al::engine
             al_profile_scope("Print profile buffer");
             debug::Logger::print_profile_buffer();
         }
-        al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Starting application");
         frameCount = 0;
         auto previousTime = ClockT::now();
         while(true)
@@ -151,16 +151,27 @@ namespace al::engine
 
         static TextureResourceHandle tex{ 0 };
         static CpuMesh mesh;
+
         if (!tex.isValid)
         {
             tex = ResourceManager::get()->add_texture_resource(construct_path("assets", "materials", "metal_plate", "diffuse.png"));
-            FileHandle* meshFileHandle = FileSystem::sync_load((char*)construct_path("assets", "geometry", "cube.obj"), FileLoadMode::READ);
-            defer({ FileSystem::free_handle(meshFileHandle); });
-            mesh = load_cpu_mesh_obj(meshFileHandle);
-            mesh.submeshes.for_each([](CpuSubmesh* submesh)
             {
-                al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Loaded submesh with name %s", submesh->name);
-            });
+                auto [handle, loadJob] = FileSystem::get()->async_load(construct_path("assets", "geometry", "cube.obj"), FileLoadMode::READ);
+                Job* postLoadJob = JobSystem::get()->get_job();
+                CpuMesh* meshPtr = &mesh;
+                postLoadJob->configure([handle, meshPtr](Job* job)
+                {
+                    al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Loading mesh");
+                    *meshPtr = load_cpu_mesh_obj(handle);
+                    meshPtr->submeshes.for_each([](CpuSubmesh* submesh)
+                    {
+                        al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Loaded submesh with name %s", submesh->name);
+                    });
+                    FileSystem::get()->free_handle(handle);
+                });
+                postLoadJob->set_after(loadJob);
+                JobSystem::get()->start_job(postLoadJob);
+            }
         }
 
         // if (!isInited)
@@ -238,7 +249,6 @@ namespace al::engine
     {
         al_profile_function();
         defaultScene->update_transforms();
-        FileSystem::remove_finished_jobs();
         {
             al_profile_scope("Print log buffer");
             debug::Logger::print_log_buffer();
@@ -275,7 +285,7 @@ namespace al::engine
         ArrayContainer<ThreadHandle, EngineConfig::MAX_SUPPORTED_THREADS> threads;
         threads.push(get_current_thread_handle());
         threads.push(Renderer::get()->get_render_thread()->native_handle());
-        std::span<JobSystemThread> jobSystemThread = JobSystem::get_threads();
+        std::span<JobSystemThread> jobSystemThread = JobSystem::get()->get_threads();
         for (JobSystemThread& jobSystemThread : jobSystemThread)
         {
             threads.push(jobSystemThread.get_thread()->native_handle());

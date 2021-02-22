@@ -25,14 +25,14 @@ namespace al::engine
     {
         template<RendererType type> [[nodiscard]] VertexArray* create_vertex_array() noexcept
         {
-            al_log_error("Renderer", "Unsupported rendering API");
+            al_log_error(EngineConfig::RENDERER_LOG_CATEGORY, "Unsupported rendering API");
             al_assert(false);
             return nullptr;
         }
 
         template<RendererType type> void destroy_vertex_array(VertexArray* va) noexcept
         {
-            al_log_error("Renderer", "Unsupported rendering API");
+            al_log_error(EngineConfig::RENDERER_LOG_CATEGORY, "Unsupported rendering API");
             al_assert(false);
         }
 

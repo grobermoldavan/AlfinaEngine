@@ -510,30 +510,30 @@ namespace al::engine
                 create_framebuffer(gbuffer, gbufferDesciption);
             }
             {
-                FileHandle* vertGpassShaderSrc = FileSystem::sync_load(EngineConfig::DEFFERED_GEOMETRY_PASS_VERT_SHADER_PATH, FileLoadMode::READ);
-                FileHandle* fragGpassShaderSrc = FileSystem::sync_load(EngineConfig::DEFFERED_GEOMETRY_PASS_FRAG_SHADER_PATH, FileLoadMode::READ);
+                FileHandle* vertGpassShaderSrc = FileSystem::get()->sync_load(EngineConfig::DEFFERED_GEOMETRY_PASS_VERT_SHADER_PATH, FileLoadMode::READ);
+                FileHandle* fragGpassShaderSrc = FileSystem::get()->sync_load(EngineConfig::DEFFERED_GEOMETRY_PASS_FRAG_SHADER_PATH, FileLoadMode::READ);
                 const char* vertGpassShaderStr = reinterpret_cast<const char*>(vertGpassShaderSrc->memory);
                 const char* fragGpassShaderStr = reinterpret_cast<const char*>(fragGpassShaderSrc->memory);
                 gpassShader = reserve_shader();
                 create_shader(gpassShader, vertGpassShaderStr, fragGpassShaderStr, [this, vertGpassShaderSrc, fragGpassShaderSrc](RendererShaderHandle handle)
                 {
-                    FileSystem::free_handle(vertGpassShaderSrc);
-                    FileSystem::free_handle(fragGpassShaderSrc);
+                    FileSystem::get()->free_handle(vertGpassShaderSrc);
+                    FileSystem::get()->free_handle(fragGpassShaderSrc);
                     shader(handle)->bind();
                     shader(handle)->set_int(EngineConfig::DEFFERED_GEOMETRY_PASS_DIFFUSE_TEXTURE_NAME, EngineConfig::DEFFERED_GEOMETRY_PASS_DIFFUSE_TEXTURE_LOCATION);
                 });
             }
             {
-                FileHandle* vertDrawFramebufferToScreenShaderSrc = FileSystem::sync_load(EngineConfig::DRAW_FRAMEBUFFER_TO_SCREEN_VERT_SHADER_PATH, FileLoadMode::READ);
-                FileHandle* fragDrawFramebufferToScreenShaderSrc = FileSystem::sync_load(EngineConfig::DRAW_FRAMEBUFFER_TO_SCREEN_FRAG_SHADER_PATH, FileLoadMode::READ);
+                FileHandle* vertDrawFramebufferToScreenShaderSrc = FileSystem::get()->sync_load(EngineConfig::DRAW_FRAMEBUFFER_TO_SCREEN_VERT_SHADER_PATH, FileLoadMode::READ);
+                FileHandle* fragDrawFramebufferToScreenShaderSrc = FileSystem::get()->sync_load(EngineConfig::DRAW_FRAMEBUFFER_TO_SCREEN_FRAG_SHADER_PATH, FileLoadMode::READ);
                 const char* vertDrawFramebufferToScreenShaderStr = reinterpret_cast<const char*>(vertDrawFramebufferToScreenShaderSrc->memory);
                 const char* fragDrawFramebufferToScreenShaderStr = reinterpret_cast<const char*>(fragDrawFramebufferToScreenShaderSrc->memory);
                 drawFramebufferToScreenShader = reserve_shader();
                 create_shader(drawFramebufferToScreenShader, vertDrawFramebufferToScreenShaderStr, fragDrawFramebufferToScreenShaderStr, 
                 [vertDrawFramebufferToScreenShaderSrc, fragDrawFramebufferToScreenShaderSrc](RendererShaderHandle handle)
                 {
-                    FileSystem::free_handle(vertDrawFramebufferToScreenShaderSrc);
-                    FileSystem::free_handle(fragDrawFramebufferToScreenShaderSrc);
+                    FileSystem::get()->free_handle(vertDrawFramebufferToScreenShaderSrc);
+                    FileSystem::get()->free_handle(fragDrawFramebufferToScreenShaderSrc);
                 });
             }
             {
@@ -607,12 +607,12 @@ namespace al::engine
                     {
                         if (!data->va)
                         {
-                            al_log_error(LOG_CATEGORY_RENDERER, "Trying to process draw command, but vertex array is null");
+                            al_log_error(EngineConfig::RENDERER_LOG_CATEGORY, "Trying to process draw command, but vertex array is null");
                             return;
                         }
                         if (!data->diffuseTexture)
                         {
-                            al_log_error(LOG_CATEGORY_RENDERER, "Trying to process draw command, but diffuse texture is null");
+                            al_log_error(EngineConfig::RENDERER_LOG_CATEGORY, "Trying to process draw command, but diffuse texture is null");
                             return;
                         }
                         data->diffuseTexture->bind(EngineConfig::DEFFERED_GEOMETRY_PASS_DIFFUSE_TEXTURE_LOCATION);

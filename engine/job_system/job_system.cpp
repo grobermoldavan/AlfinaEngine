@@ -1,101 +1,26 @@
 
 #include "job_system.h"
+#include "engine/memory/memory_manager.h"
+#include "engine/debug/debug.h"
 
 namespace al::engine
 {
-    Job::Job() noexcept
-        : unfinishedJobs{ 0 }
-        , dispatchFunction{ }
-        , parent{ nullptr }
-    { }
-
-    Job::Job(DispatchFunction func, Job* parent) noexcept
-        : unfinishedJobs{ 1 }
-        , dispatchFunction{ func }
-        , parent{ parent }
-    {
-        if (parent)
-        {
-            parent->unfinishedJobs.fetch_add(1, std::memory_order_relaxed);
-        }
-    }
-
-    void Job::dispatch() noexcept
-    {
-        dispatchFunction(this);
-        finish();
-    }
-    
-    bool Job::is_finished() const noexcept
-    {
-        return unfinishedJobs.load(std::memory_order_relaxed) == 0;
-    }
-
-    void Job::finish() noexcept
-    {
-        al_assert(unfinishedJobs != 0);
-        unfinishedJobs.fetch_sub(1, std::memory_order_relaxed);
-        if (is_finished() && parent)
-        {
-            parent->finish();
-        }
-    }
-
-    JobSystemThread::JobSystemThread() noexcept
-        : shouldRun{ true }
-    { 
-        thread = std::thread{ &JobSystemThread::work, this };
-    }
-
-    JobSystemThread::~JobSystemThread() noexcept
-    {
-        shouldRun = false;
-        try
-        {
-            thread.join();
-        }
-        catch(const std::exception& e)
-        {
-            // @TODO : handle system error
-            al_assert_msg(false, "Unable to join thread - exception was thrown. Message : %s", e.what());
-        }
-    }
-
-    std::thread* JobSystemThread::get_thread() noexcept
-    {
-        return &thread;
-    }
-
-    void JobSystemThread::work() noexcept
-    {
-        while(shouldRun)
-        {
-            Job* job = get_job();
-            if (job)
-            {
-                job->dispatch();
-            }
-            else
-            {
-                std::this_thread::sleep_for(EngineConfig::JOB_THREAD_SLEEP_TIME);
-            }
-        }
-    }
-
-    Job* JobSystemThread::get_job() noexcept
-    {
-        return JobSystem::get_job();
-    }
-
     JobSystem* JobSystem::instance{ nullptr };
 
     JobSystem::JobSystem(std::size_t numThreads) noexcept
         : threads{ reinterpret_cast<JobSystemThread*>(MemoryManager::get_stack()->allocate(sizeof(JobSystemThread) * numThreads)), numThreads }
         , jobs{ }
+        , freeJobs{ }
+        , jobQueue{ }
     {
         for (JobSystemThread& thread : threads)
         {
             new(&thread) JobSystemThread{ };
+        }
+        for (std::size_t it = 0; it < EngineConfig::MAX_JOBS; it++)
+        {
+            Job* job = &jobs[it];
+            freeJobs.enqueue(&job);
         }
     }
 
@@ -126,47 +51,65 @@ namespace al::engine
         instance->~JobSystem();
     }
 
-    inline void JobSystem::add_job(Job* job) noexcept
+    JobSystem* JobSystem::get() noexcept
     {
-        instance->instance_add_job(job);
+        return instance;
     }
 
-    inline Job* JobSystem::get_job() noexcept
+    Job* JobSystem::get_job() noexcept
     {
-        return instance->instance_get_job();
+        Job* job = nullptr;
+        freeJobs.dequeue(&job);
+        al_assert(job);
+        ::new(job) Job{ };
+        return job;
     }
 
-    inline void JobSystem::wait_for(Job* job) noexcept
+    void JobSystem::return_job(Job* job) noexcept
     {
-        instance->instance_wait_for(job);
+        al_assert(job);
+        al_assert(job->is_finished());
+        job->~Job();
+        freeJobs.enqueue(&job);
+    }
+
+    void JobSystem::start_job(Job* job) noexcept
+    {
+        al_assert_msg(!job->is_finished(), "Trying to start job that is finished or not configured");
+        if (job->is_ready_for_dispatch())
+        {
+            add_job_to_queue(job);
+        }
     }
 
     inline std::span<JobSystemThread> JobSystem::get_threads() noexcept
     {
-        return instance->threads;
+        return threads;
     }
 
-    void JobSystem::instance_add_job(Job* job) noexcept
+    void JobSystem::add_job_to_queue(Job* job) noexcept
     {
-        bool result = jobs.enqueue(&job);
+        al_assert_msg(job->is_ready_for_dispatch(), "add_job_to_queue only adds jobs that are ready for dispatch");
+        bool result = jobQueue.enqueue(&job);
         al_assert(result);
     }
 
-    Job* JobSystem::instance_get_job() noexcept
+    Job* JobSystem::get_job_from_queue() noexcept
     {
         Job* job = nullptr;
-        bool result = jobs.dequeue(&job);
+        bool result = jobQueue.dequeue(&job);
+        al_assert_msg(!job || job->is_ready_for_dispatch(), "Job must be ready for dispatch");
         return job;
     }
 
-    void JobSystem::instance_wait_for(Job* job) noexcept
+    void JobSystem::wait_for(Job* job) noexcept
     {
         while(!job->is_finished())
         {
-            Job* job = get_job();
-            if (job)
+            Job* otherJob = get_job_from_queue();
+            if (otherJob)
             {
-                job->dispatch();
+                otherJob->dispatch();
             }
             else
             {

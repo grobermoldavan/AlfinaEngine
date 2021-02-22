@@ -1,8 +1,8 @@
 #ifndef OS_WINDOW_H
 #define OS_WINDOW_H
 
-#include <string_view>
-#include <cstdint>
+#include <string_view>  // for std::string_view
+#include <cstdint>      // for int types
 
 #include "utilities/flags.h"
 

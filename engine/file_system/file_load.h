@@ -6,6 +6,7 @@
 #include <string_view>
 
 #include "engine/debug/debug.h"
+#include "engine/memory/memory_common.h"
 #include "engine/memory/allocator_base.h"
 
 namespace al::engine
@@ -16,7 +17,7 @@ namespace al::engine
         WRITE
     };
 
-    struct FileHandle
+    struct al_align FileHandle
     {
         enum class State
         {
@@ -30,7 +31,7 @@ namespace al::engine
         std::byte* memory;
     };
 
-    static const char* SYNC_LOAD_MODE_TO_STR[] =
+    static const char* LOAD_MODE_TO_STR[] =
     {
         "rb",
         "wb"

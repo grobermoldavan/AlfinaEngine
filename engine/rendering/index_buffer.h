@@ -23,14 +23,14 @@ namespace al::engine
     {
         template<RendererType type> [[nodiscard]] IndexBuffer* create_index_buffer(uint32_t* indices, std::size_t count) noexcept
         {
-            al_log_error("Renderer", "Unsupported rendering API");
+            al_log_error(EngineConfig::RENDERER_LOG_CATEGORY, "Unsupported rendering API");
             al_assert(false);
             return nullptr;
         }
 
         template<RendererType type> void destroy_index_buffer(IndexBuffer* ib) noexcept
         {
-            al_log_error("Renderer", "Unsupported rendering API");
+            al_log_error(EngineConfig::RENDERER_LOG_CATEGORY, "Unsupported rendering API");
             al_assert(false);
         }
 

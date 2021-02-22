@@ -145,6 +145,18 @@ namespace al
             return &memory[currentSize];
         }
 
+        void clear() noexcept
+        {
+            if constexpr (!std::is_trivially_destructible_v<T>)
+            {
+                for (std::size_t it = 0; it < currentSize; it++)
+                {
+                    at(it).~T();
+                }
+            }
+            currentSize = 0 ;
+        }
+
     private:
         std::size_t currentSize;
         T memory[Size];

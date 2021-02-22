@@ -1,7 +1,7 @@
 #ifndef AL_RESOURCE_MANAGER_H
 #define AL_RESOURCE_MANAGER_H
 
-#include <cstdint>
+#include <cstdint> // for uints
 
 #include "engine/config/engine_config.h"
 #include "engine/containers/containers.h"
@@ -38,8 +38,8 @@ namespace al::engine
         ResourceManager() noexcept;
         ~ResourceManager() noexcept;
 
-        TextureResourceHandle add_texture_resource(StaticString path);
-        TextureResourceHandle get_texture_resource(StaticString path);
+        TextureResourceHandle add_texture_resource(const StaticString& path);
+        TextureResourceHandle get_texture_resource(const StaticString& path);
         RendererTexture2dHandle get_renderer_texture_handle(TextureResourceHandle handle);
 
     private:

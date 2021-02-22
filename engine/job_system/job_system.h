@@ -1,96 +1,46 @@
 #ifndef AL_JOB_SYSTEM_H
 #define AL_JOB_SYSTEM_H
 
-#include <cstddef>
-#include <cstdint>
-#include <atomic>
-#include <thread>
-#include <span>
-#include <chrono>
-#include <cstring>
-#include <system_error>
+#include <cstddef>  // for std::size_t
+#include <span>     // for std::span
 
+#include "job_system_job.h"
+#include "job_system_thread.h"
 #include "engine/config/engine_config.h"
 
-#include "engine/memory/memory_manager.h"
-#include "engine/debug/debug.h"
-
-#include "utilities/concepts.h"
-#include "utilities/non_copyable.h"
 #include "utilities/thread_safe/thread_safe_queue.h"
-#include "utilities/function.h"
+#include "utilities/array_container.h"
+#include "utilities/static_unordered_list.h"
 
 namespace al::engine
 {
-    class Job : NonCopyable
+    class JobSystem
     {
     public:
-        using DispatchFunction = Function<void(Job*)>;
+        static void         construct   (std::size_t numThreads)    noexcept;
+        static void         destruct    ()                          noexcept;
+        static JobSystem*   get         ()                          noexcept;
+        
+        Job* get_job    () noexcept;
+        void return_job (Job* job) noexcept;
+        void start_job  (Job* job) noexcept;
 
-        Job() noexcept;
-        Job(DispatchFunction func, Job* parent = nullptr) noexcept;
+        void add_job_to_queue   (Job* job)  noexcept;
+        Job* get_job_from_queue ()          noexcept;
+        void wait_for           (Job* job)  noexcept;
 
-        void dispatch() noexcept;
-        bool is_finished() const noexcept;
-
-    protected:
-        typedef std::byte CachelinePadding[std::hardware_destructive_interference_size];
-
-        std::atomic<std::size_t> unfinishedJobs;
-        DispatchFunction dispatchFunction;
-        Job* parent;
-
-        CachelinePadding pad;
-
-        void finish() noexcept;
-    };
-
-    class JobSystem;
-
-    class JobSystemThread : NonCopyable
-    {
-    public:
-        JobSystemThread() noexcept;
-        ~JobSystemThread() noexcept;
-
-        std::thread* get_thread() noexcept;
-
-    private:
-        std::thread thread;
-        std::atomic<bool> shouldRun;
-        JobSystem* jobSystem;
-
-        void work() noexcept;
-        Job* get_job() noexcept;
-
-        friend JobSystem;
-    };
-
-    class JobSystem : NonCopyable
-    {
-    public:
-        static void construct   (std::size_t numThreads)    noexcept;
-        static void destruct    ()                          noexcept;
-        static void add_job     (Job* job)                  noexcept;
-        static Job* get_job     ()                          noexcept;
-        static void wait_for    (Job* job)                  noexcept;
-
-        static std::span<JobSystemThread> get_threads() noexcept;
+        std::span<JobSystemThread> get_threads() noexcept;
 
     private:
         static JobSystem* instance;
 
-        std::span<JobSystemThread> threads;
-        StaticThreadSafeQueue<Job*, EngineConfig::MAX_JOBS> jobs;
-
-        friend JobSystemThread;
+        std::span<JobSystemThread>                          threads;
+        Job                                                 jobs[EngineConfig::MAX_JOBS];   // Stores actual job objects
+        StaticThreadSafeQueue<Job*, EngineConfig::MAX_JOBS> freeJobs;                       // Stores unused jobs
+        StaticThreadSafeQueue<Job*, EngineConfig::MAX_JOBS> jobQueue;                       // Stores jobs that are ready for dispatch
 
         JobSystem(std::size_t numThreads) noexcept;
         ~JobSystem() noexcept;
-
-        void instance_add_job   (Job* job)  noexcept;
-        Job* instance_get_job   ()          noexcept;
-        void instance_wait_for  (Job* job)  noexcept;
     };
 }
 
