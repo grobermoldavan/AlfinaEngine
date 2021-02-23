@@ -2,23 +2,11 @@
 #include "render_mesh.h"
 
 #include "engine/debug/debug.h"
+#include "engine/job_system/job_system.h"
 
 #include "utilities/string_processing.h"
 #include "utilities/safe_cast.h"
-
-#define fill_vertex_data(v, word, array)                                              \
-    for (uint32_t it = 0; it < (sizeof(decltype(v)::elements) / sizeof(float)); it++) \
-    {                                                                                 \
-        word = get_next_word({ word.data() + word.length() });                        \
-        al_assert(word.length() > 0);                                                 \
-        v.elements[it] = std::strtof(word.data(), nullptr);                           \
-    }                                                                                 \
-    array.push_back(v)
-
-#define process_vertex(n, array)                \
-    std::string_view word{ line.data(), 2 };    \
-    float##n vert;                              \
-    fill_vertex_data(vert, word, array)
+#include "utilities/stack.h"
 
 namespace al::engine
 {
@@ -26,33 +14,54 @@ namespace al::engine
     {
         al_profile_function();
         CpuMesh result{ };
-        CpuSubmesh* activeSubmesh = nullptr;
         const char* fileText = reinterpret_cast<const char*>(handle->memory);
+        const char* fileTextPtr = fileText;
+        CpuSubmesh* activeSubmesh = nullptr;
         DynamicArray<float3> positions; positions.reserve(EngineConfig::CPU_MESH_DEFAULT_DYNAMIC_ARRAYS_SIZE);
         DynamicArray<float3> normals;   normals  .reserve(EngineConfig::CPU_MESH_DEFAULT_DYNAMIC_ARRAYS_SIZE);
         DynamicArray<float2> uvs;       uvs      .reserve(EngineConfig::CPU_MESH_DEFAULT_DYNAMIC_ARRAYS_SIZE);
-        for_each_line(fileText, [&](std::string_view line)
+        while(true)
         {
-            if (is_starts_with(line.data(), "v "))
+            if (is_starts_with(fileTextPtr, "v "))
             {
                 al_assert(activeSubmesh);
-                process_vertex(3, positions);
+                // @NOTE :  works only with three-component vectors
+                float3 position
+                {
+                    std::strtof((fileTextPtr = advance_to_next_word(fileTextPtr), fileTextPtr), nullptr),
+                    std::strtof((fileTextPtr = advance_to_next_word(fileTextPtr), fileTextPtr), nullptr),
+                    std::strtof((fileTextPtr = advance_to_next_word(fileTextPtr), fileTextPtr), nullptr)
+                };
+                positions.push_back(position);
             }
-            else if (is_starts_with(line.data(), "vn "))
+            else if (is_starts_with(fileTextPtr, "vn "))
             {
                 al_assert(activeSubmesh);
-                process_vertex(3, normals);
+                // @NOTE :  works only with three-component vectors
+                float3 normal
+                {
+                    std::strtof((fileTextPtr = advance_to_next_word(fileTextPtr), fileTextPtr), nullptr),
+                    std::strtof((fileTextPtr = advance_to_next_word(fileTextPtr), fileTextPtr), nullptr),
+                    std::strtof((fileTextPtr = advance_to_next_word(fileTextPtr), fileTextPtr), nullptr)
+                };
+                normals.push_back(normal);
             }
-            else if (is_starts_with(line.data(), "vt "))
+            else if (is_starts_with(fileTextPtr, "vt "))
             {
                 al_assert(activeSubmesh);
-                process_vertex(2, uvs);
+                // @NOTE :  works only with two-component vectors
+                float2 uv
+                {
+                    std::strtof((fileTextPtr = advance_to_next_word(fileTextPtr), fileTextPtr), nullptr),
+                    std::strtof((fileTextPtr = advance_to_next_word(fileTextPtr), fileTextPtr), nullptr)
+                };
+                uvs.push_back(uv);
             }
-            else if (is_starts_with(line.data(), "f "))
+            else if (is_starts_with(fileTextPtr, "f "))
             {
                 auto cast_from_obj = [](uint64_t arraySize, int64_t value, uint32_t* target)
                 {
-                    // OBJ format can't have zeros in face descriptions
+                    // @NOTE :  OBJ format can't have zeros in face descriptions
                     al_assert(value != 0);
                     if (value > 0)
                     {
@@ -65,27 +74,24 @@ namespace al::engine
                         al_assert(castResult);
                     }
                 };
-                al_assert(activeSubmesh);
-                std::string_view word{ line.data(), 2 };
-                // @NOTE :  Only triangulated meshes are supported
                 for (uint32_t it = 0; it < 3; it++)
                 {
                     uint32_t v = 0;
                     {
-                        word = get_next_word(word.data() + word.length(), "/");
-                        cast_from_obj(positions.size(), std::strtoll(word.data(), nullptr, 10), &v);
+                        fileTextPtr = advance_to_next_word(fileTextPtr, '/');
+                        cast_from_obj(positions.size(), std::strtoll(fileTextPtr, nullptr, 10), &v);
                     }
                     uint32_t vt = 0;
                     if (uvs.size() > 0)
                     {
-                        word = get_next_word(word.data() + word.length(), "/");
-                        cast_from_obj(uvs.size(), std::strtoll(word.data(), nullptr, 10), &vt);
+                        fileTextPtr = advance_to_next_word(fileTextPtr, '/');
+                        cast_from_obj(uvs.size(), std::strtoll(fileTextPtr, nullptr, 10), &vt);
                     }
                     uint32_t vn = 0;
                     if (normals.size() > 0)
                     {
-                        word = get_next_word(word.data() + word.length(), "/");
-                        cast_from_obj(normals.size(), std::strtoll(word.data(), nullptr, 10), &vn);
+                        fileTextPtr = advance_to_next_word(fileTextPtr, '/');
+                        cast_from_obj(normals.size(), std::strtoll(fileTextPtr, nullptr, 10), &vn);
                     }
                     activeSubmesh->vertices.push_back
                     ({
@@ -95,29 +101,44 @@ namespace al::engine
                     });
                 }
             }
-            else if (is_starts_with(line.data(), "mtllib "))
+            else if (is_starts_with(fileTextPtr, "mtllib "))
             {
                 // Ignored ?
             }
-            else if (is_starts_with(line.data(), "usemtl "))
+            else if (is_starts_with(fileTextPtr, "usemtl "))
             {
                 // Ignored ?
             }
-            else if (is_starts_with(line.data(), "o "))
+            // @NOTE :  Currently we treat objects ("o " lines) and groups ("g " lines) the same
+            else if (is_starts_with(fileTextPtr, "o ") || is_starts_with(fileTextPtr, "g "))
             {
+                if (activeSubmesh)
+                {
+                    const std::size_t size = activeSubmesh->vertices.size();
+                    activeSubmesh->indices.resize(size);
+                    for (std::size_t it = 0; it < size; it++)
+                    {
+                        activeSubmesh->indices.push_back(it);
+                    }
+                }
                 activeSubmesh = result.submeshes.get();
                 al_assert(activeSubmesh);
-                std::string_view submeshName = get_next_word(line.data() + 2);
-                activeSubmesh->name.set_with_length(submeshName.data(), submeshName.length());
+                fileTextPtr = advance_to_next_word(fileTextPtr);
+                const char* submeshNameStart = fileTextPtr;
+                fileTextPtr = advance_to_word_ending(fileTextPtr);
+                const char* submeshNameEnd = fileTextPtr;
+                activeSubmesh->name.set_with_length(submeshNameStart, submeshNameEnd - submeshNameStart);
                 positions.clear();
                 normals.clear();
                 uvs.clear();
             }
-            else if (is_starts_with(line.data(), "g "))
+            const char* prevFileTextPtr = fileTextPtr;
+            fileTextPtr = advance_to_next_line(fileTextPtr);
+            if (prevFileTextPtr == fileTextPtr)
             {
-                // Ignored ?
+                break;
             }
-        });
+        }
         return std::move(result);
     }
 }

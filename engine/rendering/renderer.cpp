@@ -95,14 +95,14 @@ namespace al::engine
     {
         al_profile_function();
         const bool waitResult = onFrameProcessEnd->wait_for(std::chrono::seconds{ 1 });
-        al_assert(waitResult); // Event was not fired. Probably something happend to render thread
+        // al_assert(waitResult); // Event was not fired. Probably something happend to render thread
     }
 
     void Renderer::wait_for_command_buffers_toggled() noexcept
     {
         al_profile_function();
         const bool waitResult = onCommandBufferToggled->wait_for(std::chrono::seconds{ 1 });
-        al_assert(waitResult); // Event was not fired. Probably something happend to render thread
+        // al_assert(waitResult); // Event was not fired. Probably something happend to render thread
         onCommandBufferToggled->reset();
     }
 

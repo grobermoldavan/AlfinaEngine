@@ -32,12 +32,11 @@ namespace al::engine
         virtual void initialize_components() noexcept;
         virtual void terminate_components() noexcept;
 
+        virtual void simulate(float dt) noexcept;
+
         void run() noexcept;
         void update_input() noexcept;
-        void simulate(float dt) noexcept;
         void process_end_frame() noexcept;
-
-        void dbg_render() noexcept;
 
     protected:
         static constexpr const char* LOG_CATEGORY_BASE_APPLICATION = "Engine";

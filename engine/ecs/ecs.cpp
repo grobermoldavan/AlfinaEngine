@@ -10,6 +10,11 @@
 
 namespace al::engine
 {
+    // @NOTE :  Component count starts with number one, not zero.
+    //          This is done because ECS system thinks that component array
+    //          with componentId == 0 is not used (see is_valid_component_array).
+    //          We could use additional bool value (isValid or something), but
+    //          currently this is not very neccessary.
     EcsWorld::ComponentId EcsWorld::ComponentCounter::count{ 1 };
 
     EcsWorld::EcsWorld() noexcept
@@ -58,6 +63,14 @@ namespace al::engine
         return handle;
     }
 
+    // @NOTE :  Process of adding components consists of several steps.
+    //          First, we save current entity component flags and make new
+    //          ones by adding flags of the components passed to a method.
+    //          If flags equal, we simply return because all needed components
+    //          are already added to an entity.
+    //          If flags not equal, we retrieve current entity archetype, then
+    //          we retrive (get or create) new archetype and move entity from
+    //          one archetype to another.
     template<typename ... T>
     void EcsWorld::add_components(EntityHandle handle) noexcept
     {
@@ -75,6 +88,9 @@ namespace al::engine
         move_entity_superset(oldArchetype, newArchetype, handle);
     }
 
+    // @NOTE :  Process of removing components is pretty similar to
+    //          the process of adding components. But instead of adding
+    //          flags we remove them.
     template<typename ... T>
     void EcsWorld::remove_components(EntityHandle handle) noexcept
     {
@@ -92,6 +108,11 @@ namespace al::engine
         move_entity_subset(oldArchetype, newArchetype, handle);
     }
 
+    // @NOTE :  Process of getting component is pretty straightforward.
+    //          First we check if component registerered in our system
+    //          and if entity actually has that component. After that
+    //          we accsess component array of entity archetype and
+    //          get the value from that array by index.
     template<typename T>
     T* EcsWorld::get_component(EntityHandle handle) noexcept
     {
@@ -101,6 +122,11 @@ namespace al::engine
         return accsess_component_template<T>(array, entity(handle)->arrayIndex);
     }
 
+    // @NOTE :  Iterating over some set of components is done the following way.
+    //          First we create component flags of the requested set of components.
+    //          Then we iterate over each archetype and check if this archetype
+    //          contains all required components. If it does, we iterate over each
+    //          entity in that archetype and call user function.
     template<typename ... T>
     void EcsWorld::for_each_fp(ForEachFunction<T...> func) noexcept
     {
@@ -122,6 +148,8 @@ namespace al::engine
         }
     }
 
+    // @NOTE :  same as for_each_fp but with Function object provided by user
+    //          instead of function pointer.
     template<typename ... T>
     void EcsWorld::for_each(Function<void(EcsWorld*, EntityHandle, T*...)> func) noexcept
     {
@@ -158,6 +186,7 @@ namespace al::engine
         return &componentInfos[componentId];
     }
 
+    // @NOTE :  Component size of zero is considered invalid.
     template<typename T>
     inline bool EcsWorld::is_component_registered() noexcept
     {
@@ -188,7 +217,6 @@ namespace al::engine
         {
             register_component<T>();
         }
-
         if constexpr (sizeof...(U) != 0)
         {
             register_components_if_needed<U...>();

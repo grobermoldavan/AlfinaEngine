@@ -84,7 +84,6 @@ namespace al::engine
             update_input();
             simulate(dt);
             Renderer::get()->wait_for_command_buffers_toggled();
-            dbg_render();
             process_end_frame();
             Renderer::get()->wait_for_render_finish();
         }
@@ -139,111 +138,84 @@ namespace al::engine
         dbgFlyCamera.process_inputs(&inputState.get_current(), dt);
     }
 
-    void AlfinaEngineApplication::dbg_render() noexcept
-    {
-        al_profile_function();
-
-        // static VertexBuffer* vb = nullptr;
-        // static IndexBuffer* ib = nullptr;
-        // static VertexArray* va = nullptr;
-        // static Texture2d* diffuseTexture = nullptr;
-        // static bool isInited = false;
-
-        static TextureResourceHandle tex{ 0 };
-        static CpuMesh mesh;
-
-        if (!tex.isValid)
-        {
-            tex = ResourceManager::get()->add_texture_resource(construct_path("assets", "materials", "metal_plate", "diffuse.png"));
-            {
-                auto [handle, loadJob] = FileSystem::get()->async_load(construct_path("assets", "geometry", "cube.obj"), FileLoadMode::READ);
-                Job* postLoadJob = JobSystem::get()->get_job();
-                CpuMesh* meshPtr = &mesh;
-                postLoadJob->configure([handle, meshPtr](Job* job)
-                {
-                    al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Loading mesh");
-                    *meshPtr = load_cpu_mesh_obj(handle);
-                    meshPtr->submeshes.for_each([](CpuSubmesh* submesh)
-                    {
-                        al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Loaded submesh with name %s", submesh->name);
-                    });
-                    FileSystem::get()->free_handle(handle);
-                });
-                postLoadJob->set_after(loadJob);
-                JobSystem::get()->start_job(postLoadJob);
-            }
-        }
-
-        // if (!isInited)
-        // {
-        //     Renderer::get()->add_render_command([&]()
-        //     {
-        //         vb = create_vertex_buffer<EngineConfig::DEFAULT_RENDERER_TYPE>(geom.vertices.data(), geom.vertices.size() * sizeof(GeometryVertex));
-        //         vb->set_layout(BufferLayout::ElementContainer{
-        //             BufferElement{ ShaderDataType::Float3, false }, // Position
-        //             BufferElement{ ShaderDataType::Float3, false }, // Normal
-        //             BufferElement{ ShaderDataType::Float2, false }  // UV
-        //         });
-        //         ib = create_index_buffer<EngineConfig::DEFAULT_RENDERER_TYPE>(geom.ids.data(), geom.ids.size());
-        //         va = create_vertex_array<EngineConfig::DEFAULT_RENDERER_TYPE>();
-        //         va->set_vertex_buffer(vb);
-        //         va->set_index_buffer(ib);
-        //         diffuseTexture = create_texture_2d<EngineConfig::DEFAULT_RENDERER_TYPE>(construct_path("assets", "materials", "metal_plate", "diffuse.png"));
-        //     });
-        //     SceneNodeHandle parent;
-        //     {
-        //         parent = defaultScene->create_node();
-        //         auto* parentTrf = defaultScene->get_ecs_world()->get_component<SceneTransform>(defaultScene->scene_node(parent)->entityHandle);
-        //         Transform localTransform = parentTrf->get_local_transform();
-        //         localTransform.set_scale({ 1.0f, 1.0f, 1.0f });
-        //         parentTrf->set_local_transform(localTransform.matrix);
-        //         EntityHandle entity = defaultScene->scene_node(parent)->entityHandle;
-        //         defaultScene->get_ecs_world()->add_components<Renderable>(entity);
-        //     }
-        //     SceneNodeHandle child;
-        //     {
-        //         child = defaultScene->create_node();
-        //         auto* childTrf = defaultScene->get_ecs_world()->get_component<SceneTransform>(defaultScene->scene_node(child)->entityHandle);
-        //         Transform localTransform = childTrf->get_local_transform();
-        //         localTransform.set_position({ -2, -2, -2 });
-        //         childTrf->set_local_transform(localTransform.matrix);
-        //         defaultScene->set_parent(child, parent);
-        //         EntityHandle entity = defaultScene->scene_node(child)->entityHandle;
-        //         defaultScene->get_ecs_world()->add_components<Renderable>(entity);
-        //     }
-        //     SceneNodeHandle child2;
-        //     {
-        //         child2 = defaultScene->create_node();
-        //         auto* childTrf = defaultScene->get_ecs_world()->get_component<SceneTransform>(defaultScene->scene_node(child2)->entityHandle);
-        //         Transform localTransform = childTrf->get_local_transform();
-        //         localTransform.set_position({ -2, -2, -2 });
-        //         childTrf->set_local_transform(localTransform.matrix);
-        //         defaultScene->set_parent(child2, child);
-        //         EntityHandle entity = defaultScene->scene_node(child2)->entityHandle;
-        //         defaultScene->get_ecs_world()->add_components<Renderable>(entity);
-        //     }
-        //     isInited = true;
-        // }
-        // else if (vb && ib && va && diffuseTexture)
-        // {
-        //     defaultEcsWorld->for_each<SceneTransform>([&](EcsWorld* world, EntityHandle handle, SceneTransform* trf)
-        //     {
-        //         Transform localTrf = trf->get_local_transform();
-        //         float3 rot = localTrf.get_rotation();
-        //         rot.y += 1.f;
-        //         localTrf.set_rotation(rot);
-        //         trf->set_local_transform(localTrf.matrix);
-        //     });
-        //     defaultEcsWorld->for_each<SceneTransform, Renderable>([&](EcsWorld* world, EntityHandle handle, SceneTransform* trf, Renderable*)
-        //     {
-        //         GeometryCommandKey key = 0;
-        //         GeometryCommandData* data = Renderer::get()->add_geometry_command(key);
-        //         data->trf = trf->get_world_transform();
-        //         data->va = va;
-        //         data->diffuseTexture = diffuseTexture;
-        //     });
-        // }
-    }
+    // void AlfinaEngineApplication::dbg_render() noexcept
+    // {
+    //     al_profile_function();
+    //     // static VertexBuffer* vb = nullptr;
+    //     // static IndexBuffer* ib = nullptr;
+    //     // static VertexArray* va = nullptr;
+    //     // static Texture2d* diffuseTexture = nullptr;
+    //     // static bool isInited = false;
+    //     // if (!isInited)
+    //     // {
+    //     //     Renderer::get()->add_render_command([&]()
+    //     //     {
+    //     //         vb = create_vertex_buffer<EngineConfig::DEFAULT_RENDERER_TYPE>(geom.vertices.data(), geom.vertices.size() * sizeof(GeometryVertex));
+    //     //         vb->set_layout(BufferLayout::ElementContainer{
+    //     //             BufferElement{ ShaderDataType::Float3, false }, // Position
+    //     //             BufferElement{ ShaderDataType::Float3, false }, // Normal
+    //     //             BufferElement{ ShaderDataType::Float2, false }  // UV
+    //     //         });
+    //     //         ib = create_index_buffer<EngineConfig::DEFAULT_RENDERER_TYPE>(geom.ids.data(), geom.ids.size());
+    //     //         va = create_vertex_array<EngineConfig::DEFAULT_RENDERER_TYPE>();
+    //     //         va->set_vertex_buffer(vb);
+    //     //         va->set_index_buffer(ib);
+    //     //         diffuseTexture = create_texture_2d<EngineConfig::DEFAULT_RENDERER_TYPE>(construct_path("assets", "materials", "metal_plate", "diffuse.png"));
+    //     //     });
+    //     //     SceneNodeHandle parent;
+    //     //     {
+    //     //         parent = defaultScene->create_node();
+    //     //         auto* parentTrf = defaultScene->get_ecs_world()->get_component<SceneTransform>(defaultScene->scene_node(parent)->entityHandle);
+    //     //         Transform localTransform = parentTrf->get_local_transform();
+    //     //         localTransform.set_scale({ 1.0f, 1.0f, 1.0f });
+    //     //         parentTrf->set_local_transform(localTransform.matrix);
+    //     //         EntityHandle entity = defaultScene->scene_node(parent)->entityHandle;
+    //     //         defaultScene->get_ecs_world()->add_components<Renderable>(entity);
+    //     //     }
+    //     //     SceneNodeHandle child;
+    //     //     {
+    //     //         child = defaultScene->create_node();
+    //     //         auto* childTrf = defaultScene->get_ecs_world()->get_component<SceneTransform>(defaultScene->scene_node(child)->entityHandle);
+    //     //         Transform localTransform = childTrf->get_local_transform();
+    //     //         localTransform.set_position({ -2, -2, -2 });
+    //     //         childTrf->set_local_transform(localTransform.matrix);
+    //     //         defaultScene->set_parent(child, parent);
+    //     //         EntityHandle entity = defaultScene->scene_node(child)->entityHandle;
+    //     //         defaultScene->get_ecs_world()->add_components<Renderable>(entity);
+    //     //     }
+    //     //     SceneNodeHandle child2;
+    //     //     {
+    //     //         child2 = defaultScene->create_node();
+    //     //         auto* childTrf = defaultScene->get_ecs_world()->get_component<SceneTransform>(defaultScene->scene_node(child2)->entityHandle);
+    //     //         Transform localTransform = childTrf->get_local_transform();
+    //     //         localTransform.set_position({ -2, -2, -2 });
+    //     //         childTrf->set_local_transform(localTransform.matrix);
+    //     //         defaultScene->set_parent(child2, child);
+    //     //         EntityHandle entity = defaultScene->scene_node(child2)->entityHandle;
+    //     //         defaultScene->get_ecs_world()->add_components<Renderable>(entity);
+    //     //     }
+    //     //     isInited = true;
+    //     // }
+    //     // else if (vb && ib && va && diffuseTexture)
+    //     // {
+    //     //     defaultEcsWorld->for_each<SceneTransform>([&](EcsWorld* world, EntityHandle handle, SceneTransform* trf)
+    //     //     {
+    //     //         Transform localTrf = trf->get_local_transform();
+    //     //         float3 rot = localTrf.get_rotation();
+    //     //         rot.y += 1.f;
+    //     //         localTrf.set_rotation(rot);
+    //     //         trf->set_local_transform(localTrf.matrix);
+    //     //     });
+    //     //     defaultEcsWorld->for_each<SceneTransform, Renderable>([&](EcsWorld* world, EntityHandle handle, SceneTransform* trf, Renderable*)
+    //     //     {
+    //     //         GeometryCommandKey key = 0;
+    //     //         GeometryCommandData* data = Renderer::get()->add_geometry_command(key);
+    //     //         data->trf = trf->get_world_transform();
+    //     //         data->va = va;
+    //     //         data->diffuseTexture = diffuseTexture;
+    //     //     });
+    //     // }
+    // }
 
     void AlfinaEngineApplication::process_end_frame() noexcept
     {

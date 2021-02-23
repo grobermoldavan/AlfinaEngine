@@ -25,8 +25,15 @@ namespace al::engine
         using ComponentId       = EcsSizeT;
         using ComponentFlags    = Flags128;
 
-        static constexpr EcsSizeT MAX_COMPONENTS{ 128 }; // Must correlate with ComponentFlags type
+        // @NOTE :  Must correlate with ComponentFlags type.
+        //          One is subtracted because ComponentCounter::count
+        //          value starts from one, not zero.
+        static constexpr EcsSizeT MAX_COMPONENTS{ 128 - 1 };
 
+        // @NOTE :  Entity has the following data.
+        //          componentFlags - describes the components that this entity has.
+        //          archetypeHandle - handle to an archetype which stores this entity.
+        //          arrayIndex - index af entity components in archetype component arrays.
         struct al_align Entity
         {
             ComponentFlags componentFlags;
@@ -57,12 +64,25 @@ namespace al::engine
             EcsSizeT sizeBytes = 0;
         };
 
+        // @NOTE :  ComponentArray stores instances of a single component type.
+        //          Instances are stored in chunks. Each chunk has size of
+        //          EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK * sizeof(*COMPONENT TYPE*).
+        //          Pointers to chunks are stored as uint8_t* and reinterpreted as pointers of 
+        //          *COMPONENT TYPE* at runtime via templated methods (accsess_component_template).
         struct ComponentArray
         {
             ComponentId componentId;
             DynamicArray<uint8_t*> chunks;
         };
 
+        // @NOTE :  Archetype has the following data.
+        //          componentFlags - describes the components of entities that stored in this archetype.
+        //          selfHandle - handle of this archetype in the archetypes array.
+        //          size - current number of entities in arhcetype.
+        //          capacity - max possible number of stored entities without additional allocations.
+        //          entityHandlesChunks - chunks of entity handles. There stored handles to entities that
+        //                                are belong to this archetype.
+        //          components - array of the component arrays.
         struct al_align Archetype
         {
             ComponentFlags componentFlags;

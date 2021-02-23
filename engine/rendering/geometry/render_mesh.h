@@ -1,6 +1,8 @@
 #ifndef AL_GPU_MESH_H
 #define AL_GPU_MESH_H
 
+#include <cstdint> // for int's
+
 #include "engine/config/engine_config.h"
 #include "engine/containers/containers.h"
 #include "engine/file_system/file_system.h"
@@ -35,6 +37,7 @@ namespace al::engine
     {
         StaticString name;
         DynamicArray<MeshVertex> vertices;
+        DynamicArray<uint32_t> indices;
     };
 
     struct CpuMesh
