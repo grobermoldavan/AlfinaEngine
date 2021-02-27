@@ -9,6 +9,11 @@
 
 namespace al::engine
 {
+    struct Texture2dInitData
+    {
+        std::string_view path;
+    };
+
     class Texture2d
     {
     public:
@@ -20,7 +25,7 @@ namespace al::engine
 
     namespace internal
     {
-        template<RendererType type> [[nodiscard]] Texture2d* create_texture_2d(std::string_view path) noexcept
+        template<RendererType type> [[nodiscard]] Texture2d* create_texture_2d(const Texture2dInitData& initData) noexcept
         {
             al_log_error(EngineConfig::RENDERER_LOG_CATEGORY, "Unsupported rendering API");
             al_assert(false);
@@ -33,7 +38,7 @@ namespace al::engine
             al_assert(false);
         }
 
-        [[nodiscard]] Texture2d* create_texture_2d(RendererType type, std::string_view path) noexcept;
+        [[nodiscard]] Texture2d* create_texture_2d(RendererType type, const Texture2dInitData& initData) noexcept;
         void destroy_texture_2d(RendererType type, Texture2d* tex) noexcept;
     }
 }

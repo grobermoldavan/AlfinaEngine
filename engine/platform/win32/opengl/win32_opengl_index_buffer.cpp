@@ -7,9 +7,9 @@ namespace al::engine
 {
     namespace internal
     {
-        template<> [[nodiscard]] IndexBuffer* create_index_buffer<RendererType::OPEN_GL>(uint32_t* indices, std::size_t count) noexcept
+        template<> [[nodiscard]] IndexBuffer* create_index_buffer<RendererType::OPEN_GL>(const IndexBufferInitData& initData) noexcept
         {
-            IndexBuffer* ib = MemoryManager::get_pool()->allocate_and_construct<Win32OpenglIndexBuffer>(indices, count);
+            IndexBuffer* ib = MemoryManager::get_pool()->allocate_and_construct<Win32OpenglIndexBuffer>(initData);
             return ib;
         }
 
@@ -35,15 +35,15 @@ namespace al::engine
         return count;
     }
 
-    Win32OpenglIndexBuffer::Win32OpenglIndexBuffer(uint32_t* indices, std::size_t count) noexcept
-        : count{ count }
+    Win32OpenglIndexBuffer::Win32OpenglIndexBuffer(const IndexBufferInitData& initData) noexcept
+        : count{ initData.count }
     {
         ::glCreateBuffers(1, &rendererId);
 
         // GL_ELEMENT_ARRAY_BUFFER is not valid without an actively bound VAO
         // Binding with GL_ARRAY_BUFFER allows the data to be loaded regardless of VAO state. 
         ::glBindBuffer(GL_ARRAY_BUFFER, rendererId);
-        ::glBufferData(GL_ARRAY_BUFFER, count * sizeof(uint32_t), indices, GL_STATIC_DRAW);
+        ::glBufferData(GL_ARRAY_BUFFER, count * sizeof(uint32_t), initData.indices, GL_STATIC_DRAW);
     }
 
     Win32OpenglIndexBuffer::~Win32OpenglIndexBuffer() noexcept

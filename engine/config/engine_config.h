@@ -103,6 +103,7 @@ namespace al::engine
         static constexpr const char*                RESOURCE_MANAGER_LOG_CATEGORY{ "Resource Manager" };
 
         static constexpr std::size_t                RESOURCE_MAX_TEXTURES{ 1024 };
+        static constexpr std::size_t                RESOURCE_MAX_MESHES{ 1024 };
 
         // Render mesh settings
         static constexpr std::size_t                CPU_MESH_DEFAULT_DYNAMIC_ARRAYS_SIZE{ 2048 };

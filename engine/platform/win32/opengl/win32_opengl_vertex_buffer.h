@@ -11,14 +11,14 @@ namespace al::engine
 {
     namespace internal
     {
-        template<> [[nodiscard]] VertexBuffer* create_vertex_buffer<RendererType::OPEN_GL>(const void* data, std::size_t size) noexcept;
+        template<> [[nodiscard]] VertexBuffer* create_vertex_buffer<RendererType::OPEN_GL>(const VertexBufferInitData& initData) noexcept;
         template<> void destroy_vertex_buffer<RendererType::OPEN_GL>(VertexBuffer* vb) noexcept;
     }
 
     class Win32OpenglVertexBuffer : public VertexBuffer
     {
     public:
-        Win32OpenglVertexBuffer(const void* data, std::size_t size) noexcept;
+        Win32OpenglVertexBuffer(const VertexBufferInitData& initData) noexcept;
         ~Win32OpenglVertexBuffer() noexcept;
 
         virtual void                bind        ()                                      const   noexcept override;

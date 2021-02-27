@@ -11,6 +11,12 @@
 
 namespace al::engine
 {
+    struct ShaderInitData
+    {
+        std::string_view vertexShaderSrc;
+        std::string_view fragmentShaderSrc;
+    };
+
     class Shader
     {
     public:
@@ -38,7 +44,7 @@ namespace al::engine
 
     namespace internal
     {
-        template<RendererType type> [[nodiscard]] Shader* create_shader(std::string_view vertexShaderSrc, std::string_view fragmentShaderSrc) noexcept
+        template<RendererType type> [[nodiscard]] Shader* create_shader(const ShaderInitData& initData) noexcept
         {
             al_log_error(EngineConfig::RENDERER_LOG_CATEGORY, "Unsupported rendering API");
             al_assert(false);
@@ -51,7 +57,7 @@ namespace al::engine
             al_assert(false);
         }
 
-        [[nodiscard]] Shader* create_shader(RendererType type, std::string_view vertexShaderSrc, std::string_view fragmentShaderSrc) noexcept;
+        [[nodiscard]] Shader* create_shader(RendererType type, const ShaderInitData& initData) noexcept;
         void destroy_shader(RendererType type, Shader* shader) noexcept;
     }
 }

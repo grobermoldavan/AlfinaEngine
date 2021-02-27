@@ -13,14 +13,14 @@ namespace al::engine
 {
     namespace internal
     {
-        template<> [[nodiscard]] Framebuffer* create_framebuffer<RendererType::OPEN_GL>(const FramebufferDescription& description) noexcept;
+        template<> [[nodiscard]] Framebuffer* create_framebuffer<RendererType::OPEN_GL>(const FramebufferInitData& initData) noexcept;
         template<> void destroy_framebuffer<RendererType::OPEN_GL>(Framebuffer* fb) noexcept;
     }
 
     class Win32OpenglFramebuffer : public Framebuffer
     {
     public:
-        Win32OpenglFramebuffer(const FramebufferDescription& description);
+        Win32OpenglFramebuffer(const FramebufferInitData& initData);
         ~Win32OpenglFramebuffer();
 
         virtual void bind       () noexcept override;

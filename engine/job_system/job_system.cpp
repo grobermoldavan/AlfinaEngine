@@ -1,28 +1,32 @@
 
+#include <cstddef> // for std::size_t
+
 #include "job_system.h"
 #include "engine/memory/memory_manager.h"
 #include "engine/debug/debug.h"
 
 namespace al::engine
 {
-    JobSystem* JobSystem::instance{ nullptr };
+    JobSystem* JobSystem::mainSystemInstance{ nullptr };
+    JobSystem* JobSystem::renderSystemInstance{ nullptr };
+
+    Job JobSystem::jobs[EngineConfig::MAX_JOBS]{ };
+    StaticThreadSafeQueue<Job*, EngineConfig::MAX_JOBS> JobSystem::freeJobs{ };
 
     JobSystem::JobSystem(std::size_t numThreads) noexcept
         : threads{ reinterpret_cast<JobSystemThread*>(MemoryManager::get_stack()->allocate(sizeof(JobSystemThread) * numThreads)), numThreads }
-        , jobs{ }
-        , freeJobs{ }
         , jobQueue{ }
     {
         for (JobSystemThread& thread : threads)
         {
-            new(&thread) JobSystemThread{ };
-        }
-        for (std::size_t it = 0; it < EngineConfig::MAX_JOBS; it++)
-        {
-            Job* job = &jobs[it];
-            freeJobs.enqueue(&job);
+            new(&thread) JobSystemThread{ this };
         }
     }
+
+    JobSystem::JobSystem() noexcept
+        : threads{ }
+        , jobQueue{ }
+    { }
 
     JobSystem::~JobSystem() noexcept
     {
@@ -32,28 +36,37 @@ namespace al::engine
         }
     }
 
-    void JobSystem::construct(std::size_t numThreads) noexcept
+    void JobSystem::construct(std::size_t mainSystemNumThreads) noexcept
     {
-        if (instance)
+        al_assert(!mainSystemInstance);
+        al_assert(!renderSystemInstance);
+        mainSystemInstance = MemoryManager::get_stack()->allocate_as<JobSystem>();
+        ::new(mainSystemInstance) JobSystem{ mainSystemNumThreads };
+        renderSystemInstance = MemoryManager::get_stack()->allocate_as<JobSystem>();
+        ::new(renderSystemInstance) JobSystem{ };
+        for (std::size_t it = 0; it < EngineConfig::MAX_JOBS; it++)
         {
-            return;
+            Job* job = &jobs[it];
+            freeJobs.enqueue(&job);
         }
-        instance = MemoryManager::get_stack()->allocate_as<JobSystem>();
-        ::new(instance) JobSystem{ numThreads };
     }
 
     void JobSystem::destruct() noexcept
     {
-        if (!instance)
-        {
-            return;
-        }
-        instance->~JobSystem();
+        al_assert(mainSystemInstance);
+        al_assert(renderSystemInstance);
+        mainSystemInstance->~JobSystem();
+        renderSystemInstance->~JobSystem();
     }
 
-    JobSystem* JobSystem::get() noexcept
+    JobSystem* JobSystem::get_main_system() noexcept
     {
-        return instance;
+        return mainSystemInstance;
+    }
+
+    JobSystem* JobSystem::get_render_system() noexcept
+    {
+        return renderSystemInstance;
     }
 
     Job* JobSystem::get_job() noexcept
@@ -61,7 +74,7 @@ namespace al::engine
         Job* job = nullptr;
         freeJobs.dequeue(&job);
         al_assert(job);
-        ::new(job) Job{ };
+        ::new(job) Job{ this };
         return job;
     }
 
@@ -75,7 +88,8 @@ namespace al::engine
 
     void JobSystem::start_job(Job* job) noexcept
     {
-        al_assert_msg(!job->is_finished(), "Trying to start job that is finished or not configured");
+        al_assert(job->get_job_system() == this);
+        al_assert(!job->is_finished());
         if (job->is_ready_for_dispatch())
         {
             add_job_to_queue(job);
@@ -89,6 +103,7 @@ namespace al::engine
 
     void JobSystem::add_job_to_queue(Job* job) noexcept
     {
+        al_assert(job->get_job_system() == this);
         al_assert_msg(job->is_ready_for_dispatch(), "add_job_to_queue only adds jobs that are ready for dispatch");
         bool result = jobQueue.enqueue(&job);
         al_assert(result);

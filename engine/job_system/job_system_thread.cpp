@@ -1,12 +1,14 @@
 
 #include "job_system_thread.h"
 #include "job_system_job.h"
+#include "job_system.h"
 
 namespace al::engine
 {
-    JobSystemThread::JobSystemThread() noexcept
+    JobSystemThread::JobSystemThread(JobSystem* jobSystem) noexcept
         : shouldRun{ true }
         , thread{ &JobSystemThread::work, this }
+        , jobSystem{ jobSystem }
     {  }
 
     JobSystemThread::~JobSystemThread() noexcept
@@ -46,6 +48,6 @@ namespace al::engine
 
     Job* JobSystemThread::get_job() noexcept
     {
-        return JobSystem::get()->get_job_from_queue();
+        return jobSystem->get_job_from_queue();
     }
 }

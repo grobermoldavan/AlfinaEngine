@@ -11,14 +11,14 @@ namespace al::engine
 {
     namespace internal
     {
-        template<> [[nodiscard]] Texture2d* create_texture_2d<RendererType::OPEN_GL>(std::string_view path) noexcept;
+        template<> [[nodiscard]] Texture2d* create_texture_2d<RendererType::OPEN_GL>(const Texture2dInitData& initData) noexcept;
         template<> void destroy_texture_2d<RendererType::OPEN_GL>(Texture2d* tex) noexcept;
     }
 
     class Win32OpenglTexure2d : public Texture2d
     {
     public:
-        Win32OpenglTexure2d(std::string_view path) noexcept;
+        Win32OpenglTexure2d(const Texture2dInitData& initData) noexcept;
         ~Win32OpenglTexure2d() noexcept;
 
         virtual void bind(uint32_t slot = 0) const noexcept override;

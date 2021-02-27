@@ -9,9 +9,9 @@ namespace al::engine
 {
     namespace internal
     {
-        template<> [[nodiscard]] Framebuffer* create_framebuffer<RendererType::OPEN_GL>(const FramebufferDescription& description) noexcept
+        template<> [[nodiscard]] Framebuffer* create_framebuffer<RendererType::OPEN_GL>(const FramebufferInitData& initData) noexcept
         {
-            Framebuffer* fb = MemoryManager::get_pool()->allocate_and_construct<Win32OpenglFramebuffer>(description);
+            Framebuffer* fb = MemoryManager::get_pool()->allocate_and_construct<Win32OpenglFramebuffer>(initData);
             return fb;
         }
 
@@ -93,8 +93,8 @@ namespace al::engine
         return 0;
     }
 
-    Win32OpenglFramebuffer::Win32OpenglFramebuffer(const FramebufferDescription& description)
-        : description{ description }
+    Win32OpenglFramebuffer::Win32OpenglFramebuffer(const FramebufferInitData& initData)
+        : description{ initData.description }
         , attachmentLocations{ 0 }
         , rendererId{ 0 }
         , colorAttachmentsCount{ 0 }

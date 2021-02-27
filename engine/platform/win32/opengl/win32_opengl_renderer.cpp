@@ -27,7 +27,9 @@ namespace al::engine
     Win32OpenglRenderer::Win32OpenglRenderer(OsWindow* window) noexcept
         : Renderer{ window }
         , win32window{ dynamic_cast<OsWindowWin32*>(window) }
-    { }
+    {
+        start_render_thread();
+    }
 
     void Win32OpenglRenderer::clear_buffers() noexcept
     {
@@ -49,7 +51,6 @@ namespace al::engine
     {
         deviceContext = ::GetDC(win32window->get_handle());
         al_assert(deviceContext);
-
         HGLRC dummyRenderContext;
         {
             // @NOTE :  Creating dummy context

@@ -11,7 +11,7 @@ namespace al::engine
 {
     namespace internal
     {
-        template<> [[nodiscard]] VertexArray* create_vertex_array<RendererType::OPEN_GL>() noexcept;
+        template<> [[nodiscard]] VertexArray* create_vertex_array<RendererType::OPEN_GL>(const VertexArrayInitData& initData) noexcept;
         template<> void destroy_vertex_array<RendererType::OPEN_GL>(VertexArray* va) noexcept;
     }
     

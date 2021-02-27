@@ -1,7 +1,7 @@
 #ifndef AL_RESOURCE_MANAGER_H
 #define AL_RESOURCE_MANAGER_H
 
-#include <cstdint> // for uints
+#include <cstdint> // for ints
 
 #include "engine/config/engine_config.h"
 #include "engine/containers/containers.h"
@@ -42,10 +42,12 @@ namespace al::engine
         TextureResourceHandle get_texture_resource(const StaticString& path);
         RendererTexture2dHandle get_renderer_texture_handle(TextureResourceHandle handle);
 
+        MeshResourceHandle add_mesh_resource(const StaticString& path);
+        MeshResourceHandle get_mesh_resource(const StaticString& path);
+        RenderMesh* get_render_mesh(MeshResourceHandle handle);
+
     private:
         static ResourceManager* instance;
-
-        static constexpr const char* LOG_CATEGORY_RESOURCE_MANAGER = "Resource Manager";
 
         struct al_align TextureResource
         {
@@ -53,8 +55,15 @@ namespace al::engine
             RendererTexture2dHandle rendererHandle;
         };
 
-        SuList<TextureResource, EngineConfig::RESOURCE_MAX_TEXTURES> textureResources;
+        struct al_align MeshResource
+        {
+            StaticString path;
+            CpuMesh cpuMesh;
+            RenderMesh renderMesh;
+        };
 
+        SuList<TextureResource, EngineConfig::RESOURCE_MAX_TEXTURES> textureResources;
+        SuList<MeshResource, EngineConfig::RESOURCE_MAX_MESHES> meshResources;
     };
 }
 

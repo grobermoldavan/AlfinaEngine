@@ -60,7 +60,7 @@ namespace al::engine
         userData->file = file;
         userData->mode = mode;
         userData->handle = handle;
-        Job* job = JobSystem::get()->get_job();
+        Job* job = JobSystem::get_main_system()->get_job();
         job->configure([this](Job* job)
         {
             AsyncFileReadUserData* userData = reinterpret_cast<AsyncFileReadUserData*>(job->get_user_data());
@@ -69,7 +69,7 @@ namespace al::engine
                             userData->file, LOAD_MODE_TO_STR[static_cast<int>(userData->mode)]);
             *userData->handle = al::engine::sync_load(static_cast<const char*>(userData->file), allocator, userData->mode);
         }, userData);
-        JobSystem::get()->start_job(job);
+        JobSystem::get_main_system()->start_job(job);
         return { handle, job };
     }
 

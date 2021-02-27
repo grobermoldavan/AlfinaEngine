@@ -34,6 +34,11 @@ namespace al::engine
         uint32_t height;
     };
 
+    struct FramebufferInitData
+    {
+        FramebufferDescription description;
+    };
+
     class Framebuffer
     {
     public:
@@ -51,7 +56,7 @@ namespace al::engine
 
     namespace internal
     {
-        template<RendererType type> [[nodiscard]] Framebuffer* create_framebuffer(const FramebufferDescription& description) noexcept
+        template<RendererType type> [[nodiscard]] Framebuffer* create_framebuffer(const FramebufferInitData& initData) noexcept
         {
             al_log_error(EngineConfig::RENDERER_LOG_CATEGORY, "Unsupported rendering API");
             al_assert(false);
@@ -64,7 +69,7 @@ namespace al::engine
             al_assert(false);
         }
 
-        [[nodiscard]] Framebuffer* create_framebuffer(RendererType type, const FramebufferDescription& description) noexcept;
+        [[nodiscard]] Framebuffer* create_framebuffer(RendererType type, const FramebufferInitData& initData) noexcept;
         void destroy_framebuffer(RendererType type, Framebuffer* fb) noexcept;
     }
 }

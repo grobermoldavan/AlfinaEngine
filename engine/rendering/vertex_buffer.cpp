@@ -46,11 +46,11 @@ namespace al::engine
 
     namespace internal
     {
-        [[nodiscard]] VertexBuffer* create_vertex_buffer(RendererType type, const void* data, std::size_t size) noexcept
+        [[nodiscard]] VertexBuffer* create_vertex_buffer(RendererType type, const VertexBufferInitData& initData) noexcept
         {
             switch (type)
             {
-                case RendererType::OPEN_GL: return create_vertex_buffer<RendererType::OPEN_GL>(data, size);
+                case RendererType::OPEN_GL: return create_vertex_buffer<RendererType::OPEN_GL>(initData);
             }
             // Unknown RendererType
             al_assert(false);

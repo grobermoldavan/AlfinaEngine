@@ -5,11 +5,11 @@ namespace al::engine
 {
     namespace internal
     {
-        [[nodiscard]] IndexBuffer* create_index_buffer(RendererType type, uint32_t* indices, std::size_t count) noexcept
+        [[nodiscard]] IndexBuffer* create_index_buffer(RendererType type, const IndexBufferInitData& initData) noexcept
         {
             switch (type)
             {
-                case RendererType::OPEN_GL: return create_index_buffer<RendererType::OPEN_GL>(indices, count);
+                case RendererType::OPEN_GL: return create_index_buffer<RendererType::OPEN_GL>(initData);
             }
             // Unknown RendererType
             al_assert(false);

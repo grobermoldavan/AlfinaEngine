@@ -7,7 +7,7 @@ namespace al::engine
 {
     namespace internal
     {
-        template<> [[nodiscard]] VertexArray* create_vertex_array<RendererType::OPEN_GL>() noexcept
+        template<> [[nodiscard]] VertexArray* create_vertex_array<RendererType::OPEN_GL>(const VertexArrayInitData& initData) noexcept
         {
             VertexArray* va = MemoryManager::get_pool()->allocate_and_construct<Win32OpenglVertexArray>();
             return va;

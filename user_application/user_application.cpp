@@ -10,13 +10,13 @@ public:
     virtual void initialize_components() noexcept override;
     virtual void terminate_components() noexcept override;
 
-    virtual void simulate(float dt) noexcept override;
+    virtual void render() noexcept override;
 
 private:
     static constexpr const char* LOG_CATEGORY_USER_APPLICATION = "UserApp";
 
     al::engine::TextureResourceHandle tex{ 0 };
-    al::engine::CpuMesh mesh{ };
+    al::engine::MeshResourceHandle mesh{ 0 };
 
     void handle_keyboard_input(al::engine::OsWindowInput::KeyboardInputFlags);
     void handle_mouse_input(al::engine::OsWindowInput::MouseInputFlags);
@@ -36,12 +36,15 @@ void al::engine::destroy_application(al::engine::AlfinaEngineApplication* applic
 
 void UserApplication::initialize_components() noexcept
 {
-    al::engine::AlfinaEngineApplication::initialize_components();
-
+    using namespace al::engine;
+    AlfinaEngineApplication::initialize_components();
     al_log_message(LOG_CATEGORY_USER_APPLICATION, "Initializing user application components");
 
     onKeyboardButtonPressed.subscribe({ this, &UserApplication::handle_keyboard_input });
     onMouseButtonPressed.subscribe({ this, &UserApplication::handle_mouse_input });
+
+    tex = ResourceManager::get()->add_texture_resource(construct_path("assets", "materials", "metal_plate", "diffuse.png"));
+    mesh = ResourceManager::get()->add_mesh_resource(construct_path("assets", "geometry", "sponza", "sponza.obj"));
 }
 
 void UserApplication::terminate_components() noexcept
@@ -51,39 +54,23 @@ void UserApplication::terminate_components() noexcept
     onKeyboardButtonPressed.unsubscribe(this);
     onMouseButtonPressed.unsubscribe(this);
 
-    // @NOTE : currently this is needed because of DynamicArray memory deallocation being too late
-    //         if it is done "automatically" on applicationInstance destruction
-    mesh.~CpuMesh();
-
     al::engine::AlfinaEngineApplication::terminate_components();
 }
 
-void UserApplication::simulate(float dt) noexcept
+void UserApplication::render() noexcept
 {
     al_profile_function();
     using namespace al::engine;
-    AlfinaEngineApplication::simulate(dt);
-    if (!tex.isValid)
+    RenderMesh* renderMesh = ResourceManager::get()->get_render_mesh(mesh);
+    renderMesh->submeshes.for_each([&](RenderSubmesh* submesh)
     {
-        tex = ResourceManager::get()->add_texture_resource(construct_path("assets", "materials", "metal_plate", "diffuse.png"));
-        {
-            auto [handle, loadJob] = FileSystem::get()->async_load(construct_path("assets", "geometry", "sponza", "sponza.obj"), FileLoadMode::READ);
-            Job* postLoadJob = JobSystem::get()->get_job();
-            CpuMesh* meshPtr = &mesh;
-            postLoadJob->configure([handle, meshPtr](Job* job)
-            {
-                al_log_message(LOG_CATEGORY_USER_APPLICATION, "Loading mesh");
-                *meshPtr = load_cpu_mesh_obj(handle);
-                meshPtr->submeshes.for_each([](CpuSubmesh* submesh)
-                {
-                    al_log_message(LOG_CATEGORY_USER_APPLICATION, "Loaded submesh with name %s", submesh->name);
-                });
-                FileSystem::get()->free_handle(handle);
-            });
-            postLoadJob->set_after(loadJob);
-            JobSystem::get()->start_job(postLoadJob);
-        }
-    }
+        GeometryCommandData* data = Renderer::get()->add_geometry_command({ });
+        data->trf = Transform{ };
+        data->trf.set_position({ 0, 0, 0 });
+        data->trf.set_scale({ 1, 1, 1 });
+        data->va = Renderer::get()->vertex_array(submesh->vaHandle);
+        data->diffuseTexture = Renderer::get()->texture_2d(ResourceManager::get()->get_renderer_texture_handle(tex));
+    });
 }
 
 void UserApplication::handle_keyboard_input(al::engine::OsWindowInput::KeyboardInputFlags key)

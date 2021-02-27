@@ -11,14 +11,14 @@ namespace al::engine
 {
     namespace internal
     {
-        template<> [[nodiscard]] Shader* create_shader<RendererType::OPEN_GL>(std::string_view vertexShaderSrc, std::string_view fragmentShaderSrc) noexcept;
+        template<> [[nodiscard]] Shader* create_shader<RendererType::OPEN_GL>(const ShaderInitData& initData) noexcept;
         template<> void destroy_shader<RendererType::OPEN_GL>(Shader* shader) noexcept;
     }
 
     class Win32OpenglShader : public Shader
     {
     public:
-        Win32OpenglShader(std::string_view vertexShaderSrc, std::string_view fragmentShaderSrc) noexcept;
+        Win32OpenglShader(const ShaderInitData& initData) noexcept;
         ~Win32OpenglShader() noexcept;
 
         virtual void bind           () const noexcept override { ::glUseProgram(rendererId); }

@@ -13,14 +13,14 @@ namespace al::engine
 {
     namespace internal
     {
-        template<> [[nodiscard]] IndexBuffer* create_index_buffer<RendererType::OPEN_GL>(uint32_t* indices, std::size_t count) noexcept;
+        template<> [[nodiscard]] IndexBuffer* create_index_buffer<RendererType::OPEN_GL>(const IndexBufferInitData& initData) noexcept;
         template<> void destroy_index_buffer<RendererType::OPEN_GL>(IndexBuffer* ib) noexcept;
     }
 
     class Win32OpenglIndexBuffer : public IndexBuffer
     {
     public:
-        Win32OpenglIndexBuffer(uint32_t* indices, std::size_t count) noexcept;
+        Win32OpenglIndexBuffer(const IndexBufferInitData& initData) noexcept;
         ~Win32OpenglIndexBuffer() noexcept;
 
         virtual         void            bind        ()  const noexcept override;

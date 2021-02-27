@@ -9,9 +9,9 @@ namespace al::engine
 {
     namespace internal
     {
-        template<> [[nodiscard]] Shader* create_shader<RendererType::OPEN_GL>(std::string_view vertexShaderSrc, std::string_view fragmentShaderSrc) noexcept
+        template<> [[nodiscard]] Shader* create_shader<RendererType::OPEN_GL>(const ShaderInitData& initData) noexcept
         {
-            Shader* shader = MemoryManager::get_pool()->allocate_and_construct<Win32OpenglShader>(vertexShaderSrc, fragmentShaderSrc);
+            Shader* shader = MemoryManager::get_pool()->allocate_and_construct<Win32OpenglShader>(initData);
             return shader;
         }
 
@@ -22,10 +22,10 @@ namespace al::engine
         }
     }
 
-    Win32OpenglShader::Win32OpenglShader(std::string_view vertexShaderSrc, std::string_view fragmentShaderSrc) noexcept
+    Win32OpenglShader::Win32OpenglShader(const ShaderInitData& initData) noexcept
     {
-        sources[ShaderType::VERTEX] = vertexShaderSrc;
-        sources[ShaderType::FRAGMENT] = fragmentShaderSrc;
+        sources[ShaderType::VERTEX] = initData.vertexShaderSrc;
+        sources[ShaderType::FRAGMENT] = initData.fragmentShaderSrc;
         compile();
     }
 

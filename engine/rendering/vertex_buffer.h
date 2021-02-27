@@ -70,6 +70,12 @@ namespace al::engine
         std::size_t         stride;
     };
 
+    struct VertexBufferInitData
+    {
+        const void* data;
+        std::size_t size;
+    };
+
     class VertexBuffer
     {
     public:
@@ -84,7 +90,7 @@ namespace al::engine
 
     namespace internal
     {
-        template<RendererType type> [[nodiscard]] VertexBuffer* create_vertex_buffer(const void* data, std::size_t size) noexcept
+        template<RendererType type> [[nodiscard]] VertexBuffer* create_vertex_buffer(const VertexBufferInitData& initData) noexcept
         {
             al_log_error(EngineConfig::RENDERER_LOG_CATEGORY, "Unsupported rendering API");
             al_assert(false);
@@ -97,7 +103,7 @@ namespace al::engine
             al_assert(false);
         }
 
-        [[nodiscard]] VertexBuffer* create_vertex_buffer(RendererType type, const void* data, std::size_t size) noexcept;
+        [[nodiscard]] VertexBuffer* create_vertex_buffer(RendererType type, const VertexBufferInitData& initData) noexcept;
         void destroy_vertex_buffer(RendererType type, VertexBuffer* vb) noexcept;
     }
 }

@@ -8,6 +8,11 @@
 
 namespace al::engine
 {
+    struct VertexArrayInitData
+    {
+        
+    };
+
     class VertexArray
     {
     public:
@@ -23,7 +28,7 @@ namespace al::engine
 
     namespace internal
     {
-        template<RendererType type> [[nodiscard]] VertexArray* create_vertex_array() noexcept
+        template<RendererType type> [[nodiscard]] VertexArray* create_vertex_array(const VertexArrayInitData& initData) noexcept
         {
             al_log_error(EngineConfig::RENDERER_LOG_CATEGORY, "Unsupported rendering API");
             al_assert(false);
@@ -36,7 +41,7 @@ namespace al::engine
             al_assert(false);
         }
 
-        [[nodiscard]] VertexArray* create_vertex_array(RendererType type) noexcept;
+        [[nodiscard]] VertexArray* create_vertex_array(RendererType type, const VertexArrayInitData& initData) noexcept;
         void destroy_vertex_array(RendererType type, VertexArray* va) noexcept;
     }
 }

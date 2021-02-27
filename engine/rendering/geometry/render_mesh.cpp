@@ -10,6 +10,24 @@
 
 namespace al::engine
 {
+    void fill_indices(CpuSubmesh* submesh) noexcept
+    {
+        // @NOTE :  Triangle is needed to invert indices of triangles
+        //          because opengl expects them the other way around.
+        //          I'm not shure if it is common for all OBJ files, but
+        //          it is the thing with files exported from blender
+        const std::size_t size = submesh->vertices.size();
+        submesh->indices.reserve(size);
+        uint32_t triangleIt = 0;
+        for (uint32_t it = 0; it < submesh->vertices.size(); it++)
+        {
+            // 0 : 2, 1 : 0, 2 : -2
+            int32_t additional = (triangleIt == 0) ? 2 : (triangleIt == 1) ? 0 : -2;
+            submesh->indices.push_back(submesh->indices.size() + additional);
+            triangleIt = (triangleIt + 1) % 3;
+        }
+    }
+
     CpuMesh load_cpu_mesh_obj(FileHandle* handle) noexcept
     {
         al_profile_function();
@@ -110,16 +128,11 @@ namespace al::engine
                 // Ignored ?
             }
             // @NOTE :  Currently we treat objects ("o " lines) and groups ("g " lines) the same
-            else if (is_starts_with(fileTextPtr, "o ") || is_starts_with(fileTextPtr, "g "))
+            else if (is_starts_with(fileTextPtr, "o ") /*|| is_starts_with(fileTextPtr, "g ")*/)
             {
                 if (activeSubmesh)
                 {
-                    const std::size_t size = activeSubmesh->vertices.size();
-                    activeSubmesh->indices.resize(size);
-                    for (std::size_t it = 0; it < size; it++)
-                    {
-                        activeSubmesh->indices.push_back(it);
-                    }
+                    fill_indices(activeSubmesh);
                 }
                 activeSubmesh = result.submeshes.get();
                 al_assert(activeSubmesh);
@@ -138,6 +151,10 @@ namespace al::engine
             {
                 break;
             }
+        }
+        if (activeSubmesh)
+        {
+            fill_indices(activeSubmesh);
         }
         return std::move(result);
     }

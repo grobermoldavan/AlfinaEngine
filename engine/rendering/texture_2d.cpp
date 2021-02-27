@@ -5,11 +5,11 @@ namespace al::engine
 {
     namespace internal
     {
-        [[nodiscard]] Texture2d* create_texture_2d(RendererType type, std::string_view path) noexcept
+        [[nodiscard]] Texture2d* create_texture_2d(RendererType type, const Texture2dInitData& initData) noexcept
         {
             switch (type)
             {
-                case RendererType::OPEN_GL: return create_texture_2d<RendererType::OPEN_GL>(path);
+                case RendererType::OPEN_GL: return create_texture_2d<RendererType::OPEN_GL>(initData);
             }
             // Unknown RendererType
             al_assert(false);

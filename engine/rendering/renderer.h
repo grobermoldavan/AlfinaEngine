@@ -22,30 +22,28 @@
 
 #include "utilities/toggle.h"
 #include "utilities/function.h"
-#include "utilities/thread_safe/thread_safe_only_growing_stack.h"
+#include "utilities/thread_safe/thread_safe_queue.h"
 #include "utilities/math.h"
 #include "utilities/static_unordered_list.h"
 
+#define DECLARE_RENDERER_RESOURCE_ACTIONS(resourceNameSnakeCase, resourceNameCamelCase)                                                                                         \
+        Renderer##resourceNameCamelCase##Handle reserve_##resourceNameSnakeCase() noexcept;                                                                                     \
+        void free_##resourceNameSnakeCase##_handle(Renderer##resourceNameCamelCase##Handle handle) noexcept;                                                                    \
+        RendererResourceActionResult create_##resourceNameSnakeCase(Renderer##resourceNameCamelCase##Handle handle, const resourceNameCamelCase##InitData& initData) noexcept;  \
+        RendererResourceActionResult destroy_##resourceNameSnakeCase(Renderer##resourceNameCamelCase##Handle handle) noexcept;                                                  \
+        resourceNameCamelCase*& resourceNameSnakeCase(Renderer##resourceNameCamelCase##Handle handle) noexcept;
+
 namespace al::engine
 {
-    struct Renderable
+    struct RendererResourceActionResult
     {
-        /* TODO : implement */
+        bool isAlreadyDone;
+        Job* job;
     };
-
-    using IndexBufferCallback   = Function<void(RendererIndexBufferHandle)>;
-    using VertexBufferCallback  = Function<void(RendererVertexBufferHandle)>;
-    using VertexArrayCallback   = Function<void(RendererVertexArrayHandle)>;
-    using ShaderCallback        = Function<void(RendererShaderHandle)>;
-    using FramebufferCallback   = Function<void(RendererFramebufferHandle)>;
-    using Texture2dCallback     = Function<void(RendererTexture2dHandle)>;
 
     class Renderer
     {
     public:
-        using RenderCommand = Function<void(), 256>;
-        using RenderCommandBuffer = ThreadSafeOnlyGrowingStack<RenderCommand, EngineConfig::RENDER_COMMAND_STACK_SIZE>;
-
         static void allocate_space() noexcept;
         static void construct(RendererType type, OsWindow* window) noexcept;
         static void destruct() noexcept;
@@ -62,51 +60,33 @@ namespace al::engine
         void wait_for_render_finish() noexcept;
         void wait_for_command_buffers_toggled() noexcept;
         void set_camera(const RenderCamera* camera) noexcept;
-        void add_render_command(const RenderCommand& command) noexcept;
         [[nodiscard]] GeometryCommandData* add_geometry_command(GeometryCommandKey key) noexcept;
 
-        RendererIndexBufferHandle reserve_index_buffer() noexcept;
-        void create_index_buffer(RendererIndexBufferHandle handle, uint32_t* indices, std::size_t count, IndexBufferCallback cb = IndexBufferCallback{ }) noexcept;
-        void destroy_index_buffer(RendererIndexBufferHandle handle) noexcept;
-        IndexBuffer*& index_buffer(RendererIndexBufferHandle handle) noexcept;
-
-        RendererVertexBufferHandle reserve_vertex_buffer() noexcept;
-        void create_vertex_buffer(RendererVertexBufferHandle handle, const void* data, std::size_t size, VertexBufferCallback cb = VertexBufferCallback{ }) noexcept;
-        void destroy_vertex_buffer(RendererVertexBufferHandle handle) noexcept;
-        VertexBuffer*& vertex_buffer(RendererVertexBufferHandle handle) noexcept;
-
-        RendererVertexArrayHandle reserve_vertex_array() noexcept;
-        void create_vertex_array(RendererVertexArrayHandle handle, VertexArrayCallback cb = VertexArrayCallback{ }) noexcept;
-        void destroy_vertex_array(RendererVertexArrayHandle handle) noexcept;
-        VertexArray*& vertex_array(RendererVertexArrayHandle handle) noexcept;
-
-        RendererShaderHandle reserve_shader() noexcept;
-        void create_shader(RendererShaderHandle handle, std::string_view vertexShaderSrc, std::string_view fragmentShaderSrc, ShaderCallback cb = ShaderCallback{ }) noexcept;
-        void destroy_shader(RendererShaderHandle handle) noexcept;
-        Shader*& shader(RendererShaderHandle handle) noexcept;
-
-        RendererFramebufferHandle reserve_framebuffer() noexcept;
-        void create_framebuffer(RendererFramebufferHandle handle, const FramebufferDescription& description, FramebufferCallback cb = FramebufferCallback{ }) noexcept;
-        void destroy_framebuffer(RendererFramebufferHandle handle) noexcept;
-        Framebuffer*& framebuffer(RendererFramebufferHandle handle) noexcept;
-
-        RendererTexture2dHandle reserve_texture_2d() noexcept;
-        void create_texture_2d(RendererTexture2dHandle handle, std::string_view path, Texture2dCallback cb = Texture2dCallback{ }) noexcept;
-        void destroy_texture_2d(RendererTexture2dHandle handle) noexcept;
-        Texture2d*& texture_2d(RendererTexture2dHandle handle) noexcept;
+        DECLARE_RENDERER_RESOURCE_ACTIONS(index_buffer   , IndexBuffer);
+        DECLARE_RENDERER_RESOURCE_ACTIONS(vertex_buffer  , VertexBuffer);
+        DECLARE_RENDERER_RESOURCE_ACTIONS(vertex_array   , VertexArray);
+        DECLARE_RENDERER_RESOURCE_ACTIONS(shader         , Shader);
+        DECLARE_RENDERER_RESOURCE_ACTIONS(framebuffer    , Framebuffer);
+        DECLARE_RENDERER_RESOURCE_ACTIONS(texture_2d     , Texture2d);
 
     protected:
         static Renderer* instance;
 
-        SuList<IndexBuffer* , EngineConfig::RENDERER_MAX_INDEX_BUFFERS>     indexBuffers;
-        SuList<VertexBuffer*, EngineConfig::RENDERER_MAX_VERTEX_BUFFERS>    vertexBuffers;
-        SuList<VertexArray* , EngineConfig::RENDERER_MAX_VERTEX_ARRAYS>     vertexArrays;
-        SuList<Shader*      , EngineConfig::RENDERER_MAX_SHADERS>           shaders;
-        SuList<Framebuffer* , EngineConfig::RENDERER_MAX_FRAMEBUFFERS>      framebuffers;
-        SuList<Texture2d*   , EngineConfig::RENDERER_MAX_TEXTURES_2D>       texture2ds;
+        IndexBuffer*    indexBuffers    [EngineConfig::RENDERER_MAX_INDEX_BUFFERS];
+        VertexBuffer*   vertexBuffers   [EngineConfig::RENDERER_MAX_VERTEX_BUFFERS];
+        VertexArray*    vertexArrays    [EngineConfig::RENDERER_MAX_VERTEX_ARRAYS];
+        Shader*         shaders         [EngineConfig::RENDERER_MAX_SHADERS];
+        Framebuffer*    framebuffers    [EngineConfig::RENDERER_MAX_FRAMEBUFFERS];
+        Texture2d*      texture2ds      [EngineConfig::RENDERER_MAX_TEXTURES_2D];
 
-        Toggle<RenderCommandBuffer>     renderCommandBuffer;
-        Toggle<GeometryCommandBuffer>   geometryCommandBuffer;
+        StaticThreadSafeQueue<RendererIndexBufferHandle , EngineConfig::RENDERER_MAX_INDEX_BUFFERS>     freeIndexBufferHandles;
+        StaticThreadSafeQueue<RendererVertexBufferHandle, EngineConfig::RENDERER_MAX_VERTEX_BUFFERS>    freeVertexBufferHandles;
+        StaticThreadSafeQueue<RendererVertexArrayHandle , EngineConfig::RENDERER_MAX_VERTEX_ARRAYS>     freeVertexArrayHandles;
+        StaticThreadSafeQueue<RendererShaderHandle      , EngineConfig::RENDERER_MAX_SHADERS>           freeShaderHandles;
+        StaticThreadSafeQueue<RendererFramebufferHandle , EngineConfig::RENDERER_MAX_FRAMEBUFFERS>      freeFramebufferHandles;
+        StaticThreadSafeQueue<RendererTexture2dHandle   , EngineConfig::RENDERER_MAX_TEXTURES_2D>       freeTexture2dHandles;
+
+        Toggle<GeometryCommandBuffer> geometryCommandBuffer;
 
         ThreadEvent* onFrameProcessStart;
         ThreadEvent* onFrameProcessEnd;
@@ -140,6 +120,21 @@ namespace al::engine
         void wait_for_render_start() noexcept;
         void notify_render_finished() noexcept;
         void notify_command_buffers_toggled() noexcept;
+        void start_render_thread() noexcept;
+
+        template<typename HandleT, std::size_t NumHandles>
+        void init_handle_queue(StaticThreadSafeQueue<HandleT, NumHandles>* queue)
+        {
+            for (std::size_t it = 0; it < NumHandles; it++)
+            {
+                HandleT handle
+                {
+                    .isValid = 1,
+                    .index = it
+                };
+                queue->enqueue(&handle);
+            }
+        }
     };
 
     namespace internal

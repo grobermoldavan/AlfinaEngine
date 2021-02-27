@@ -84,6 +84,7 @@ namespace al::engine
             update_input();
             simulate(dt);
             Renderer::get()->wait_for_command_buffers_toggled();
+            render();
             process_end_frame();
             Renderer::get()->wait_for_render_finish();
         }
@@ -131,11 +132,17 @@ namespace al::engine
 
     void AlfinaEngineApplication::simulate(float dt) noexcept
     {
-        static SmoothAverage<float> fps;
-        fps.push(dt);
-        // al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Fps : %f", 1.0f / fps.get());
+        al_profile_function();
+        // static SmoothAverage<float> fps;
+        // fps.push(dt);
+        al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Fps : %f", 1.0f / dt);
 
         dbgFlyCamera.process_inputs(&inputState.get_current(), dt);
+    }
+
+    void AlfinaEngineApplication::render() noexcept
+    {
+        al_profile_function();
     }
 
     // void AlfinaEngineApplication::dbg_render() noexcept
@@ -257,7 +264,7 @@ namespace al::engine
         ArrayContainer<ThreadHandle, EngineConfig::MAX_SUPPORTED_THREADS> threads;
         threads.push(get_current_thread_handle());
         threads.push(Renderer::get()->get_render_thread()->native_handle());
-        std::span<JobSystemThread> jobSystemThread = JobSystem::get()->get_threads();
+        std::span<JobSystemThread> jobSystemThread = JobSystem::get_main_system()->get_threads();
         for (JobSystemThread& jobSystemThread : jobSystemThread)
         {
             threads.push(jobSystemThread.get_thread()->native_handle());

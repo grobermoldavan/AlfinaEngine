@@ -8,6 +8,14 @@ namespace al::engine
     Job::Job() noexcept
         : previousJobsNum{ 0 }
         , dispatchFunction{ }
+        , jobSystem{ nullptr }
+        , userData{ nullptr }
+    { }
+
+    Job::Job(JobSystem* jobSystem) noexcept
+        : previousJobsNum{ 0 }
+        , dispatchFunction{ }
+        , jobSystem{ jobSystem }
         , userData{ nullptr }
     { }
 
@@ -16,6 +24,11 @@ namespace al::engine
         previousJobsNum.store(1, std::memory_order_relaxed);
         dispatchFunction = func;
         userData = data;
+    }
+
+    JobSystem* Job::get_job_system() noexcept
+    {
+        return jobSystem;
     }
 
     void Job::dispatch() noexcept
@@ -48,11 +61,21 @@ namespace al::engine
             al_assert_msg(job != *other, "Job is already stored in the nextJobs array");
         });
 #endif
+        al_assert(!is_finished());
+        if (job->is_finished())
+        {
+            return;
+        }
         nextJobs.push(job);
     }
 
     void Job::set_after(Job* job) noexcept
     {
+        al_assert(!is_finished());
+        if (job->is_finished())
+        {
+            return;
+        }
         job->set_before(this);
         previousJobsNum.fetch_add(1, std::memory_order_relaxed);
     }
@@ -64,7 +87,7 @@ namespace al::engine
         previousJobsNum.fetch_sub(1, std::memory_order_relaxed);
         if (is_ready_for_dispatch())
         {
-            JobSystem::get()->add_job_to_queue(this);
+            jobSystem->add_job_to_queue(this);
         }
     }
 
@@ -78,6 +101,6 @@ namespace al::engine
             job->notify_previous_job_finished();
         });
         nextJobs.clear();
-        JobSystem::get()->return_job(this);
+        jobSystem->return_job(this);
     }
 }

@@ -5,11 +5,11 @@ namespace al::engine
 {
     namespace internal
     {
-        [[nodiscard]] Shader* create_shader(RendererType type, std::string_view vertexShaderSrc, std::string_view fragmentShaderSrc) noexcept
+        [[nodiscard]] Shader* create_shader(RendererType type, const ShaderInitData& initData) noexcept
         {
             switch (type)
             {
-                case RendererType::OPEN_GL: return create_shader<RendererType::OPEN_GL>(vertexShaderSrc, fragmentShaderSrc);
+                case RendererType::OPEN_GL: return create_shader<RendererType::OPEN_GL>(initData);
             }
             // Unknown RendererType
             al_assert(false);

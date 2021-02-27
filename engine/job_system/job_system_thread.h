@@ -7,11 +7,12 @@
 namespace al::engine
 {
     class Job;
+    class JobSystem;
 
     class JobSystemThread
     {
     public:
-        JobSystemThread() noexcept;
+        JobSystemThread(JobSystem* jobSystem) noexcept;
         ~JobSystemThread() noexcept;
 
         std::thread* get_thread() noexcept;
@@ -19,6 +20,7 @@ namespace al::engine
     private:
         std::atomic<bool> shouldRun;
         std::thread thread;
+        JobSystem* jobSystem;
 
         void work() noexcept;
         Job* get_job() noexcept;

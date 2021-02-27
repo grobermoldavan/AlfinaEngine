@@ -33,6 +33,7 @@ namespace al::engine
         virtual void terminate_components() noexcept;
 
         virtual void simulate(float dt) noexcept;
+        virtual void render() noexcept;
 
         void run() noexcept;
         void update_input() noexcept;

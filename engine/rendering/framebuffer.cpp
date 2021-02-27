@@ -14,11 +14,11 @@ namespace al::engine
 
     namespace internal
     {
-        [[nodiscard]] Framebuffer* create_framebuffer(RendererType type, const FramebufferDescription& description) noexcept
+        [[nodiscard]] Framebuffer* create_framebuffer(RendererType type, const FramebufferInitData& initData) noexcept
         {
             switch (type)
             {
-                case RendererType::OPEN_GL: return create_framebuffer<RendererType::OPEN_GL>(description);
+                case RendererType::OPEN_GL: return create_framebuffer<RendererType::OPEN_GL>(initData);
             }
             // Unknown RendererType
             al_assert(false);

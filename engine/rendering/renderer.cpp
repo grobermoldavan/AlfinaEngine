@@ -2,8 +2,81 @@
 #include "renderer.h"
 
 #include "engine/file_system/file_system.h"
+#include "engine/job_system/job_system.h"
 
 #include "utilities/safe_cast.h"
+
+#define DECLARE_RENDERER_RESOURCE_ACTIONS_IMPLEMETATION(resourceNameSnakeCase, resourceNameCamelCase, resourcenameCamelCase2)   \
+    Renderer##resourceNameCamelCase##Handle Renderer::reserve_##resourceNameSnakeCase() noexcept                                \
+    {                                                                                                                           \
+        al_profile_function();                                                                                                  \
+        Renderer##resourceNameCamelCase##Handle handle;                                                                         \
+        bool bufferHandleDequeueResult = free##resourceNameCamelCase##Handles.dequeue(&handle);                                 \
+        al_assert(bufferHandleDequeueResult);                                                                                   \
+        return handle;                                                                                                          \
+    }                                                                                                                           \
+    void Renderer::free_##resourceNameSnakeCase##_handle(Renderer##resourceNameCamelCase##Handle handle) noexcept               \
+    {                                                                                                                           \
+        al_profile_function();                                                                                                  \
+        al_assert(handle.isValid);                                                                                              \
+        bool bufferHandleEnqueueResult = free##resourceNameCamelCase##Handles.enqueue(&handle);                                 \
+        al_assert(bufferHandleEnqueueResult);                                                                                   \
+    }                                                                                                                           \
+    RendererResourceActionResult Renderer::create_##resourceNameSnakeCase(                                                      \
+                                                    Renderer##resourceNameCamelCase##Handle handle,                             \
+                                                    const resourceNameCamelCase##InitData& initData) noexcept                   \
+    {                                                                                                                           \
+        al_profile_function();                                                                                                  \
+        al_assert(handle.isValid);                                                                                              \
+        if (is_render_thread())                                                                                                 \
+        {                                                                                                                       \
+            resourceNameSnakeCase(handle) =                                                                                     \
+                internal::create_##resourceNameSnakeCase<EngineConfig::DEFAULT_RENDERER_TYPE>(initData);                        \
+            return { true, nullptr };                                                                                           \
+        }                                                                                                                       \
+        else                                                                                                                    \
+        {                                                                                                                       \
+            Job* job = JobSystem::get_render_system()->get_job();                                                               \
+            job->configure([this, handle, initData](Job*)                                                                       \
+            {                                                                                                                   \
+                resourceNameSnakeCase(handle) =                                                                                 \
+                    internal::create_##resourceNameSnakeCase<EngineConfig::DEFAULT_RENDERER_TYPE>(initData);                    \
+            });                                                                                                                 \
+            JobSystem::get_render_system()->start_job(job);                                                                     \
+            return { false, job };                                                                                              \
+        }                                                                                                                       \
+    }                                                                                                                           \
+    RendererResourceActionResult Renderer::destroy_##resourceNameSnakeCase(                                                     \
+                                                    Renderer##resourceNameCamelCase##Handle handle) noexcept                    \
+    {                                                                                                                           \
+        al_profile_function();                                                                                                  \
+        al_assert(handle.isValid);                                                                                              \
+        if (is_render_thread())                                                                                                 \
+        {                                                                                                                       \
+            internal::destroy_##resourceNameSnakeCase<EngineConfig::DEFAULT_RENDERER_TYPE>(                                     \
+                resourceNameSnakeCase(handle));                                                                                 \
+            resourceNameSnakeCase(handle) = nullptr;                                                                            \
+            return { true, nullptr };                                                                                           \
+        }                                                                                                                       \
+        else                                                                                                                    \
+        {                                                                                                                       \
+            Job* job = JobSystem::get_render_system()->get_job();                                                               \
+            job->configure([this, handle](Job*)                                                                                 \
+            {                                                                                                                   \
+                internal::destroy_##resourceNameSnakeCase<EngineConfig::DEFAULT_RENDERER_TYPE>(                                 \
+                    resourceNameSnakeCase(handle));                                                                             \
+                resourceNameSnakeCase(handle) = nullptr;                                                                        \
+            });                                                                                                                 \
+            JobSystem::get_render_system()->start_job(job);                                                                     \
+            return { false, job };                                                                                              \
+        }                                                                                                                       \
+    }                                                                                                                           \
+    inline resourceNameCamelCase*& Renderer::resourceNameSnakeCase(                                                             \
+                                                        Renderer##resourceNameCamelCase##Handle handle) noexcept                \
+    {                                                                                                                           \
+        al_assert(handle.isValid);                                                                                              \
+        return resourcenameCamelCase2##s[handle.index];                                                                         \
+    }
 
 namespace al::engine
 {
@@ -46,7 +119,7 @@ namespace al::engine
     }
 
     Renderer::Renderer(OsWindow* window) noexcept
-        : renderThread{ &Renderer::render_update, this }
+        : renderThread{ }
         , shouldRun{ true }
         , window{ window }
         , onFrameProcessStart{ create_thread_event() }
@@ -58,12 +131,25 @@ namespace al::engine
         , screenRectangleVb{ 0 }
         , screenRectangleIb{ 0 }
         , screenRectangleVa{ 0 }
-        , indexBuffers{ }
-        , vertexBuffers{ }
-        , vertexArrays{ }
-        , shaders{ }
-        , texture2ds{ }
-    { }
+        , indexBuffers{ 0 }
+        , vertexBuffers{ 0 }
+        , vertexArrays{ 0 }
+        , shaders{ 0 }
+        , texture2ds{ 0 }
+        , freeIndexBufferHandles{ }
+        , freeVertexBufferHandles{ }
+        , freeVertexArrayHandles{ }
+        , freeShaderHandles{ }
+        , freeFramebufferHandles{ }
+        , freeTexture2dHandles{ }
+    {
+        init_handle_queue(&freeIndexBufferHandles);
+        init_handle_queue(&freeVertexBufferHandles);
+        init_handle_queue(&freeVertexArrayHandles);
+        init_handle_queue(&freeShaderHandles);
+        init_handle_queue(&freeFramebufferHandles);
+        init_handle_queue(&freeTexture2dHandles);
+    }
 
     std::thread* Renderer::get_render_thread() noexcept
     {
@@ -78,7 +164,7 @@ namespace al::engine
     void Renderer::terminate() noexcept
     {
         // @NOTE :  Can't join render in the destructor because on joining thread will call
-        //          virtual terminate_renderer method, but the child will be already terminated
+        //          virtual terminate_renderer method, but the child will be already destroyed
         shouldRun = false;
         start_process_frame();
         al_exception_wrap(renderThread.join());
@@ -111,12 +197,6 @@ namespace al::engine
         renderCamera = camera;
     }
 
-    void Renderer::add_render_command(const RenderCommand& command) noexcept
-    {
-        RenderCommand* result = renderCommandBuffer.get_previous().push(command);
-        al_assert(result);
-    }
-
     [[nodiscard]] GeometryCommandData* Renderer::add_geometry_command(GeometryCommandKey key) noexcept
     {
         GeometryCommandData* result = geometryCommandBuffer.get_previous().add_command(key);
@@ -124,371 +204,12 @@ namespace al::engine
         return result;
     }
 
-    RendererIndexBufferHandle Renderer::reserve_index_buffer() noexcept
-    {
-        al_profile_function();
-        IndexBuffer** ib = indexBuffers.get();
-        al_assert(ib);
-        *ib = nullptr;
-        return
-        {
-            .isValid = 1,
-            .index = static_cast<uint64_t>(indexBuffers.get_direct_index(ib))
-        };
-    }
-
-    void Renderer::create_index_buffer(RendererIndexBufferHandle handle, uint32_t* indices, std::size_t count, IndexBufferCallback cb) noexcept
-    {
-        al_profile_function();
-        if (is_render_thread())
-        {
-            index_buffer(handle) = internal::create_index_buffer<EngineConfig::DEFAULT_RENDERER_TYPE>(indices, count);
-            if (cb)
-            {
-                const_cast<IndexBufferCallback*>(&cb)->call(handle);
-            }
-        }
-        else
-        {
-            add_render_command([this, handle, indices, count, cb]()
-            {
-                index_buffer(handle) = internal::create_index_buffer<EngineConfig::DEFAULT_RENDERER_TYPE>(indices, count);
-                if (cb)
-                {
-                    const_cast<IndexBufferCallback*>(&cb)->call(handle);
-                }
-            });
-        }
-    }
-
-    void Renderer::destroy_index_buffer(RendererIndexBufferHandle handle) noexcept
-    {
-        al_profile_function();
-        if (is_render_thread())
-        {
-            internal::destroy_index_buffer<EngineConfig::DEFAULT_RENDERER_TYPE>(index_buffer(handle));
-            index_buffer(handle) = nullptr;
-        }
-        else
-        {
-            add_render_command([this, handle]()
-            {
-                internal::destroy_index_buffer<EngineConfig::DEFAULT_RENDERER_TYPE>(index_buffer(handle));
-                index_buffer(handle) = nullptr;
-            });
-        }
-    }
-
-    inline IndexBuffer*& Renderer::index_buffer(RendererIndexBufferHandle handle) noexcept
-    {
-        al_assert(handle.value != 0);
-        return *indexBuffers.direct_accsess(static_cast<std::size_t>(handle.index));
-    }
-
-    RendererVertexBufferHandle Renderer::reserve_vertex_buffer() noexcept
-    {
-        al_profile_function();
-        VertexBuffer** vb = vertexBuffers.get();
-        al_assert(vb);
-        *vb = nullptr;
-        return
-        {
-            .isValid = 1,
-            .index = static_cast<uint64_t>(vertexBuffers.get_direct_index(vb))
-        };
-    }
-
-    void Renderer::create_vertex_buffer(RendererVertexBufferHandle handle, const void* data, std::size_t size, VertexBufferCallback cb) noexcept
-    {
-        al_profile_function();
-        if (is_render_thread())
-        {
-            vertex_buffer(handle) = internal::create_vertex_buffer<EngineConfig::DEFAULT_RENDERER_TYPE>(data, size);
-            if (cb)
-            {
-                const_cast<VertexBufferCallback*>(&cb)->call(handle);
-            }
-        }
-        else
-        {
-            add_render_command([this, handle, data, size, cb]()
-            {
-                vertex_buffer(handle) = internal::create_vertex_buffer<EngineConfig::DEFAULT_RENDERER_TYPE>(data, size);
-                if (cb)
-                {
-                    const_cast<VertexBufferCallback*>(&cb)->call(handle);
-                }
-            });
-        }
-    }
-
-    void Renderer::destroy_vertex_buffer(RendererVertexBufferHandle handle) noexcept
-    {
-        al_profile_function();
-        if (is_render_thread())
-        {
-            internal::destroy_vertex_buffer<EngineConfig::DEFAULT_RENDERER_TYPE>(vertex_buffer(handle));
-            vertex_buffer(handle) = nullptr;
-        }
-        else
-        {
-            add_render_command([this, handle]()
-            {
-                internal::destroy_vertex_buffer<EngineConfig::DEFAULT_RENDERER_TYPE>(vertex_buffer(handle));
-                vertex_buffer(handle) = nullptr;
-            });
-        }
-    }
-
-    inline VertexBuffer*& Renderer::vertex_buffer(RendererVertexBufferHandle handle) noexcept
-    {
-        al_assert(handle.value != 0);
-        return *vertexBuffers.direct_accsess(static_cast<std::size_t>(handle.index));
-    }
-
-    RendererVertexArrayHandle Renderer::reserve_vertex_array() noexcept
-    {
-        al_profile_function();
-        VertexArray** va = vertexArrays.get();
-        al_assert(va);
-        *va = nullptr;
-        return
-        {
-            .isValid = 1,
-            .index = static_cast<uint64_t>(vertexArrays.get_direct_index(va))
-        };
-    }
-
-    void Renderer::create_vertex_array(RendererVertexArrayHandle handle, VertexArrayCallback cb) noexcept
-    {
-        al_profile_function();
-        if (is_render_thread())
-        {
-            vertex_array(handle) = internal::create_vertex_array<EngineConfig::DEFAULT_RENDERER_TYPE>();
-            if (cb)
-            {
-                const_cast<VertexArrayCallback*>(&cb)->call(handle);
-            }
-        }
-        else
-        {
-            add_render_command([this, handle, cb]()
-            {
-                vertex_array(handle) = internal::create_vertex_array<EngineConfig::DEFAULT_RENDERER_TYPE>();
-                if (cb)
-                {
-                    const_cast<VertexArrayCallback*>(&cb)->call(handle);
-                }
-            });
-        }
-    }
-
-    void Renderer::destroy_vertex_array(RendererVertexArrayHandle handle) noexcept
-    {
-        al_profile_function();
-        if (is_render_thread())
-        {
-            internal::destroy_vertex_array<EngineConfig::DEFAULT_RENDERER_TYPE>(vertex_array(handle));
-            vertex_array(handle) = nullptr;
-        }
-        else
-        {
-            add_render_command([this, handle]()
-            {
-                internal::destroy_vertex_array<EngineConfig::DEFAULT_RENDERER_TYPE>(vertex_array(handle));
-                vertex_array(handle) = nullptr;
-            });
-        }
-    }
-
-    inline VertexArray*& Renderer::vertex_array(RendererVertexArrayHandle handle) noexcept
-    {
-        al_assert(handle.value != 0);
-        return *vertexArrays.direct_accsess(static_cast<std::size_t>(handle.index));
-    }
-
-    RendererShaderHandle Renderer::reserve_shader() noexcept
-    {
-        al_profile_function();
-        Shader** s = shaders.get();
-        al_assert(s);
-        *s = nullptr;
-        return
-        {
-            .isValid = 1,
-            .index = static_cast<uint64_t>(shaders.get_direct_index(s))
-        };
-    }
-
-    void Renderer::create_shader(RendererShaderHandle handle, std::string_view vertexShaderSrc, std::string_view fragmentShaderSrc, ShaderCallback cb) noexcept
-    {
-        al_profile_function();
-        if (is_render_thread())
-        {
-            shader(handle) = internal::create_shader<EngineConfig::DEFAULT_RENDERER_TYPE>(vertexShaderSrc, fragmentShaderSrc);
-            if (cb)
-            {
-                const_cast<ShaderCallback*>(&cb)->call(handle);
-            }
-        }
-        else
-        {
-            add_render_command([this, handle, vertexShaderSrc, fragmentShaderSrc, cb]()
-            {
-                shader(handle) = internal::create_shader<EngineConfig::DEFAULT_RENDERER_TYPE>(vertexShaderSrc, fragmentShaderSrc);
-                if (cb)
-                {
-                    const_cast<ShaderCallback*>(&cb)->call(handle);
-                }
-            });
-        }
-    }
-
-    void Renderer::destroy_shader(RendererShaderHandle handle) noexcept
-    {
-        al_profile_function();
-        if (is_render_thread())
-        {
-            internal::destroy_shader<EngineConfig::DEFAULT_RENDERER_TYPE>(shader(handle));
-            shader(handle) = nullptr;
-        }
-        else
-        {
-            add_render_command([this, handle]()
-            {
-                internal::destroy_shader<EngineConfig::DEFAULT_RENDERER_TYPE>(shader(handle));
-                shader(handle) = nullptr;
-            });
-        }
-    }
-
-    inline Shader*& Renderer::shader(RendererShaderHandle handle) noexcept
-    {
-        al_assert(handle.value != 0);
-        return *shaders.direct_accsess(static_cast<std::size_t>(handle.index));
-    }
-
-    RendererFramebufferHandle Renderer::reserve_framebuffer() noexcept
-    {
-        al_profile_function();
-        Framebuffer** f = framebuffers.get();
-        al_assert(f);
-        *f = nullptr;
-        return
-        {
-            .isValid = 1,
-            .index = static_cast<uint64_t>(framebuffers.get_direct_index(f))
-        };
-    }
-
-    void Renderer::create_framebuffer(RendererFramebufferHandle handle, const FramebufferDescription& description, FramebufferCallback cb) noexcept
-    {
-        al_profile_function();
-        if (is_render_thread())
-        {
-            framebuffer(handle) = internal::create_framebuffer<EngineConfig::DEFAULT_RENDERER_TYPE>(description);
-            if (cb)
-            {
-                const_cast<FramebufferCallback*>(&cb)->call(handle);
-            }
-        }
-        else
-        {
-            add_render_command([this, handle, description, cb]()
-            {
-                framebuffer(handle) = internal::create_framebuffer<EngineConfig::DEFAULT_RENDERER_TYPE>(description);
-                if (cb)
-                {
-                    const_cast<FramebufferCallback*>(&cb)->call(handle);
-                }
-            });
-        }
-    }
-
-    void Renderer::destroy_framebuffer(RendererFramebufferHandle handle) noexcept
-    {
-        al_profile_function();
-        if (is_render_thread())
-        {
-            internal::destroy_framebuffer<EngineConfig::DEFAULT_RENDERER_TYPE>(framebuffer(handle));
-            framebuffer(handle) = nullptr;
-        }
-        else
-        {
-            add_render_command([this, handle]()
-            {
-                internal::destroy_framebuffer<EngineConfig::DEFAULT_RENDERER_TYPE>(framebuffer(handle));
-                framebuffer(handle) = nullptr;
-            });
-        }
-    }
-
-    inline Framebuffer*& Renderer::framebuffer(RendererFramebufferHandle handle) noexcept
-    {
-        al_assert(handle.value != 0);
-        return *framebuffers.direct_accsess(static_cast<std::size_t>(handle.index));
-    }
-
-    RendererTexture2dHandle Renderer::reserve_texture_2d() noexcept
-    {
-        al_profile_function();
-        Texture2d** tex = texture2ds.get();
-        al_assert(tex);
-        *tex = nullptr;
-        return
-        {
-            .isValid = 1,
-            .index = static_cast<uint64_t>(texture2ds.get_direct_index(tex))
-        };
-    }
-
-    void Renderer::create_texture_2d(RendererTexture2dHandle handle, std::string_view path, Texture2dCallback cb) noexcept
-    {
-        al_profile_function();
-        if (is_render_thread())
-        {
-            texture_2d(handle) = internal::create_texture_2d<EngineConfig::DEFAULT_RENDERER_TYPE>(path);
-            if (cb)
-            {
-                const_cast<Texture2dCallback*>(&cb)->call(handle);
-            }
-        }
-        else
-        {
-            add_render_command([this, handle, path, cb]()
-            {
-                texture_2d(handle) = internal::create_texture_2d<EngineConfig::DEFAULT_RENDERER_TYPE>(path);
-                if (cb)
-                {
-                    const_cast<Texture2dCallback*>(&cb)->call(handle);
-                }
-            });
-        }
-    }
-
-    void Renderer::destroy_texture_2d(RendererTexture2dHandle handle) noexcept
-    {
-        al_profile_function();
-        if (is_render_thread())
-        {
-            internal::destroy_texture_2d<EngineConfig::DEFAULT_RENDERER_TYPE>(texture_2d(handle));
-            texture_2d(handle) = nullptr;
-        }
-        else
-        {
-            add_render_command([this, handle]()
-            {
-                internal::destroy_texture_2d<EngineConfig::DEFAULT_RENDERER_TYPE>(texture_2d(handle));
-                texture_2d(handle) = nullptr;
-            });
-        }
-    }
-
-    inline Texture2d*& Renderer::texture_2d(RendererTexture2dHandle handle) noexcept
-    {
-        al_assert(handle.value != 0);
-        return *texture2ds.direct_accsess(static_cast<std::size_t>(handle.index));
-    }
+    DECLARE_RENDERER_RESOURCE_ACTIONS_IMPLEMETATION(index_buffer    , IndexBuffer   , indexBuffer);
+    DECLARE_RENDERER_RESOURCE_ACTIONS_IMPLEMETATION(vertex_buffer   , VertexBuffer  , vertexBuffer);
+    DECLARE_RENDERER_RESOURCE_ACTIONS_IMPLEMETATION(vertex_array    , VertexArray   , vertexArray);
+    DECLARE_RENDERER_RESOURCE_ACTIONS_IMPLEMETATION(shader          , Shader        , shader);
+    DECLARE_RENDERER_RESOURCE_ACTIONS_IMPLEMETATION(framebuffer     , Framebuffer   , framebuffer);
+    DECLARE_RENDERER_RESOURCE_ACTIONS_IMPLEMETATION(texture_2d      , Texture2d     , texture2d);
 
     void Renderer::render_update() noexcept
     {
@@ -507,7 +228,7 @@ namespace al::engine
                 gbufferDesciption.width = window->get_params()->width;
                 gbufferDesciption.height = window->get_params()->height;
                 gbuffer = reserve_framebuffer();
-                create_framebuffer(gbuffer, gbufferDesciption);
+                create_framebuffer(gbuffer, { gbufferDesciption });
             }
             {
                 FileHandle* vertGpassShaderSrc = FileSystem::get()->sync_load(EngineConfig::DEFFERED_GEOMETRY_PASS_VERT_SHADER_PATH, FileLoadMode::READ);
@@ -515,13 +236,11 @@ namespace al::engine
                 const char* vertGpassShaderStr = reinterpret_cast<const char*>(vertGpassShaderSrc->memory);
                 const char* fragGpassShaderStr = reinterpret_cast<const char*>(fragGpassShaderSrc->memory);
                 gpassShader = reserve_shader();
-                create_shader(gpassShader, vertGpassShaderStr, fragGpassShaderStr, [this, vertGpassShaderSrc, fragGpassShaderSrc](RendererShaderHandle handle)
-                {
-                    FileSystem::get()->free_handle(vertGpassShaderSrc);
-                    FileSystem::get()->free_handle(fragGpassShaderSrc);
-                    shader(handle)->bind();
-                    shader(handle)->set_int(EngineConfig::DEFFERED_GEOMETRY_PASS_DIFFUSE_TEXTURE_NAME, EngineConfig::DEFFERED_GEOMETRY_PASS_DIFFUSE_TEXTURE_LOCATION);
-                });
+                create_shader(gpassShader, { vertGpassShaderStr, fragGpassShaderStr });
+                FileSystem::get()->free_handle(vertGpassShaderSrc);
+                FileSystem::get()->free_handle(fragGpassShaderSrc);
+                shader(gpassShader)->bind();
+                shader(gpassShader)->set_int(EngineConfig::DEFFERED_GEOMETRY_PASS_DIFFUSE_TEXTURE_NAME, EngineConfig::DEFFERED_GEOMETRY_PASS_DIFFUSE_TEXTURE_LOCATION);
             }
             {
                 FileHandle* vertDrawFramebufferToScreenShaderSrc = FileSystem::get()->sync_load(EngineConfig::DRAW_FRAMEBUFFER_TO_SCREEN_VERT_SHADER_PATH, FileLoadMode::READ);
@@ -529,12 +248,9 @@ namespace al::engine
                 const char* vertDrawFramebufferToScreenShaderStr = reinterpret_cast<const char*>(vertDrawFramebufferToScreenShaderSrc->memory);
                 const char* fragDrawFramebufferToScreenShaderStr = reinterpret_cast<const char*>(fragDrawFramebufferToScreenShaderSrc->memory);
                 drawFramebufferToScreenShader = reserve_shader();
-                create_shader(drawFramebufferToScreenShader, vertDrawFramebufferToScreenShaderStr, fragDrawFramebufferToScreenShaderStr, 
-                [vertDrawFramebufferToScreenShaderSrc, fragDrawFramebufferToScreenShaderSrc](RendererShaderHandle handle)
-                {
-                    FileSystem::get()->free_handle(vertDrawFramebufferToScreenShaderSrc);
-                    FileSystem::get()->free_handle(fragDrawFramebufferToScreenShaderSrc);
-                });
+                create_shader(drawFramebufferToScreenShader, { vertDrawFramebufferToScreenShaderStr, fragDrawFramebufferToScreenShaderStr });
+                FileSystem::get()->free_handle(vertDrawFramebufferToScreenShaderSrc);
+                FileSystem::get()->free_handle(fragDrawFramebufferToScreenShaderSrc);
             }
             {
                 static float screenPlaneVertices[] =
@@ -550,21 +266,17 @@ namespace al::engine
                     2, 1, 3
                 };
                 screenRectangleVb = reserve_vertex_buffer();
-                create_vertex_buffer(screenRectangleVb, screenPlaneVertices, sizeof(screenPlaneVertices), [this](RendererVertexBufferHandle handle)
-                {
-                    vertex_buffer(handle)->set_layout(BufferLayout::ElementContainer{
-                        BufferElement{ ShaderDataType::Float2, false }, // Position
-                        BufferElement{ ShaderDataType::Float2, false }  // Uv
-                    });
+                create_vertex_buffer(screenRectangleVb, { screenPlaneVertices, sizeof(screenPlaneVertices) });
+                vertex_buffer(screenRectangleVb)->set_layout(BufferLayout::ElementContainer{
+                    BufferElement{ ShaderDataType::Float2, false }, // Position
+                    BufferElement{ ShaderDataType::Float2, false }  // Uv
                 });
                 screenRectangleIb = reserve_index_buffer();
-                create_index_buffer(screenRectangleIb, screenPlaneIndices, sizeof(screenPlaneIndices) / sizeof(uint32_t));
+                create_index_buffer(screenRectangleIb, { screenPlaneIndices, sizeof(screenPlaneIndices) / sizeof(uint32_t) });
                 screenRectangleVa = reserve_vertex_array();
-                create_vertex_array(screenRectangleVa, [this](RendererVertexArrayHandle handle)
-                {
-                    vertex_array(handle)->set_vertex_buffer(vertex_buffer(screenRectangleVb));
-                    vertex_array(handle)->set_index_buffer(index_buffer(screenRectangleIb));
-                });
+                create_vertex_array(screenRectangleVa, { });
+                vertex_array(screenRectangleVa)->set_vertex_buffer(vertex_buffer(screenRectangleVb));
+                vertex_array(screenRectangleVa)->set_index_buffer(index_buffer(screenRectangleIb));
             }
             // Enable vsync
             set_vsync_state(true);
@@ -578,18 +290,17 @@ namespace al::engine
                 // @NOTE : Don't know where is the best place for buffers toggle
                 {
                     al_profile_scope("Toggle command buffers");
-                    renderCommandBuffer.toggle();
                     geometryCommandBuffer.toggle();
                     notify_command_buffers_toggled();
                 }
                 {
-                    al_profile_scope("Process render commands");
-                    RenderCommandBuffer& current = renderCommandBuffer.get_current();
-                    current.for_each([](RenderCommand* command)
+                    al_profile_scope("Process render jobs");
+                    Job* job = JobSystem::get_render_system()->get_job_from_queue();
+                    while (job)
                     {
-                        (*command)();
-                    });
-                    current.clear();
+                        job->dispatch();
+                        job = JobSystem::get_render_system()->get_job_from_queue();
+                    }
                 }
                 {
                     al_profile_scope("Geometry pass");
@@ -671,6 +382,11 @@ namespace al::engine
     {
         al_assert(!onCommandBufferToggled->is_invoked());
         onCommandBufferToggled->invoke();
+    }
+
+    void Renderer::start_render_thread() noexcept
+    {
+        renderThread = std::thread{ &Renderer::render_update, this };
     }
 
     namespace internal

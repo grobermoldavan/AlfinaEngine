@@ -9,6 +9,12 @@
 
 namespace al::engine
 {
+    struct IndexBufferInitData
+    {
+        uint32_t* indices;
+        std::size_t count;
+    };
+
     class IndexBuffer
     {
     public:
@@ -21,7 +27,7 @@ namespace al::engine
 
     namespace internal
     {
-        template<RendererType type> [[nodiscard]] IndexBuffer* create_index_buffer(uint32_t* indices, std::size_t count) noexcept
+        template<RendererType type> [[nodiscard]] IndexBuffer* create_index_buffer(const IndexBufferInitData& initData) noexcept
         {
             al_log_error(EngineConfig::RENDERER_LOG_CATEGORY, "Unsupported rendering API");
             al_assert(false);
@@ -34,7 +40,7 @@ namespace al::engine
             al_assert(false);
         }
 
-        [[nodiscard]] IndexBuffer* create_index_buffer(RendererType type, uint32_t* indices, std::size_t count) noexcept;
+        [[nodiscard]] IndexBuffer* create_index_buffer(RendererType type, const IndexBufferInitData& initData) noexcept;
         void destroy_index_buffer(RendererType type, IndexBuffer* ib) noexcept;
     }
 }

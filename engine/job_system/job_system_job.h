@@ -11,15 +11,19 @@
 
 namespace al::engine
 {
+    class JobSystem;
+
     class Job : NonCopyable
     {
     public:
         using DispatchFunction = Function<void(Job*)>;
 
         Job() noexcept;
+        Job(JobSystem* jobSystem) noexcept;
         ~Job() = default;
 
         void configure(DispatchFunction func, void* data = nullptr) noexcept;
+        JobSystem* get_job_system() noexcept;
 
         void    dispatch() noexcept;
         bool    is_finished() const noexcept;
@@ -37,6 +41,7 @@ namespace al::engine
         NextJobs                    nextJobs;
         std::atomic<std::size_t>    previousJobsNum;
         DispatchFunction            dispatchFunction;
+        JobSystem*                  jobSystem;
         void*                       userData;
         CachelinePadding            padding;
 

@@ -5,11 +5,11 @@ namespace al::engine
 {
     namespace internal
     {
-        [[nodiscard]] VertexArray* create_vertex_array(RendererType type) noexcept
+        [[nodiscard]] VertexArray* create_vertex_array(RendererType type, const VertexArrayInitData& initData) noexcept
         {
             switch (type)
             {
-                case RendererType::OPEN_GL: return create_vertex_array<RendererType::OPEN_GL>();
+                case RendererType::OPEN_GL: return create_vertex_array<RendererType::OPEN_GL>(initData);
             }
             // Unknown RendererType
             al_assert(false);
