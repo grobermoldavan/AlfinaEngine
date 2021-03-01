@@ -42,7 +42,6 @@ namespace al::engine
         {
             if (is_starts_with(fileTextPtr, "v "))
             {
-                al_assert(activeSubmesh);
                 // @NOTE :  works only with three-component vectors
                 float3 position
                 {
@@ -54,7 +53,6 @@ namespace al::engine
             }
             else if (is_starts_with(fileTextPtr, "vn "))
             {
-                al_assert(activeSubmesh);
                 // @NOTE :  works only with three-component vectors
                 float3 normal
                 {
@@ -66,7 +64,6 @@ namespace al::engine
             }
             else if (is_starts_with(fileTextPtr, "vt "))
             {
-                al_assert(activeSubmesh);
                 // @NOTE :  works only with two-component vectors
                 float2 uv
                 {
@@ -77,6 +74,7 @@ namespace al::engine
             }
             else if (is_starts_with(fileTextPtr, "f "))
             {
+                al_assert(activeSubmesh);
                 auto cast_from_obj = [](uint64_t arraySize, int64_t value, uint32_t* target)
                 {
                     // @NOTE :  OBJ format can't have zeros in face descriptions
@@ -127,8 +125,7 @@ namespace al::engine
             {
                 // Ignored ?
             }
-            // @NOTE :  Currently we treat objects ("o " lines) and groups ("g " lines) the same
-            else if (is_starts_with(fileTextPtr, "o ") /*|| is_starts_with(fileTextPtr, "g ")*/)
+            else if (is_starts_with(fileTextPtr, "g ") /*|| is_starts_with(fileTextPtr, "o ")*/)
             {
                 if (activeSubmesh)
                 {
@@ -141,9 +138,10 @@ namespace al::engine
                 fileTextPtr = advance_to_word_ending(fileTextPtr);
                 const char* submeshNameEnd = fileTextPtr;
                 activeSubmesh->name.set_with_length(submeshNameStart, submeshNameEnd - submeshNameStart);
-                positions.clear();
-                normals.clear();
-                uvs.clear();
+                // @NOTE :  probably don't need to clear it
+                // positions.clear();
+                // normals.clear();
+                // uvs.clear();
             }
             const char* prevFileTextPtr = fileTextPtr;
             fileTextPtr = advance_to_next_line(fileTextPtr);

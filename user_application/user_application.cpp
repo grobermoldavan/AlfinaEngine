@@ -44,7 +44,17 @@ void UserApplication::initialize_components() noexcept
     onMouseButtonPressed.subscribe({ this, &UserApplication::handle_mouse_input });
 
     tex = ResourceManager::get()->add_texture_resource(construct_path("assets", "materials", "metal_plate", "diffuse.png"));
+    // mesh = ResourceManager::get()->add_mesh_resource(construct_path("assets", "geometry", "dragon", "dragon.obj"));
     mesh = ResourceManager::get()->add_mesh_resource(construct_path("assets", "geometry", "sponza", "sponza.obj"));
+
+    // Add scene node with render mesh component
+    SceneNodeHandle testSceneNode;
+    testSceneNode = defaultScene->create_node();
+    EntityHandle entity = defaultScene->scene_node(testSceneNode)->entityHandle;
+    EcsWorld* world = defaultScene->get_ecs_world();
+    world->add_components<RenderMeshComponent>(entity);
+    RenderMeshComponent* meshComponent = world->get_component<RenderMeshComponent>(entity);
+    meshComponent->resourceHandle = mesh;
 }
 
 void UserApplication::terminate_components() noexcept
@@ -61,15 +71,15 @@ void UserApplication::render() noexcept
 {
     al_profile_function();
     using namespace al::engine;
-    RenderMesh* renderMesh = ResourceManager::get()->get_render_mesh(mesh);
-    renderMesh->submeshes.for_each([&](RenderSubmesh* submesh)
+    defaultEcsWorld->for_each<SceneTransform, RenderMeshComponent>([&](EcsWorld* world, EntityHandle handle, SceneTransform* trf, RenderMeshComponent* mesh)
     {
-        GeometryCommandData* data = Renderer::get()->add_geometry_command({ });
-        data->trf = Transform{ };
-        data->trf.set_position({ 0, 0, 0 });
-        data->trf.set_scale({ 1, 1, 1 });
-        data->va = Renderer::get()->vertex_array(submesh->vaHandle);
-        data->diffuseTexture = Renderer::get()->texture_2d(ResourceManager::get()->get_renderer_texture_handle(tex));
+        ResourceManager::get()->get_render_mesh(mesh->resourceHandle)->submeshes.for_each([&](RenderSubmesh* submesh)
+        {
+            GeometryCommandData* data = Renderer::get()->add_geometry_command({ /* dummy key */ });
+            data->trf = trf->get_world_transform();
+            data->va = Renderer::get()->vertex_array(submesh->vaHandle);
+            data->diffuseTexture = Renderer::get()->texture_2d(ResourceManager::get()->get_renderer_texture_handle(tex));
+        });
     });
 }
 

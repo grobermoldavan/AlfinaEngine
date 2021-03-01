@@ -14,7 +14,7 @@ namespace al::engine
         FileSystem::construct();
         {
             OsWindowParams params;
-            params.isFullscreen = false;
+            params.isFullscreen = true;
             window = create_window(&params);
         }
         Renderer::allocate_space();

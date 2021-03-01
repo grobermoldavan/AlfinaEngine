@@ -142,8 +142,7 @@ namespace al::engine
                     {
                         al_profile_scope("Create submesh render resources");
                         al_log_message(EngineConfig::RESOURCE_MANAGER_LOG_CATEGORY, "Creating render resources for submesh with name %s", submesh->name);
-                        al_log_message(EngineConfig::RESOURCE_MANAGER_LOG_CATEGORY, "submesh %s : number of indices : %d", submesh->name, submesh->indices.size());
-                        al_log_message(EngineConfig::RESOURCE_MANAGER_LOG_CATEGORY, "submesh %s : number of vertices : %d", submesh->name, submesh->vertices.size());
+                        al_log_message(EngineConfig::RESOURCE_MANAGER_LOG_CATEGORY, "Submesh %s : number of vertices : %d", submesh->name, submesh->vertices.size());
                         // @NOTE :  Step 8. Actually create buffers and vertex array based on loaded mesh data
                         Renderer::get()->create_index_buffer(renderSubmesh->ibHandle, { submesh->indices.data(), submesh->indices.size() });
                         Renderer::get()->create_vertex_buffer(renderSubmesh->vbHandle, { submesh->vertices.data(), submesh->vertices.size() * sizeof(MeshVertex) });

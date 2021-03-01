@@ -4,3 +4,4 @@
 .vs
 profile.json
 user_application.obj
+*.cap

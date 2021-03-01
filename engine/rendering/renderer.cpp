@@ -19,6 +19,10 @@
     {                                                                                                                           \
         al_profile_function();                                                                                                  \
         al_assert(handle.isValid);                                                                                              \
+        if (resourceNameSnakeCase(handle))                                                                                      \
+        {                                                                                                                       \
+            destroy_##resourceNameSnakeCase(handle);                                                                            \
+        }                                                                                                                       \
         bool bufferHandleEnqueueResult = free##resourceNameCamelCase##Handles.enqueue(&handle);                                 \
         al_assert(bufferHandleEnqueueResult);                                                                                   \
     }                                                                                                                           \
@@ -77,6 +81,16 @@
         al_assert(handle.isValid);                                                                                              \
         return resourcenameCamelCase2##s[handle.index];                                                                         \
     }
+
+#define TERMINATE_RENDERER_RESOURCES(arrayName, destroyFunc, maxResources)  \
+    for (std::size_t it = 0; it < maxResources; it++)                       \
+    {                                                                       \
+        if (arrayName[it])                                                  \
+        {                                                                   \
+            destroyFunc({ .isValid = 1, .index = it });                     \
+        }                                                                   \
+    }
+
 
 namespace al::engine
 {
@@ -163,6 +177,12 @@ namespace al::engine
 
     void Renderer::terminate() noexcept
     {
+        TERMINATE_RENDERER_RESOURCES(indexBuffers   , destroy_index_buffer  , EngineConfig::RENDERER_MAX_INDEX_BUFFERS);
+        TERMINATE_RENDERER_RESOURCES(vertexBuffers  , destroy_vertex_buffer , EngineConfig::RENDERER_MAX_VERTEX_BUFFERS);
+        TERMINATE_RENDERER_RESOURCES(vertexArrays   , destroy_vertex_array  , EngineConfig::RENDERER_MAX_VERTEX_ARRAYS);
+        TERMINATE_RENDERER_RESOURCES(shaders        , destroy_shader        , EngineConfig::RENDERER_MAX_SHADERS);
+        TERMINATE_RENDERER_RESOURCES(framebuffers   , destroy_framebuffer   , EngineConfig::RENDERER_MAX_FRAMEBUFFERS);
+        TERMINATE_RENDERER_RESOURCES(texture2ds     , destroy_texture_2d    , EngineConfig::RENDERER_MAX_TEXTURES_2D);
         // @NOTE :  Can't join render in the destructor because on joining thread will call
         //          virtual terminate_renderer method, but the child will be already destroyed
         shouldRun = false;
@@ -339,8 +359,8 @@ namespace al::engine
                     shader(drawFramebufferToScreenShader)->bind();
                     clear_buffers(); // Probably this is not needed
                     // Attach texture to be drawn on screen
-                    framebuffer(gbuffer)->bind_attachment_to_slot(2, EngineConfig::SCREEN_PASS_SOURCE_BUFFER_TEXTURE_LOCATION);
-                    shader(drawFramebufferToScreenShader)->set_int(EngineConfig::SCREEN_PASS_SOURCE_BUFFER_TEXTURE_NAME, EngineConfig::SCREEN_PASS_SOURCE_BUFFER_TEXTURE_LOCATION);
+                    framebuffer(gbuffer)->bind_attachment_to_slot(GBUFFER_NORMAL_ATTACHMENT, EngineConfig::SCREEN_PASS_SOURCE_BUFFER_DIFFUSE_TEXTURE_LOCATION);
+                    shader(drawFramebufferToScreenShader)->set_int(EngineConfig::SCREEN_PASS_SOURCE_BUFFER_DIFFUSE_TEXTURE_NAME, EngineConfig::SCREEN_PASS_SOURCE_BUFFER_DIFFUSE_TEXTURE_LOCATION);
                     // Draw screen quad with selected texture
                     set_depth_test_state(false);
                     draw(vertex_array(screenRectangleVa));

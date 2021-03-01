@@ -28,6 +28,11 @@ namespace al::engine
     using TextureResourceHandle = ResourceManagerHandleT;
     using MeshResourceHandle    = ResourceManagerHandleT;
 
+    struct RenderMeshComponent
+    {
+        MeshResourceHandle resourceHandle;
+    };
+
     class ResourceManager
     {
     public:

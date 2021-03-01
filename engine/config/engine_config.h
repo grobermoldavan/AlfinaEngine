@@ -69,12 +69,10 @@ namespace al::engine
         static constexpr uint32_t                   DEFFERED_GEOMETRY_PASS_DIFFUSE_TEXTURE_LOCATION{ 0 };
         static constexpr const char*                DEFFERED_GEOMETRY_PASS_DIFFUSE_TEXTURE_NAME{ "texDiffuse" };
 
-        static constexpr uint32_t                   SCREEN_PASS_SOURCE_BUFFER_TEXTURE_LOCATION{ 0 };
-        static constexpr const char*                SCREEN_PASS_SOURCE_BUFFER_TEXTURE_NAME{ "texScreen" };
+        static constexpr uint32_t                   SCREEN_PASS_SOURCE_BUFFER_DIFFUSE_TEXTURE_LOCATION{ 0 };
+        static constexpr const char*                SCREEN_PASS_SOURCE_BUFFER_DIFFUSE_TEXTURE_NAME{ "texScreenDiffuse" };
 
         static constexpr const char*                OPENGL_RENDERER_LOG_CATEGORY{ "OpenGL" };
-
-        static constexpr std::size_t                RENDER_MESH_MAX_SUBMESHES{ 16 };
 
         static constexpr std::size_t                RENDERER_MAX_INDEX_BUFFERS{ 1024 };
         static constexpr std::size_t                RENDERER_MAX_VERTEX_BUFFERS{ 1024 };
@@ -105,8 +103,9 @@ namespace al::engine
         static constexpr std::size_t                RESOURCE_MAX_TEXTURES{ 1024 };
         static constexpr std::size_t                RESOURCE_MAX_MESHES{ 1024 };
 
-        // Render mesh settings
+        // Mesh settings
         static constexpr std::size_t                CPU_MESH_DEFAULT_DYNAMIC_ARRAYS_SIZE{ 2048 };
+        static constexpr std::size_t                RENDER_MESH_MAX_SUBMESHES{ 64 };
     };
 }
 

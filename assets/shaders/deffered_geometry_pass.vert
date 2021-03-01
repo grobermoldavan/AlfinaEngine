@@ -14,7 +14,7 @@ out vec2 v_Uv;
 void main()
 {
     v_Position  = (al_vpMatrix * al_modelMatrix * vec4(a_Position, 1.0)).xyz;
-    v_Normal    = (al_vpMatrix * al_modelMatrix * vec4(a_Normal, 0.0)).xyz;
+    v_Normal    = a_Normal; //Probably want WS normals here (al_vpMatrix * al_modelMatrix * vec4(a_Normal, 0.0)).xyz;
     v_Uv        = a_Uv;
     gl_Position = al_vpMatrix * al_modelMatrix * vec4(a_Position, 1.0);
 }

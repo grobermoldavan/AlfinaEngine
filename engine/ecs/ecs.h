@@ -99,6 +99,7 @@ namespace al::engine
 
                                     void            log_world_state     ()                      noexcept;
                                     EntityHandle    create_entity       ()                      noexcept;
+                                    // @TODO :  maybe return tuple with added components from this method ?
         template<typename ... T>    void            add_components      (EntityHandle handle)   noexcept;
         template<typename ... T>    void            remove_components   (EntityHandle handle)   noexcept;
         template<typename T>        T*              get_component       (EntityHandle handle)   noexcept;

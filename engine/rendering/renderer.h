@@ -5,6 +5,7 @@
 #include <atomic>
 #include <mutex>
 #include <condition_variable>
+#include <cstdint>
 
 #include "render_core.h"
 #include "vertex_buffer.h"
@@ -71,6 +72,11 @@ namespace al::engine
 
     protected:
         static Renderer* instance;
+
+        // @TODO :  Maybe somehow move this info into framebuffer description ?
+        static constexpr uint32_t GBUFFER_POSITION_ATTACHMENT   = 0;
+        static constexpr uint32_t GBUFFER_NORMAL_ATTACHMENT     = 1;
+        static constexpr uint32_t GBUFFER_DIFFUSE_ATTACHMENT    = 2;
 
         IndexBuffer*    indexBuffers    [EngineConfig::RENDERER_MAX_INDEX_BUFFERS];
         VertexBuffer*   vertexBuffers   [EngineConfig::RENDERER_MAX_VERTEX_BUFFERS];
