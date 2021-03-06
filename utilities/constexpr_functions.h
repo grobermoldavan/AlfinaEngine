@@ -8,6 +8,8 @@
 #include <concepts>
 #include <cstddef>
 
+#include "utilities/concepts.h"
+
 namespace al
 {
 	namespace crc_private
@@ -248,6 +250,12 @@ namespace al
     {
         return first > second ? first : second;
     }
+
+	template<al::number T>
+	constexpr T percent_of(T number, T percents)
+	{
+		return number / T{100} * percents;
+	}
 }
 
 #endif

@@ -4,7 +4,7 @@
 namespace al::engine
 {
     MemoryBucket::MemoryBucket() noexcept
-        : blockSize{ 0 }
+        : blockSizeBytes{ 0 }
         , blockCount{ 0 }
         , memorySizeBytes{ 0 }
         , ledgerSizeBytes{ 0 }
@@ -15,12 +15,12 @@ namespace al::engine
     MemoryBucket::~MemoryBucket() noexcept
     { }
 
-    void MemoryBucket::initialize(std::size_t blockSize, std::size_t blockCount, AllocatorBase* allocator) noexcept
+    void MemoryBucket::initialize(std::size_t blockSizeBytes, std::size_t blockCount, AllocatorBase* allocator) noexcept
     {
-        this->blockSize = blockSize;
+        this->blockSizeBytes = blockSizeBytes;
         this->blockCount = blockCount;
 
-        memorySizeBytes = blockSize * blockCount;
+        memorySizeBytes = blockSizeBytes * blockCount;
         ledgerSizeBytes = 1 + ((blockCount - 1) / 8);
 
         memory = allocator->allocate(memorySizeBytes);
@@ -34,14 +34,14 @@ namespace al::engine
 #if(POOL_ALLOCATOR_USE_LOCK)
         const std::lock_guard<std::mutex> lock{ memoryMutex };
 #endif
-        const std::size_t blockNum = 1 + ((memorySizeBytes - 1) / blockSize);
+        const std::size_t blockNum = 1 + ((memorySizeBytes - 1) / blockSizeBytes);
         const std::size_t blockId = find_contiguous_blocks(blockNum);
         if (blockId == blockCount)
         {
             return nullptr;
         }
         set_blocks_in_use(blockId, blockNum);
-        return memory + blockId * blockSize;
+        return memory + blockId * blockSizeBytes;
     }
 
     void MemoryBucket::deallocate(std::byte* ptr, std::size_t memorySizeBytes) noexcept
@@ -50,8 +50,8 @@ namespace al::engine
         const std::lock_guard<std::mutex> lock{ memoryMutex };
 #endif
 
-        const std::size_t blockNum = 1 + ((memorySizeBytes - 1) / blockSize);
-        const std::size_t blockId = static_cast<std::size_t>(ptr - memory) / blockSize;
+        const std::size_t blockNum = 1 + ((memorySizeBytes - 1) / blockSizeBytes);
+        const std::size_t blockId = static_cast<std::size_t>(ptr - memory) / blockSizeBytes;
         set_blocks_free(blockId, blockNum);
     }
 
@@ -62,7 +62,7 @@ namespace al::engine
 
     const std::size_t MemoryBucket::get_block_size() const noexcept
     {
-        return blockSize;
+        return blockSizeBytes;
     }
     
     const std::size_t MemoryBucket::get_block_count() const noexcept
@@ -157,7 +157,7 @@ namespace al::engine
         }
     }
 
-    constexpr BucketDescrition bucket_desc(std::size_t blockSizeBytes, std::size_t memorySizeBytes)
+    constexpr BucketDescription bucket_desc(std::size_t blockSizeBytes, std::size_t memorySizeBytes)
     {
         return { blockSizeBytes, memorySizeBytes / blockSizeBytes };
     }
@@ -169,56 +169,44 @@ namespace al::engine
 
     [[nodiscard]] std::byte* PoolAllocator::allocate(std::size_t memorySizeBytes) noexcept
     {
-        BucketCompareInfo comapreInfos[EngineConfig::POOL_ALLOCATOR_MAX_BUCKETS];
-        std::size_t it;
-
-        for (it = 0; it < EngineConfig::POOL_ALLOCATOR_MAX_BUCKETS; it++)
+        ArrayContainer<BucketCompareInfo, EngineConfig::POOL_ALLOCATOR_MAX_BUCKETS> compareInfos;
+        std::size_t it = 0;
+        for (MemoryBucket& bucket : buckets)
         {
-            MemoryBucket& bucket = buckets[it];
-            if (!bucket.is_bucket_initialized()) break;
-
-            comapreInfos[it].bucketId = it;
+            BucketCompareInfo* info = compareInfos.get();
+            info->bucketId = it;
             if (bucket.get_block_size() >= memorySizeBytes)
             {
-                comapreInfos[it].blocksUsed = 1;
-                comapreInfos[it].memoryWasted = bucket.get_block_size() - memorySizeBytes;
+                info->blocksUsed = 1;
+                info->memoryWasted = bucket.get_block_size() - memorySizeBytes;
             }
             else
             {
                 const std::size_t blockNum = 1 + ((memorySizeBytes - 1) / bucket.get_block_size());
                 const std::size_t blockMemory = blockNum * bucket.get_block_size();
-
-                comapreInfos[it].blocksUsed = blockNum;
-                comapreInfos[it].memoryWasted = blockMemory - memorySizeBytes;
+                info->blocksUsed = blockNum;
+                info->memoryWasted = blockMemory - memorySizeBytes;
             }
+            it++;
         }
-
-        // sort compareInfos from [0 to it)
         // @TODO : replace std::sort mb
-        std::sort(&comapreInfos[0], &comapreInfos[it - 1]);
-
+        std::sort(compareInfos.begin(), compareInfos.end());
         std::byte* result = nullptr;
-
-        for (std::size_t allocIt = 0; allocIt < it; allocIt++)
+        for (BucketCompareInfo& compareInfo : compareInfos)
         {
-            auto id = comapreInfos[allocIt].bucketId;
-            result = buckets[id].allocate(memorySizeBytes);
+            result = buckets[compareInfo.bucketId].allocate(memorySizeBytes);
             if (result)
             {
                 break;
             }
         }
-
         return result;
     }
 
     void PoolAllocator::deallocate(std::byte* ptr, std::size_t memorySizeBytes) noexcept
     {
-        for (std::size_t it = 0; it < EngineConfig::POOL_ALLOCATOR_MAX_BUCKETS; it++)
+        for (MemoryBucket& bucket : buckets)
         {
-            MemoryBucket& bucket = buckets[it];
-            if (!bucket.is_bucket_initialized()) break;
-
             if (bucket.is_belongs(ptr))
             {
                 bucket.deallocate(ptr, memorySizeBytes);
@@ -227,16 +215,13 @@ namespace al::engine
         }
     }
 
-    void PoolAllocator::initialize(std::array<BucketDescrition, EngineConfig::POOL_ALLOCATOR_MAX_BUCKETS> bucketDescriptions, AllocatorBase* allocator) noexcept
+    void PoolAllocator::initialize(BucketDescContainer bucketDescriptions, AllocatorBase* allocator) noexcept
     {
-        for (std::size_t it = 0; it < EngineConfig::POOL_ALLOCATOR_MAX_BUCKETS; it++)
+        for (BucketDescription& desc : bucketDescriptions)
         {
-            if (bucketDescriptions[it].blockSize == 0 || bucketDescriptions[it].blockCount == 0)
-            {
-                continue;
-            }
-            buckets[it].initialize(bucketDescriptions[it].blockSize, bucketDescriptions[it].blockCount, allocator);
-        }
+            MemoryBucket* bucket = buckets.get();
+            bucket->initialize(desc.blockSizeBytes, desc.blockCount, allocator);
+        };
     }
     
     [[nodiscard]] std::byte* PoolAllocator::allocate_using_allocation_info(std::size_t memorySizeBytes) noexcept
@@ -246,7 +231,6 @@ namespace al::engine
             .ptr = ptr,
             .size = memorySizeBytes
         });
-
         return ptr;
     }
 
@@ -276,7 +260,11 @@ namespace al::engine
             return true;
         });
         deallocate_using_allocation_info(ptr);
-
         return newMemory;
+    }
+
+    PoolAllocator::BucketContainer& PoolAllocator::get_buckets() noexcept
+    {
+        return buckets;
     }
 }

@@ -17,6 +17,8 @@ namespace al::engine
         static StackAllocator*  get_stack   () noexcept;
         static PoolAllocator*   get_pool    () noexcept;
 
+        static void log_memory_init_info() noexcept;
+
     private:
         static MemoryManager instance;
 

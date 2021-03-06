@@ -23,9 +23,10 @@ namespace al::engine
         static constexpr const char*                MEMORY_MANAGER_LOG_CATEGORY{ "Memory Manager" };
 
         static constexpr std::size_t                MEMORY_SIZE{ gigabytes<std::size_t>(1) };
+        static constexpr std::size_t                POOL_ALLOCATOR_MEMORY_PERCENTS{ 80 };
         static constexpr std::size_t                POOL_ALLOCATOR_MAX_BUCKETS{ 5 };
         static constexpr std::size_t                POOL_ALLOCATOR_MAX_PTR_SIZE_PAIRS{ 64 };
-        static constexpr std::size_t                DEFAULT_MEMORY_ALIGNMENT{ 8 };  // Must be power of two
+        static constexpr std::size_t                DEFAULT_MEMORY_ALIGNMENT{ 8 };  // Bytes. Must be power of two
 
         // File System settings
         static constexpr const char*                FILE_SYSTEM_LOG_CATEGORY{ "File System" };

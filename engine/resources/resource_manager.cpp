@@ -159,6 +159,9 @@ namespace al::engine
                         va->set_index_buffer(Renderer::get()->index_buffer(renderSubmesh->ibHandle));
                         // @NOTE :  When all createRenderResourcesJob instances (for each submesh) will be dispatched,
                         //          then mesh will be ready for a render
+
+                        // @NOTE :  Maybe we need to destruct cpu submesh, thus erasing all mesh information from it ?
+                        // submesh->~CpuSubmesh();
                     });
                     JobSystem::get_render_system()->start_job(createRenderResourcesJob);
                 });

@@ -10,11 +10,12 @@ namespace al::engine
     {
         MemoryManager::construct();
         debug::Logger::construct();
+        MemoryManager::log_memory_init_info();
         JobSystem::construct(get_number_of_job_system_threads());
         FileSystem::construct();
         {
             OsWindowParams params;
-            params.isFullscreen = true;
+            params.isFullscreen = false;
             window = create_window(&params);
         }
         Renderer::allocate_space();
@@ -23,11 +24,8 @@ namespace al::engine
 
         distribute_threads_to_cpu_cores();
 
-        defaultEcsWorld = MemoryManager::get_stack()->allocate_as<EcsWorld>();
-        ::new(defaultEcsWorld) EcsWorld{ };
-
-        defaultScene = MemoryManager::get_stack()->allocate_as<Scene>();
-        ::new(defaultScene) Scene{ defaultEcsWorld };
+        defaultEcsWorld = MemoryManager::get_stack()->allocate_and_construct<EcsWorld>();
+        defaultScene = MemoryManager::get_stack()->allocate_and_construct<Scene>(defaultEcsWorld);
 
         dbgFlyCamera.get_render_camera()->set_aspect_ratio(static_cast<float>(window->get_params()->width) / static_cast<float>(window->get_params()->height));
         Renderer::get()->set_camera(dbgFlyCamera.get_render_camera());

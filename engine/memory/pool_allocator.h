@@ -47,7 +47,7 @@ namespace al::engine
         std::mutex memoryMutex;
 #endif
 
-        std::size_t blockSize;
+        std::size_t blockSizeBytes;
         std::size_t blockCount;
 
         std::size_t memorySizeBytes;
@@ -61,13 +61,13 @@ namespace al::engine
         void        set_blocks_free         (std::size_t first, std::size_t number)         noexcept;
     };
 
-    struct BucketDescrition
+    struct BucketDescription
     {
-        std::size_t blockSize = 0;
+        std::size_t blockSizeBytes = 0;
         std::size_t blockCount = 0;
     };
 
-    constexpr BucketDescrition bucket_desc(std::size_t blockSizeBytes, std::size_t memorySizeBytes);
+    constexpr BucketDescription bucket_desc(std::size_t blockSizeBytes, std::size_t memorySizeBytes);
 
     struct BucketCompareInfo
     {
@@ -81,13 +81,16 @@ namespace al::engine
     class PoolAllocator : public AllocatorBase
     {
     public:
+        using BucketDescContainer = ArrayContainer<BucketDescription, EngineConfig::POOL_ALLOCATOR_MAX_BUCKETS>;
+        using BucketContainer = ArrayContainer<MemoryBucket, EngineConfig::POOL_ALLOCATOR_MAX_BUCKETS>;
+
         PoolAllocator() = default;
         ~PoolAllocator() = default;
 
         virtual [[nodiscard]] std::byte*    allocate    (std::size_t memorySizeBytes)                   noexcept override;
         virtual void                        deallocate  (std::byte* ptr, std::size_t memorySizeBytes)   noexcept override;
 
-        void initialize(std::array<BucketDescrition, EngineConfig::POOL_ALLOCATOR_MAX_BUCKETS> bucketDescriptions, AllocatorBase* allocator) noexcept;
+        void initialize(BucketDescContainer bucketDescriptions, AllocatorBase* allocator) noexcept;
 
         // @NOTE :  This methods allow user to deallocate and reallocate memory using only memory pointer without passing memory size.
         //          This might be useful for connecting allocator to other API's. For example, this methods are currently used with stbi_image
@@ -100,15 +103,16 @@ namespace al::engine
         void                        deallocate_using_allocation_info(std::byte* ptr)                                    noexcept;
         [[nodiscard]] std::byte*    reallocate_using_allocation_info(std::byte* ptr, std::size_t newMemorySizeBytes)    noexcept;
 
-    private:
-        std::array<MemoryBucket, EngineConfig::POOL_ALLOCATOR_MAX_BUCKETS> buckets;
+        BucketContainer& get_buckets() noexcept;
 
+    private:
         struct AllocationInfo
         {
             std::byte* ptr;
             std::size_t size;
         };
 
+        BucketContainer buckets;
         ArrayContainer<AllocationInfo, EngineConfig::POOL_ALLOCATOR_MAX_PTR_SIZE_PAIRS> ptrSizePairs;
     };
 }
