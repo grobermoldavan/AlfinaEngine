@@ -18,12 +18,8 @@
 #include <cstdint>
 #include <chrono>
 #include <atomic>
-#include <thread>
 #include <mutex>
-
-// For debug output
-#include <iostream>
-#include <fstream>
+#include <cstdio>
 
 #include "engine/config/engine_config.h"
 
@@ -35,11 +31,10 @@
 #endif
 
 #ifdef AL_LOGGING_ENABLED
-#   define AL_DBG_NAMESPACE using namespace ::al::engine::debug;
 #   define AL_LOG_FORMAT(format) "[%s] "##format##"\n"
-#   define al_log_message(category, format, ...)    { AL_DBG_NAMESPACE Logger::printf_log(Logger::Level::_MESSAGE, category, AL_LOG_FORMAT(format), __VA_ARGS__); }
-#   define al_log_warning(category, format, ...)    { AL_DBG_NAMESPACE Logger::printf_log(Logger::Level::_WARNING, category, AL_LOG_FORMAT(format), __VA_ARGS__); }
-#   define al_log_error(category, format, ...)      { AL_DBG_NAMESPACE Logger::printf_log(Logger::Level::_ERROR  , category, AL_LOG_FORMAT(format), __VA_ARGS__); }
+#   define al_log_message(category, format, ...)    { using namespace al::engine; logger_printf_log(gLogger, _MESSAGE, category, AL_LOG_FORMAT(format), __VA_ARGS__); }
+#   define al_log_warning(category, format, ...)    { using namespace al::engine; logger_printf_log(gLogger, _WARNING, category, AL_LOG_FORMAT(format), __VA_ARGS__); }
+#   define al_log_error(category, format, ...)      { using namespace al::engine; logger_printf_log(gLogger, _ERROR  , category, AL_LOG_FORMAT(format), __VA_ARGS__); }
 #else
 #   define al_log_message(category, format, ...)
 #   define al_log_warning(category, format, ...)
@@ -47,8 +42,8 @@
 #endif
 
 #ifdef AL_PROFILING_ENABLED
-#   define al_profile_function() ::al::engine::debug::ScopeProfiler __UNIQUE_NAME(profiler)(__FUNCSIG__)
-#   define al_profile_scope(name) ::al::engine::debug::ScopeProfiler __UNIQUE_NAME(profiler)(name)
+#   define al_profile_function() ::al::engine::ScopeProfiler __UNIQUE_NAME(profiler)(__FUNCSIG__)
+#   define al_profile_scope(name) ::al::engine::ScopeProfiler __UNIQUE_NAME(profiler)(name)
 #else
 #   define al_profile_function()
 #   define al_profile_scope(name)
@@ -63,78 +58,59 @@
 #define al_assert(cond)                                                                     \
     if (!(cond))                                                                            \
     {                                                                                       \
-        ::al::engine::debug::assert_implementation(__FILE__, __FUNCSIG__, __LINE__, #cond); \
+        ::al::engine::assert_implementation(__FILE__, __FUNCSIG__, __LINE__, #cond); \
     }
 
 #define al_assert_msg(cond, format, ...)                                                    \
     if (!(cond))                                                                            \
     {                                                                                       \
         al_log_error("assert", format, __VA_ARGS__);                                        \
-        ::al::engine::debug::assert_implementation(__FILE__, __FUNCSIG__, __LINE__, #cond); \
+        ::al::engine::assert_implementation(__FILE__, __FUNCSIG__, __LINE__, #cond); \
     }
 
 #define al_crash_impl std::abort();
 #define al_exception_wrap(code) try { code; } catch (const std::exception& e) { al_log_error("Exception", "%s", e.what()); al_assert(false); }
 #define al_exception_wrap_no_assert(code) try { code; } catch (const std::exception& e) { al_crash_impl }
 
-namespace al::engine::debug
+namespace al::engine
 {
-    using DebugOutput = std::ostream;
-    using DebugFileOutput = std::ofstream;
+    extern struct Logger* gLogger;
 
-    DebugOutput* GLOBAL_LOG_OUTPUT{ &std::cout };
-    DebugOutput* GLOBAL_PROFILE_OUTPUT{ &std::cout };
-
-    DebugFileOutput USER_FILE_LOG_OUTPUT;
-    DebugFileOutput USER_FILE_PROFILE_OUTPUT;
-
-    void close_log_output();
-    void override_log_output(const char* filename);
-    void close_profile_output();
-    void override_profile_output(const char* filename);
-
-    class Logger
+    struct LoggerBuffer
     {
-    public:
-        enum Level
-        {
-            _MESSAGE,
-            _WARNING,
-            _ERROR
-        };
-
-        static void construct() noexcept;
-        static void destruct() noexcept;
-
-        template<typename ... Args> static void printf_log          (Level level, const char* category, const char* format, Args ... args) noexcept;
-        template<typename ... Args> static void printf_profile      (const char* format, Args ... args) noexcept;
-                                    static void print_log_buffer    () noexcept;
-                                    static void print_profile_buffer() noexcept;
-                                    static void enable_log_level    (Level level) noexcept;
-                                    static void disable_log_level   (Level level) noexcept;
-
-    private:
-        static Logger* instance;
-
-        char                        logBuffer[EngineConfig::LOG_BUFFER_SIZE + 1];
-        std::atomic<std::size_t>    logBufferPtr;
-        char                        profileBuffer[EngineConfig::PROFILE_BUFFER_SIZE + 1];
-        std::atomic<std::size_t>    profileBufferPtr;
-        std::mutex                  profileMutex;
-        uint32_t                    levelFlags;
-
-        Logger(uint32_t levelFlags = set_bit(0u, _MESSAGE) | set_bit(0u, _WARNING) | set_bit(0u, _ERROR)) noexcept;
-        ~Logger() noexcept;
-
-        template<typename ... Args> void instance_printf_log            (Level level, const char* category, const char* format, Args ... args) noexcept;
-        template<typename ... Args> void instance_printf_profile        (const char* format, Args ... args) noexcept;
-                                    void instance_print_log_buffer      () noexcept;
-                                    void instance_print_profile_buffer  () noexcept;
-                                    void instance_enable_log_level      (Level level) noexcept;
-                                    void instance_disable_log_level     (Level level) noexcept;
-
-        char* allocate_buffer(char* buffer, std::atomic<std::size_t>* bufferPtr, std::size_t bufferSize, std::size_t sizeToAllocate) noexcept;
+        char memory[EngineConfig::LOG_SYSTEM_BUFFER_SIZE];
+        std::atomic<std::size_t> top;
     };
+
+    void logger_buffer_clear(LoggerBuffer* buffer);
+    char* logger_buffer_allocate(LoggerBuffer* buffer, std::size_t sizeBytes);
+
+    enum LogLevel
+    {
+        _MESSAGE,
+        _WARNING,
+        _ERROR
+    };
+
+    struct Logger
+    {
+        uint32_t        levelFlags;
+        FILE*           logOutput;
+        FILE*           profileOutput;
+        LoggerBuffer    logBuffer;
+        LoggerBuffer    profileBuffer;
+        std::mutex      logMutex;
+        std::mutex      profileMutex;
+    };
+
+    void logger_construct(Logger* logger, uint32_t levelFlags = set_bit(0u, _MESSAGE) | set_bit(0u, _WARNING) | set_bit(0u, _ERROR));
+    void logger_destruct(Logger* logger);
+
+    template<typename ... Args> void logger_printf_log          (Logger* logger, LogLevel level, const char* category, const char* format, Args ... args);
+    template<typename ... Args> void logger_printf_profile      (Logger* logger, const char* format, Args ... args);
+                                void logger_enable_log_level    (Logger* logger, LogLevel level);
+                                void logger_disable_log_level   (Logger* logger, LogLevel level);
+                                void logger_flush_buffers       (Logger* logger);
 
     struct ScopeProfiler
     {
@@ -145,11 +121,11 @@ namespace al::engine::debug
         TimeType beginScopeTime;
         std::size_t threadId;
 
-        ScopeProfiler(const char* name) noexcept;
-        ~ScopeProfiler() noexcept;
+        ScopeProfiler(const char* name);
+        ~ScopeProfiler();
     };
 
-    void assert_implementation(const char* file, const char* function, const std::size_t line, const char* condition) noexcept;
+    void assert_implementation(const char* file, const char* function, const std::size_t line, const char* condition);
 }
 
 #endif

@@ -43,13 +43,8 @@ namespace al::engine
 
         // Log System settings
         static constexpr const char*                LOG_SYSTEM_LOG_CATEGORY{ "Log System" };
-
-        static constexpr std::size_t                LOG_BUFFER_SIZE{ megabytes<std::size_t>(1) };
-        static constexpr bool                       LOG_USE_DEFAULT_OUTPUT{ true };
-        static constexpr const char*                LOG_OUTPUT_FILE{ "log.txt" };
-        static constexpr std::size_t                PROFILE_BUFFER_SIZE{ megabytes<std::size_t>(2) };
-        static constexpr bool                       PROFILE_USE_DEFAULT_OUTPUT{ false };
         static constexpr const char*                PROFILE_OUTPUT_FILE{ "profile.json" };
+        static constexpr std::size_t                LOG_SYSTEM_BUFFER_SIZE{ megabytes<std::size_t>(8) };
 
         // Render System settings
         static constexpr const char*                RENDERER_LOG_CATEGORY{ "Renderer" };

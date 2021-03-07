@@ -157,6 +157,7 @@ namespace al::engine
         , freeFramebufferHandles{ }
         , freeTexture2dHandles{ }
     {
+        al_profile_function();
         init_handle_queue(&freeIndexBufferHandles);
         init_handle_queue(&freeVertexBufferHandles);
         init_handle_queue(&freeVertexArrayHandles);
@@ -177,6 +178,7 @@ namespace al::engine
 
     void Renderer::terminate() noexcept
     {
+        al_profile_function();
         TERMINATE_RENDERER_RESOURCES(indexBuffers   , destroy_index_buffer  , EngineConfig::RENDERER_MAX_INDEX_BUFFERS);
         TERMINATE_RENDERER_RESOURCES(vertexBuffers  , destroy_vertex_buffer , EngineConfig::RENDERER_MAX_VERTEX_BUFFERS);
         TERMINATE_RENDERER_RESOURCES(vertexArrays   , destroy_vertex_array  , EngineConfig::RENDERER_MAX_VERTEX_ARRAYS);

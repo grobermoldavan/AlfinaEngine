@@ -9,6 +9,11 @@ namespace al::engine
         return ::SetThreadAffinityMask(threadHandle, static_cast<DWORD_PTR>(mask));
     }
 
+    bool set_thread_highest_priority(ThreadHandle threadHandle) noexcept
+    {
+        return ::SetThreadPriority(threadHandle, THREAD_PRIORITY_HIGHEST);
+    }
+
     ThreadHandle get_current_thread_handle() noexcept
     {
         return ::GetCurrentThread();

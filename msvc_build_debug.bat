@@ -5,6 +5,7 @@ call cl ^
 user_application\user_application.cpp ^
 /std:c++latest /w34996 ^
 /I "." /I "engine\3d_party_libs\glew\include" ^
+/DAL_LOGGING_ENABLED /DAL_PROFILING_ENABLED /DAL_DEBUG ^
 kernel32.lib user32.lib Gdi32.lib Opengl32.lib Ole32.lib ^
 engine\3d_party_libs\glew\lib\Release\x64\glew32s.lib ^
 /link /DEBUG:FULL
@@ -18,4 +19,4 @@ REM move /y .\user_application.ilk .\msvc_build\
 REM move /y .\user_application.obj .\msvc_build\
 REM move /y .\user_application.pdb .\msvc_build\
 
-pause
+REM pause

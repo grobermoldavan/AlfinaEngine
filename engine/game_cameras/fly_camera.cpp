@@ -1,4 +1,5 @@
 #include "fly_camera.h"
+#include "debug/debug.h"
 
 namespace al::engine
 {
@@ -17,14 +18,13 @@ namespace al::engine
 
     void FlyCamera::process_inputs(const OsWindowInput* input, float dt) noexcept
     {
+        al_profile_function();
         Transform* trf = renderCamera.get_transform();
-
         // Process keyboard input
         {
             constexpr float FAST_MOVEMENT_SPEED = 5.0f;
             constexpr float NORMAL_MOVEMENT_SPEED = 1.0f;
             const float movementSpeed = input->keyboard.buttons.get_flag(static_cast<uint32_t>(OsWindowInput::KeyboardInputFlags::CTRL)) ? FAST_MOVEMENT_SPEED : NORMAL_MOVEMENT_SPEED;
-            
             float3 pos = trf->get_position();
             if (input->keyboard.buttons.get_flag(static_cast<uint32_t>(OsWindowInput::KeyboardInputFlags::W))) { pos += trf->get_forward()  * movementSpeed * dt; }
             if (input->keyboard.buttons.get_flag(static_cast<uint32_t>(OsWindowInput::KeyboardInputFlags::S))) { pos += trf->get_forward()  * movementSpeed * dt * -1.0f; }
@@ -34,7 +34,6 @@ namespace al::engine
             if (input->keyboard.buttons.get_flag(static_cast<uint32_t>(OsWindowInput::KeyboardInputFlags::E))) { pos += trf->get_up()       * movementSpeed * dt; }
             trf->set_position(pos);
         }
-
         // Process mouse move input
         {
             if (input->mouse.buttons.get_flag(static_cast<uint32_t>(OsWindowInput::MouseInputFlags::RMB_PRESSED)))
@@ -42,7 +41,6 @@ namespace al::engine
                 const bool isJustPressed = !isRmbPressed;
                 const int32_t cursorX = input->mouse.x;
                 const int32_t cursorY = input->mouse.y;
-
                 if (!isJustPressed)
                 {
                     const int32_2 diff{ cursorX - cursorPosition.x, cursorY - cursorPosition.y };
@@ -51,7 +49,6 @@ namespace al::engine
                     rotation.y += static_cast<float>(diff.x) * dt * mouseSensitivity;
                     trf->set_rotation(rotation);
                 }
-
                 cursorPosition.x = cursorX;
                 cursorPosition.y = cursorY;
                 isRmbPressed = true;
@@ -61,7 +58,6 @@ namespace al::engine
                 isRmbPressed = false;
             }
         }
-
         // Process mouse wheel input
         {
             const int32_t currentWheelState = input->mouse.wheel;

@@ -28,6 +28,7 @@ namespace al::engine
         : Renderer{ window }
         , win32window{ dynamic_cast<OsWindowWin32*>(window) }
     {
+        al_profile_function();
         start_render_thread();
     }
 
@@ -43,12 +44,14 @@ namespace al::engine
 
     void Win32OpenglRenderer::draw(VertexArray* va) noexcept
     {
+        al_profile_function();
         va->bind();
         ::glDrawElements(GL_TRIANGLES, va->get_index_buffer()->get_count(), GL_UNSIGNED_INT, nullptr);
     }
 
     void Win32OpenglRenderer::initialize_renderer() noexcept
     {
+        al_profile_function();
         deviceContext = ::GetDC(win32window->get_handle());
         al_assert(deviceContext);
         HGLRC dummyRenderContext;
@@ -161,12 +164,11 @@ namespace al::engine
 
     void Win32OpenglRenderer::terminate_renderer() noexcept
     {
+        al_profile_function();
         bool makeCurrentResult = ::wglMakeCurrent(deviceContext, NULL);
         al_assert(makeCurrentResult);
-
         bool deleteContextResult = ::wglDeleteContext(renderContext);
         al_assert(deleteContextResult);
-
         bool releaseDcResult = ::ReleaseDC(win32window->get_handle(), deviceContext);
         al_assert(releaseDcResult);
     }
