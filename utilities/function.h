@@ -52,6 +52,14 @@ namespace al
             initialize_obj(obj, func);
         }
 
+        ~Function() noexcept
+        {
+            if (is_initialized())
+            {
+                destruct(&memory);
+            }
+        }
+
         template<al::function T>
         Function& operator = (const T& pof) noexcept
         {
@@ -78,11 +86,6 @@ namespace al
             return *this;
         }
 
-        ~Function() noexcept
-        {
-            destruct(&memory);
-        }
-
         ReturnType operator () (const Args&... args) noexcept
         {
             return invoke(&memory, args...);
@@ -99,9 +102,14 @@ namespace al
             return *object;
         }
 
-        operator bool () const noexcept
+        bool is_initialized() const noexcept
         {
             return invoke != nullptr;
+        }
+
+        operator bool () const noexcept
+        {
+            return is_initialized();
         }
 
     private:

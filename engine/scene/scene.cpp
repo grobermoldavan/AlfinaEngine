@@ -10,24 +10,24 @@ namespace al::engine
     Scene::Scene(EcsWorld* ecsWorld) noexcept
         : world{ ecsWorld }
         , root{ }
-        , nodes{ }
     {
-        root = nodes.get();
+        construct(&nodes);
+        root = push(&nodes);
         al_assert(root);
         initialize_node_no_parent(root, EngineConfig::SCENE_ROOT_NODE_NAME);
     }
 
     Scene::~Scene() noexcept
     {
-        nodes.for_each([&](SceneNode* node)
+        for_each_array_container(nodes, it)
         {
-            // @TODO :  remove entity from ecs world
-        });
+
+        }
     }
 
     SceneNodeHandle Scene::create_node(std::string_view name) noexcept
     {
-        SceneNodeHandle handle = nodes.get();
+        SceneNodeHandle handle = push(&nodes);
         al_assert(handle);
         initialize_node(handle, root, name);
         return handle;
@@ -45,25 +45,32 @@ namespace al::engine
         // Remove from parent
         if (childNode->parent != EMPTY_NODE_HANDLE)
         {
-            scene_node(childNode->parent)->childs.remove_by_condition([child](SceneNodeHandle* node) -> bool
+            SceneNode* currentParent = scene_node(childNode->parent);
+            for_each_array_container(currentParent->childs, it)
             {
-                return *node == child;
-            });
+                SceneNodeHandle* node = get(&currentParent->childs, it);
+                if (*node == child)
+                {
+                    remove(&currentParent->childs, it);
+                    break;
+                }
+            }
         }
         // Set new parent
         childNode->parent = parent;
         // Add to new parent
         if (parent != EMPTY_NODE_HANDLE)
         {
-            parentNode->childs.push(child);
+            push(&parentNode->childs, child);
         }
     }
 
     void Scene::update_transforms() noexcept
     {
-        for (SceneNodeHandle rootChild : root->childs)
+        for_each_array_container(root->childs, it)
         {
-            update_transform(rootChild);
+            SceneNodeHandle* node = get(&root->childs, it);
+            update_transform(*node);
         }
     }
 
@@ -74,7 +81,7 @@ namespace al::engine
 
     inline std::span<SceneNode> Scene::get_nodes() noexcept
     {
-        return { nodes.data(), nodes.get_current_size() };
+        return { nodes.memory, nodes.size };
     }
 
     void Scene::initialize_node_no_parent(SceneNodeHandle handle, std::string_view name) noexcept
@@ -83,15 +90,14 @@ namespace al::engine
         SceneNode* node = scene_node(handle);
         new(node) SceneNode
         {
-            .entityHandle       = world->create_entity(),
+            .entityHandle       = ecs_create_entity(world),
             .scene              = this,
-            .parent             = EMPTY_NODE_HANDLE,
-            .childs             = { },
-            .name               = { 0 }
+            .parent             = EMPTY_NODE_HANDLE
         };
+        construct(&node->childs);
         std::memcpy(node->name, name.data(), name.length());
-        world->add_components<SceneTransform>(node->entityHandle);
-        auto* sceneTransform = world->get_component<SceneTransform>(node->entityHandle);
+        ecs_add_components<SceneTransform>(world, node->entityHandle);
+        auto* sceneTransform = ecs_get_component<SceneTransform>(world, node->entityHandle);
         new(sceneTransform) SceneTransform{ };
     }
 
@@ -104,11 +110,12 @@ namespace al::engine
     void Scene::update_transform(SceneNodeHandle handle) noexcept
     {
         SceneNode* node = scene_node(handle);
-        auto* parentSceneTransform = world->get_component<SceneTransform>(node->parent->entityHandle);
-        auto* currentSceneTransform = world->get_component<SceneTransform>(node->entityHandle);
+        auto* parentSceneTransform = ecs_get_component<SceneTransform>(world, node->parent->entityHandle);
+        auto* currentSceneTransform = ecs_get_component<SceneTransform>(world, node->entityHandle);
         currentSceneTransform->worldTransform.matrix = parentSceneTransform->get_world_transform().matrix * currentSceneTransform->get_local_transform().matrix;
-        for (SceneNodeHandle child : node->childs)
+        for_each_array_container(node->childs, it)
         {
+            SceneNodeHandle child = *get(&node->childs, it);
             update_transform(child);
         }
     }

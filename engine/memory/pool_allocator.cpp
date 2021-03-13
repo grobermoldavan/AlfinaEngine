@@ -170,31 +170,34 @@ namespace al::engine
     [[nodiscard]] std::byte* PoolAllocator::allocate(std::size_t memorySizeBytes) noexcept
     {
         ArrayContainer<BucketCompareInfo, EngineConfig::POOL_ALLOCATOR_MAX_BUCKETS> compareInfos;
+		construct(&compareInfos);
         std::size_t it = 0;
-        for (MemoryBucket& bucket : buckets)
+        for_each_array_container(buckets, it)
         {
-            BucketCompareInfo* info = compareInfos.get();
+            MemoryBucket* bucket = get(&buckets, it);
+            BucketCompareInfo* info = push(&compareInfos);
             info->bucketId = it;
-            if (bucket.get_block_size() >= memorySizeBytes)
+            if (bucket->get_block_size() >= memorySizeBytes)
             {
                 info->blocksUsed = 1;
-                info->memoryWasted = bucket.get_block_size() - memorySizeBytes;
+                info->memoryWasted = bucket->get_block_size() - memorySizeBytes;
             }
             else
             {
-                const std::size_t blockNum = 1 + ((memorySizeBytes - 1) / bucket.get_block_size());
-                const std::size_t blockMemory = blockNum * bucket.get_block_size();
+                const std::size_t blockNum = 1 + ((memorySizeBytes - 1) / bucket->get_block_size());
+                const std::size_t blockMemory = blockNum * bucket->get_block_size();
                 info->blocksUsed = blockNum;
                 info->memoryWasted = blockMemory - memorySizeBytes;
             }
             it++;
         }
         // @TODO : replace std::sort mb
-        std::sort(compareInfos.begin(), compareInfos.end());
+        std::sort(compareInfos.memory, compareInfos.memory + compareInfos.size);
         std::byte* result = nullptr;
-        for (BucketCompareInfo& compareInfo : compareInfos)
+        for_each_array_container(compareInfos, it)
         {
-            result = buckets[compareInfo.bucketId].allocate(memorySizeBytes);
+			BucketCompareInfo* compareInfo = get(&compareInfos, it);
+            result = get(&buckets, compareInfo->bucketId)->allocate(memorySizeBytes);
             if (result)
             {
                 break;
@@ -205,11 +208,12 @@ namespace al::engine
 
     void PoolAllocator::deallocate(std::byte* ptr, std::size_t memorySizeBytes) noexcept
     {
-        for (MemoryBucket& bucket : buckets)
+        for_each_array_container(buckets, it)
         {
-            if (bucket.is_belongs(ptr))
+            MemoryBucket* bucket = get(&buckets, it);
+            if (bucket->is_belongs(ptr))
             {
-                bucket.deallocate(ptr, memorySizeBytes);
+                bucket->deallocate(ptr, memorySizeBytes);
                 break;
             }
         }
@@ -217,17 +221,20 @@ namespace al::engine
 
     void PoolAllocator::initialize(BucketDescContainer bucketDescriptions, AllocatorBase* allocator) noexcept
     {
-        for (BucketDescription& desc : bucketDescriptions)
+        construct(&buckets);
+        construct(&ptrSizePairs);
+        for_each_array_container(bucketDescriptions, it)
         {
-            MemoryBucket* bucket = buckets.get();
-            bucket->initialize(desc.blockSizeBytes, desc.blockCount, allocator);
+            BucketDescription* desc = get(&bucketDescriptions, it);
+            MemoryBucket* bucket = push(&buckets);
+            bucket->initialize(desc->blockSizeBytes, desc->blockCount, allocator);
         };
     }
     
     [[nodiscard]] std::byte* PoolAllocator::allocate_using_allocation_info(std::size_t memorySizeBytes) noexcept
     {
         std::byte* ptr = allocate(memorySizeBytes);
-        ptrSizePairs.push({
+        push(&ptrSizePairs, {
             .ptr = ptr,
             .size = memorySizeBytes
         });
@@ -236,29 +243,30 @@ namespace al::engine
 
     void PoolAllocator::deallocate_using_allocation_info(std::byte* ptr) noexcept
     {
-        ptrSizePairs.remove_by_condition([&](AllocationInfo* allocationInfo) -> bool
+        for_each_dynamic_array(ptrSizePairs, it)
         {
+            AllocationInfo* allocationInfo = get(&ptrSizePairs, it);
             if (allocationInfo->ptr == ptr)
             {
                 deallocate(allocationInfo->ptr, allocationInfo->size);
-                return true;
+                remove(&ptrSizePairs, it);
+                break;
             }
-            return false;
-        });
+        };
     }
 
     [[nodiscard]] std::byte* PoolAllocator::reallocate_using_allocation_info(std::byte* ptr, std::size_t newMemorySizeBytes) noexcept
     {
         std::byte* newMemory = allocate_using_allocation_info(newMemorySizeBytes);
-        ptrSizePairs.for_each_interruptible([&](AllocationInfo* allocationInfo) -> bool
+        for_each_dynamic_array(ptrSizePairs, it)
         {
+            AllocationInfo* allocationInfo = get(&ptrSizePairs, it);
             if (allocationInfo->ptr == ptr)
             {
                 std::memcpy(newMemory, allocationInfo->ptr, allocationInfo->size);
-                return false;
+                break;
             }
-            return true;
-        });
+        };
         deallocate_using_allocation_info(ptr);
         return newMemory;
     }

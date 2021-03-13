@@ -40,26 +40,26 @@ namespace al::engine
         return buffer->memory + result;
     }
 
-    void logger_construct(Logger* logger, uint32_t levelFlags)
+    void construct(Logger* logger, uint32_t levelFlags)
     {
         logger->levelFlags = levelFlags;
         logger->logOutput = stdout;
         logger->profileOutput = std::fopen(EngineConfig::PROFILE_OUTPUT_FILE, "w");
         logger_buffer_clear(&logger->logBuffer);
         logger_buffer_clear(&logger->profileBuffer);
-        construct(&logger->logMutex);
-        construct(&logger->profileMutex);
+        wrap_construct(&logger->logMutex);
+        wrap_construct(&logger->profileMutex);
         // Write profile header
         logger_printf_profile(logger, "{\"otherData\": {},\"traceEvents\":[{}");
     }
 
-    void logger_destruct(Logger* logger)
+    void destruct(Logger* logger)
     {
         // Write profile footer
         logger_printf_profile(logger, "]}");
         logger_flush_buffers(logger);
-        destruct(&logger->logMutex);
-        destruct(&logger->profileMutex);
+        wrap_destruct(&logger->logMutex);
+        wrap_destruct(&logger->profileMutex);
     }
 
     template<typename ... Args>

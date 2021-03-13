@@ -7,195 +7,351 @@
 #include "engine/debug/debug.h"
 
 #include "utilities/constexpr_functions.h"
+#include "utilities/procedural_wrap.h"
 
 namespace al::engine
 {
     // @NOTE :  Component count starts with number one, not zero.
     //          This is done because ECS system thinks that component array
-    //          with componentId == 0 is not used (see is_valid_component_array).
+    //          with componentId == 0 is not used (see ecs_is_valid_component_array).
     //          We could use additional bool value (isValid or something), but
     //          currently this is not very neccessary.
-    EcsWorld::ComponentId EcsWorld::ComponentCounter::count{ 1 };
+    EcsComponentId              gEcsComponentCount = 1;
+    EcsComponentRuntimeInfo     gEcsComponentInfos[ECS_WORLD_MAX_COMPONENTS] = { };
 
-    EcsWorld::EcsWorld() noexcept
-        : componentInfos{ }
-        , entities{ }
-        , archetypes{ Archetype{ ComponentFlags{ }, EMPTY_ARCHETYPE } }
-    { }
-
-    EcsWorld::~EcsWorld() noexcept
-    { }
-
-    void EcsWorld::log_world_state() noexcept
+    void construct(EcsWorld* world)
     {
-        al_log_message(EngineConfig::ECS_LOG_CATEGORY, "============================================================");
-        al_log_message(EngineConfig::ECS_LOG_CATEGORY, "Current ECS world state is :");
-        for (EcsSizeT it = 1; it < archetypes.size(); it++)
+        construct(&world->entities);
+        construct(&world->archetypes);
+        for (EcsSizeT it = 0; it < EngineConfig::ECS_MAX_ARCHETYPES; it++)
         {
-            al_log_message(EngineConfig::ECS_LOG_CATEGORY, "Archetype %d :", it);
-            al_log_message(EngineConfig::ECS_LOG_CATEGORY, "    Size        : %d", archetype(it)->size);
-            al_log_message(EngineConfig::ECS_LOG_CATEGORY, "    Capacity    : %d", archetype(it)->capacity);
-            al_log_message(EngineConfig::ECS_LOG_CATEGORY, "    Flags       : %d %d", archetype(it)->componentFlags.flags[0], archetype(it)->componentFlags.flags[1]);
-            al_log_message(EngineConfig::ECS_LOG_CATEGORY, "    Components  : ");
-            for (ComponentArray& array : archetype(it)->components)
-            {
-                if (!is_valid_component_array(&array))
-                {
-                    continue;
-                }
-                al_log_message(EngineConfig::ECS_LOG_CATEGORY, "        Component with id : %d", array.componentId);
-                EcsSizeT memoryAllocated = component_info(array.componentId)->sizeBytes * array.chunks.size() * EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK;
-                al_log_message(EngineConfig::ECS_LOG_CATEGORY, "        Memory allocated  : %d bytes", memoryAllocated);
-            }
+            // @NOTE :  Set each archetype to the correct areas of the pools
+            EcsArchetype* archetype = get(&world->archetypes, it);
+            construct(&archetype->componentArrayPointers, &world->componentArrayPointersPool[it * ECS_WORLD_MAX_COMPONENTS]);
+            construct(&archetype->entityHandles         , &world->entityHandlesPool[it * EngineConfig::ECS_MAX_ENTITIES_IN_ARCHETYPE_CHUNK]);
+            construct(&archetype->chunks);
+            archetype->selfHandle = it;
         }
-        al_log_message(EngineConfig::ECS_LOG_CATEGORY, "============================================================");
+        // @NOTE :  Setup first empty archetype
+        EcsArchetype* archetype = push(&world->archetypes);
+        archetype->componentFlags   = { };
+        archetype->size             = 0;
+        archetype->capacity         = 0;
+        archetype->selfHandle       = 0;
     }
 
-    EntityHandle EcsWorld::create_entity() noexcept
+    void destruct(EcsWorld* world)
     {
-        EntityHandle handle = entities.size();
-        entities.push_back
-        ({
+        for_each_array_container(world->archetypes, archetypeIt)
+        {
+            EcsArchetype* archetype = get(&world->archetypes, archetypeIt);
+            for_each_dynamic_array(archetype->chunks, chunkIt)
+            {
+                uint8_t* chunk = *get(&archetype->chunks, chunkIt);
+                MemoryManager::get_ecs_pool()->deallocate(reinterpret_cast<std::byte*>(chunk), EngineConfig::ECS_COMPONENT_ARRAY_CHUNK_SIZE);
+            }
+            destruct(&archetype->chunks);
+        }
+    }
+
+    EcsEntityHandle ecs_create_entity(EcsWorld* world)
+    {
+        EcsEntityHandle handle = world->entities.size;
+        bool pushResult = push(&world->entities,
+        {
             .componentFlags = { },
             .archetypeHandle = 0,
-            .arrayIndex = 0
+            .archetypeArrayIndex = 0
         });
+        al_assert_msg(pushResult, "Can't create new entity : pool is empty. Consider increasing EngineConfig::ECS_MAX_ENTITIES value.")
         return handle;
     }
 
-    // @NOTE :  Process of adding components consists of several steps.
-    //          First, we save current entity component flags and make new
-    //          ones by adding flags of the components passed to a method.
-    //          If flags equal, we simply return because all needed components
-    //          are already added to an entity.
-    //          If flags not equal, we retrieve current entity archetype, then
-    //          we retrive (get or create) new archetype and move entity from
-    //          one archetype to another.
     template<typename ... T>
-    void EcsWorld::add_components(EntityHandle handle) noexcept
+    void ecs_add_components (EcsWorld* world, EcsEntityHandle handle)
     {
-        register_components_if_needed<T...>();
-        ComponentFlags currentFlags = entity(handle)->componentFlags;
-        ComponentFlags newFlags = entity(handle)->componentFlags;
-        set_component_flags<T...>(&newFlags);
+        ecs_register_components_if_needed<T...>();
+        EcsEntity* entity = get(&world->entities, handle);
+        EcsComponentFlags currentFlags = entity->componentFlags;
+        EcsComponentFlags newFlags = entity->componentFlags;
+        ecs_set_component_flags<T...>(&newFlags);
         if (currentFlags == newFlags)
         {
             return;
         }
-        entity(handle)->componentFlags = newFlags;
-        ArchetypeHandle oldArchetype = entity(handle)->archetypeHandle;
-        ArchetypeHandle newArchetype = match_or_create_archetype(handle);
-        move_entity_superset(oldArchetype, newArchetype, handle);
+        entity->componentFlags = newFlags;
+        EcsArchetypeHandle oldArchetype = entity->archetypeHandle;
+        EcsArchetypeHandle newArchetype = ecs_match_or_create_archetype(world, handle);
+        ecs_move_entity_superset(world, oldArchetype, newArchetype, handle);
     }
 
-    // @NOTE :  Process of removing components is pretty similar to
-    //          the process of adding components. But instead of adding
-    //          flags we remove them.
     template<typename ... T>
-    void EcsWorld::remove_components(EntityHandle handle) noexcept
+    void ecs_remove_components(EcsWorld* world, EcsEntityHandle handle)
     {
-        al_assert(is_components_registered<T...>());
-        ComponentFlags currentFlags = entity(handle)->componentFlags;
-        ComponentFlags newFlags = entity(handle)->componentFlags;
-        clear_component_flags<T...>(&newFlags);
+        ecs_register_components_if_needed<T...>();
+        EcsEntity* entity = get(&world->entities, handle);
+        EcsComponentFlags currentFlags = entity->componentFlags;
+        EcsComponentFlags newFlags = entity->componentFlags;
+        ecs_clear_component_flags<T...>(&newFlags);
         if (currentFlags == newFlags)
         {
             return;
         }
-        entity(handle)->componentFlags = newFlags;
-        ArchetypeHandle oldArchetype = entity(handle)->archetypeHandle;
-        ArchetypeHandle newArchetype = match_or_create_archetype(handle);
-        move_entity_subset(oldArchetype, newArchetype, handle);
+        entity->componentFlags = newFlags;
+        EcsArchetypeHandle oldArchetype = entity->archetypeHandle;
+        EcsArchetypeHandle newArchetype = ecs_match_or_create_archetype(world, handle);
+        ecs_move_entity_subset(world, oldArchetype, newArchetype, handle);
     }
 
-    // @NOTE :  Process of getting component is pretty straightforward.
-    //          First we check if component registerered in our system
-    //          and if entity actually has that component. After that
-    //          we accsess component array of entity archetype and
-    //          get the value from that array by index.
     template<typename T>
-    T* EcsWorld::get_component(EntityHandle handle) noexcept
+    T* ecs_get_component(EcsWorld* world, EcsEntityHandle handle)
     {
-        al_assert( is_component_registered<T>() );
-        al_assert( entity(handle)->componentFlags.get_flag(ComponentTypeInfo<T>::get_id()) );
-        ComponentArray* array = accsess_component_array(entity(handle)->archetypeHandle, ComponentTypeInfo<T>::get_id());
-        return accsess_component_template<T>(array, entity(handle)->arrayIndex);
+        EcsEntity* entity = get(&world->entities, handle);
+        return reinterpret_cast<T*>(ecs_access_component(world, entity->archetypeHandle, ecs_component_type_info_get_id<T>(), entity->archetypeArrayIndex));
     }
 
-    // @NOTE :  Iterating over some set of components is done the following way.
-    //          First we create component flags of the requested set of components.
-    //          Then we iterate over each archetype and check if this archetype
-    //          contains all required components. If it does, we iterate over each
-    //          entity in that archetype and call user function.
     template<typename ... T>
-    void EcsWorld::for_each_fp(ForEachFunction<T...> func) noexcept
+    void ecs_for_each_fp(EcsWorld* world, EcsForEachFunctionPointer<T...> func)
     {
-        ComponentFlags requestFlags{ };
-        set_component_flags<T...>(&requestFlags);
-        const EcsSizeT archetypesSize = archetypes.size();
-        for (EcsSizeT it = 1; it < archetypesSize; it++)
+        EcsComponentFlags requestFlags{ };
+        ecs_set_component_flags<T...>(&requestFlags);
+        for_each_array_container(world->archetypes, it)
         {
-            if (!is_valid_subset(requestFlags, archetypes[it].componentFlags))
+            EcsArchetype* archetype = get(&world->archetypes, it);
+            if (!ecs_is_valid_subset(requestFlags, archetype->componentFlags))
             {
                 continue;
             }
-            Archetype* archetypePtr = &archetypes[it];
-            const EcsSizeT archetypeSize = archetypePtr->size;
-            for (EcsSizeT entityIt = 0; entityIt < archetypeSize; entityIt++)
+            for (EcsSizeT entityIt = 0; entityIt < archetype->size; entityIt++)
             {
-                func(this, *accsess_entity_handle(archetypePtr, entityIt), accsess_component_template<T>(archetypePtr, entityIt)...);
+                func(world, *get(&archetype->entityHandles, entityIt), ecs_access_component<T>(archetype, entityIt)...);
             }
         }
     }
 
-    // @NOTE :  same as for_each_fp but with Function object provided by user
-    //          instead of function pointer.
     template<typename ... T>
-    void EcsWorld::for_each(Function<void(EcsWorld*, EntityHandle, T*...)> func) noexcept
+    void ecs_for_each(EcsWorld* world, EcsForEachFunctionObject<T...> func)
     {
-        ComponentFlags requestFlags{ };
-        set_component_flags<T...>(&requestFlags);
-        const EcsSizeT archetypesSize = archetypes.size();
-        for (EcsSizeT it = 1; it < archetypesSize; it++)
+        EcsComponentFlags requestFlags{ };
+        ecs_set_component_flags<T...>(&requestFlags);
+        for_each_dynamic_array(world->archetypes, it)
         {
-            if (!is_valid_subset(requestFlags, archetypes[it].componentFlags))
+            EcsArchetype* archetype = get(&world->archetypes, it);
+            if (!ecs_is_valid_subset(requestFlags, archetype->componentFlags))
             {
                 continue;
             }
-            Archetype* archetypePtr = &archetypes[it];
-            const EcsSizeT archetypeSize = archetypePtr->size;
-            for (EcsSizeT entityIt = 0; entityIt < archetypeSize; entityIt++)
+            for (EcsSizeT entityIt = 0; entityIt < archetype->size; entityIt++)
             {
-                func(this, *accsess_entity_handle(archetypePtr, entityIt), accsess_component_template<T>(archetypePtr, entityIt)...);
+                func(world, *get(&archetype->entityHandles, entityIt), ecs_access_component<T>(archetype, entityIt)...);
             }
         }
     }
 
-    inline EcsWorld::Entity* EcsWorld::entity(EntityHandle handle) noexcept
+    EcsArchetypeHandle ecs_match_or_create_archetype(EcsWorld* world, EcsEntityHandle handle)
     {
-        return &entities[handle];
+        EcsEntity* entity = get(&world->entities, handle);
+        for_each_array_container(world->archetypes, it)
+        {
+            EcsArchetype* archetype = get(&world->archetypes, it);
+            if (archetype->componentFlags == entity->componentFlags)
+            {
+                return archetype->selfHandle;
+            }
+        }
+        return ecs_create_archetype(world, entity->componentFlags);
     }
 
-    inline EcsWorld::Archetype* EcsWorld::archetype(ArchetypeHandle handle) noexcept
+    EcsArchetypeHandle ecs_create_archetype(EcsWorld* world, EcsComponentFlags flags)
     {
-        return &archetypes[handle];
+        EcsArchetype* archetype = push(&world->archetypes);
+        al_assert_msg(archetype, "Can't create new archetype : pool is empty. Consider increasing EngineConfig::ECS_MAX_ARCHETYPES value.");
+        archetype->componentFlags   = flags;
+        archetype->size             = 0;
+        archetype->capacity         = 0;
+        archetype->selfHandle       = index_of(&world->archetypes, archetype);
+        EcsSizeT singleEntrySize = 0;
+        for (EcsSizeT it = 0; it < ECS_WORLD_MAX_COMPONENTS; it++)
+        {
+            if (!archetype->componentFlags.get_flag(it))
+            {
+                continue;
+            }
+            singleEntrySize += gEcsComponentInfos[it].sizeBytes;
+        }
+        archetype->singleChunkCapacity = EngineConfig::ECS_COMPONENT_ARRAY_CHUNK_SIZE / singleEntrySize;
+        EcsSizeT currentOffset = 0;
+        for (EcsSizeT it = 0; it < ECS_WORLD_MAX_COMPONENTS; it++)
+        {
+            if (!archetype->componentFlags.get_flag(it))
+            {
+                continue;
+            }
+            *get(&archetype->componentArrayPointers, it) = currentOffset;
+            currentOffset += gEcsComponentInfos[it].sizeBytes * archetype->singleChunkCapacity;
+        }
+        return archetype->selfHandle;
     }
 
-    inline EcsWorld::ComponentRuntimeInfo* EcsWorld::component_info(ComponentId componentId) noexcept
+    void ecs_allocate_chunks(EcsWorld* world, EcsArchetypeHandle handle)
     {
-        return &componentInfos[componentId];
+        EcsArchetype* archetype = get(&world->archetypes, handle);
+        push(&archetype->chunks, reinterpret_cast<uint8_t*>(MemoryManager::get_ecs_pool()->allocate(EngineConfig::ECS_COMPONENT_ARRAY_CHUNK_SIZE)));
+        archetype->capacity += archetype->singleChunkCapacity;
+    }
+
+    void ecs_move_entity_superset(EcsWorld* world, EcsArchetypeHandle from, EcsArchetypeHandle to, EcsEntityHandle handle)
+    {
+        EcsArchetype*   fromArchetype   = get(&world->archetypes, from);
+        EcsArchetype*   toArchetype     = get(&world->archetypes, to);
+        EcsEntity*      entityPtr       = get(&world->entities, handle);
+        EcsSizeT        fromIndex       = entityPtr->archetypeArrayIndex;
+        EcsSizeT        toIndex         = ecs_reserve_position(world, to);
+        for (EcsSizeT it = 0; it < ECS_WORLD_MAX_COMPONENTS; it++)
+        {
+            if (!fromArchetype->componentFlags.get_flag(it))
+            {
+                continue;
+            }
+            uint8_t* fromComponent = ecs_access_component(world, from, it, fromIndex);
+            uint8_t* toComponent = ecs_access_component(world, to, it, toIndex);
+            std::memcpy(toComponent, fromComponent, gEcsComponentInfos[it].sizeBytes);
+        }
+        *get(&toArchetype->entityHandles, toIndex) = handle;
+        ecs_free_position(world, from, fromIndex);
+        entityPtr->archetypeHandle = to;
+        entityPtr->archetypeArrayIndex = toIndex;
+    }
+
+    void ecs_move_entity_subset(EcsWorld* world, EcsArchetypeHandle from, EcsArchetypeHandle to, EcsEntityHandle handle)
+    {
+        EcsArchetype*   fromArchetype   = get(&world->archetypes, from);
+        EcsArchetype*   toArchetype     = get(&world->archetypes, to);
+        EcsEntity*      entityPtr       = get(&world->entities, handle);
+        EcsSizeT        fromIndex       = entityPtr->archetypeArrayIndex;
+        EcsSizeT        toIndex         = ecs_reserve_position(world, to);
+        for (EcsSizeT it = 0; it < ECS_WORLD_MAX_COMPONENTS; it++)
+        {
+            if (!toArchetype->componentFlags.get_flag(it))
+            {
+                continue;
+            }
+            uint8_t* fromComponent = ecs_access_component(world, from, it, fromIndex);
+            uint8_t* toComponent = ecs_access_component(world, to, it, toIndex);
+            std::memcpy(toComponent, fromComponent, gEcsComponentInfos[it].sizeBytes);
+        }
+        *get(&toArchetype->entityHandles, toIndex) = handle;
+        ecs_free_position(world, from, fromIndex);
+        entityPtr->archetypeHandle = to;
+        entityPtr->archetypeArrayIndex = toIndex;
+    }
+
+    EcsSizeT ecs_reserve_position(EcsWorld* world, EcsArchetypeHandle handle)
+    {
+        if (handle == ECS_WORLD_EMPTY_ARCHETYPE)
+        {
+            return 0;
+        }
+        EcsArchetype* archetype = get(&world->archetypes, handle);
+        EcsSizeT position = archetype->size;
+        archetype->size += 1;
+        if (archetype->size >= archetype->capacity)
+        {
+            ecs_allocate_chunks(world, handle);
+        }
+        return position;
+    }
+
+    void ecs_free_position(EcsWorld* world, EcsArchetypeHandle handle, EcsSizeT index)
+    {
+        if (handle == ECS_WORLD_EMPTY_ARCHETYPE)
+        {
+            return;
+        }
+        EcsArchetype* archetype = get(&world->archetypes, handle);
+        al_assert(archetype->size != 0);
+        if (index == (archetype->size - 1))
+        {
+            for (EcsSizeT it = 0; it < ECS_WORLD_MAX_COMPONENTS; it++)
+            {
+                if (!archetype->componentFlags.get_flag(it))
+                {
+                    continue;
+                }
+                uint8_t* component = ecs_access_component(world, handle, it, index);
+                std::memset(component, 0, gEcsComponentInfos[it].sizeBytes);
+            }
+            archetype->size -= 1;
+            return;
+        }
+        EcsSizeT lastIndex = archetype->size - 1;
+        for (EcsSizeT it = 0; it < ECS_WORLD_MAX_COMPONENTS; it++)
+        {
+            if (!archetype->componentFlags.get_flag(it))
+            {
+                continue;
+            }
+            uint8_t* fromComponent = ecs_access_component(world, handle, it, lastIndex);
+            uint8_t* toComponent = ecs_access_component(world, handle, it, index);
+            EcsSizeT sizeBytes = gEcsComponentInfos[it].sizeBytes;
+            std::memcpy(toComponent, fromComponent, sizeBytes);
+            std::memset(fromComponent, 0, sizeBytes);
+        }
+        EcsEntityHandle* lastHandle = get(&archetype->entityHandles, lastIndex);
+        *get(&archetype->entityHandles, index) = *lastHandle;
+        al_memzero(lastHandle);
+        archetype->size -= 1;
+    }
+
+    uint8_t* ecs_access_component(EcsWorld* world, EcsArchetypeHandle handle, EcsComponentId componentId, EcsSizeT index)
+    {
+        EcsArchetype* archetype = get(&world->archetypes, handle);
+        if (!archetype->componentFlags.get_flag(componentId))
+        {
+            return nullptr;
+        }
+        if (archetype->size <= index)
+        {
+            return nullptr;
+        }
+        EcsSizeT chunkIndex = index / archetype->singleChunkCapacity;
+        EcsSizeT inChunkIndex = index % archetype->singleChunkCapacity;
+        return *get(&archetype->chunks, chunkIndex) + *get(&archetype->componentArrayPointers, componentId) + inChunkIndex * gEcsComponentInfos[componentId].sizeBytes;
+    }
+
+    template<typename T>
+    T* ecs_access_component(EcsArchetype* archetype, EcsSizeT index)
+    {
+        EcsSizeT chunkIndex = index / archetype->singleChunkCapacity;
+        EcsSizeT inChunkIndex = index % archetype->singleChunkCapacity;
+        EcsComponentId componentId = ecs_component_type_info_get_id<T>();
+        uint8_t* memory = *get(&archetype->chunks, chunkIndex) + *get(&archetype->componentArrayPointers, componentId) + inChunkIndex * gEcsComponentInfos[componentId].sizeBytes;
+        return reinterpret_cast<T*>(memory);
+    };
+
+    template<typename T>
+    inline EcsComponentId ecs_component_type_info_get_id()
+    {
+        static EcsComponentId id = gEcsComponentCount++;
+        return id;
+    }
+
+    template<typename T>
+    inline EcsSizeT ecs_component_type_info_get_size()
+    {
+        return sizeof(T);
     }
 
     // @NOTE :  Component size of zero is considered invalid.
     template<typename T>
-    inline bool EcsWorld::is_component_registered() noexcept
+    inline bool ecs_is_component_registered()
     {
-        return component_info(ComponentTypeInfo<T>::get_id())->sizeBytes != 0;
+        return gEcsComponentInfos[ecs_component_type_info_get_id<T>()].sizeBytes != 0;
     }
 
-    template<typename T, typename ... U> bool EcsWorld::is_components_registered(bool value) noexcept
+    template<typename T, typename ... U> bool ecs_is_components_registered(bool value)
     {
-        bool result = value && is_component_registered<T>();
+        bool result = value && ecs_is_component_registered<T>();
         if constexpr (sizeof...(U) != 0)
         {
             result = result && is_components_registered<U...>();
@@ -204,255 +360,48 @@ namespace al::engine
     }
 
     template<typename T>
-    inline void EcsWorld::register_component() noexcept
+    inline void ecs_register_component()
     {
-        al_assert(ComponentTypeInfo<T>::get_id() < MAX_COMPONENTS);
-        component_info(ComponentTypeInfo<T>::get_id())->sizeBytes = ComponentTypeInfo<T>::get_size();
+        al_assert(ecs_component_type_info_get_id<T>() < ECS_WORLD_MAX_COMPONENTS);
+        gEcsComponentInfos[ecs_component_type_info_get_id<T>()].sizeBytes = ecs_component_type_info_get_size<T>();
     }
 
     template<typename T, typename ... U>
-    void EcsWorld::register_components_if_needed() noexcept
+    void ecs_register_components_if_needed()
     {
-        if (!is_component_registered<T>())
+        if (!ecs_is_component_registered<T>())
         {
-            register_component<T>();
+            ecs_register_component<T>();
         }
         if constexpr (sizeof...(U) != 0)
         {
-            register_components_if_needed<U...>();
-        }
-    }
-
-    template<typename T, typename ... U>
-    void EcsWorld::set_component_flags(ComponentFlags* flags) noexcept
-    {
-        flags->set_flag(ComponentTypeInfo<T>::get_id());
-        if constexpr (sizeof...(U) != 0)
-        {
-            set_component_flags<U...>(flags);
+            ecs_register_components_if_needed<U...>();
         }
     }
 
     template<typename T, typename ... U>
-    void EcsWorld::clear_component_flags(ComponentFlags* flags) noexcept
+    void ecs_set_component_flags(EcsComponentFlags* flags)
     {
-        flags->clear_flag(ComponentTypeInfo<T>::get_id());
+        flags->set_flag(ecs_component_type_info_get_id<T>());
         if constexpr (sizeof...(U) != 0)
         {
-            clear_component_flags<U...>(flags);
+            ecs_set_component_flags<U...>(flags);
         }
     }
 
-    EcsWorld::ArchetypeHandle EcsWorld::match_or_create_archetype(EntityHandle handle) noexcept
+    template<typename T, typename ... U>
+    void ecs_clear_component_flags(EcsComponentFlags* flags)
     {
-        for (Archetype& archetype : archetypes)
+        flags->clear_flag(ecs_component_type_info_get_id<T>());
+        if constexpr (sizeof...(U) != 0)
         {
-            if (archetype.componentFlags == entity(handle)->componentFlags)
-            {
-                return archetype.selfHandle;
-            }
+            ecs_clear_component_flags<U...>(flags);
         }
-        return create_archetype(entity(handle)->componentFlags);
     }
 
-    EcsWorld::ArchetypeHandle EcsWorld::create_archetype(ComponentFlags flags) noexcept
-    {
-        ArchetypeHandle handle = archetypes.size();
-        archetypes.push_back
-        ({
-            .componentFlags = flags,
-            .selfHandle = handle,
-            .size = 0,
-            .capacity = 0,
-            .entityHandlesChunks = { },
-            .components = { 0 }
-        });
-        Archetype* archetypePtr = archetype(handle);
-        for (EcsSizeT it = 0; it < MAX_COMPONENTS; it++)
-        {
-            if (!archetypePtr->componentFlags.get_flag(it))
-            {
-                continue;
-            }
-            archetypePtr->components[it] =
-            {
-                .componentId = it,
-                .chunks = { }
-            };
-        }
-        allocate_chunks(handle);
-        return handle;
-    }
-
-    void EcsWorld::allocate_chunks(ArchetypeHandle handle) noexcept
-    {
-        Archetype* archetypePtr = archetype(handle);
-        for (ComponentArray& array : archetypePtr->components)
-        {
-            if (!is_valid_component_array(&array))
-            {
-                continue;
-            }
-            const EcsSizeT componentSize = component_info(array.componentId)->sizeBytes;
-            std::byte* memory = MemoryManager::get_pool()->allocate(componentSize * EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK);
-            std::memset(memory, 0, componentSize * EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK);
-            array.chunks.push_back(reinterpret_cast<uint8_t*>(memory));
-        }
-        std::byte* memory = MemoryManager::get_pool()->allocate(sizeof(EntityHandle) * EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK);
-        std::memset(memory, 0, sizeof(EntityHandle) * EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK);
-        archetypePtr->entityHandlesChunks.push_back(reinterpret_cast<EntityHandle*>(memory));
-        archetypePtr->capacity += EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK;
-    }
-
-    EcsSizeT EcsWorld::reserve_position(ArchetypeHandle handle) noexcept
-    {
-        Archetype* archetypePtr = archetype(handle);
-        EcsSizeT position = archetypePtr->size;
-        archetypePtr->size += 1;
-        if (archetypePtr->size >= archetypePtr->capacity)
-        {
-            allocate_chunks(handle);
-        }
-        return position;
-    }
-
-    void EcsWorld::free_position(ArchetypeHandle handle, EcsSizeT index) noexcept
-    {
-        if (handle == EMPTY_ARCHETYPE)
-        {
-            return;
-        }
-        Archetype* archetypePtr = archetype(handle);
-        al_assert(archetypePtr->size != 0);
-        if (index == (archetypePtr->size - 1))
-        {
-            for (ComponentArray& array : archetypePtr->components)
-            {
-                if (!is_valid_component_array(&array))
-                {
-                    continue;
-                }
-                uint8_t* component = accsess_component(&array, index);
-                std::memset(component, 0, component_info(array.componentId)->sizeBytes);
-            }
-            archetypePtr->size -= 1;
-            return;
-        }
-        EcsSizeT lastIndex = archetypePtr->size - 1;
-        for (ComponentArray& array : archetypePtr->components)
-        {
-            if (!is_valid_component_array(&array))
-            {
-                continue;
-            }
-            uint8_t* fromComponent = accsess_component(&array, lastIndex);
-            uint8_t* toComponent = accsess_component(&array, index);
-            std::memcpy(toComponent, fromComponent, component_info(array.componentId)->sizeBytes);
-            std::memset(fromComponent, 0, component_info(array.componentId)->sizeBytes);
-        }
-        *accsess_entity_handle(archetypePtr, index) = *accsess_entity_handle(archetypePtr, lastIndex);
-        std::memset(accsess_entity_handle(handle, lastIndex), 0, sizeof(EntityHandle));
-        archetypePtr->size -= 1;
-    }
-
-    void EcsWorld::move_entity_superset(ArchetypeHandle from, ArchetypeHandle to, EntityHandle handle) noexcept
-    {
-        Archetype* fromPtr = archetype(from);
-        Archetype* toPtr = archetype(to);
-        Entity* entityPtr = entity(handle);
-        EcsSizeT fromIndex = entityPtr->arrayIndex;
-        EcsSizeT toIndex = reserve_position(to);
-        for (ComponentArray& fromArray : fromPtr->components)
-        {
-            if (!is_valid_component_array(&fromArray))
-            {
-                continue;
-            }
-            ComponentArray* toArray = accsess_component_array(to, fromArray.componentId);
-            uint8_t* fromComponent = accsess_component(&fromArray, fromIndex);
-            uint8_t* toComponent = accsess_component(toArray, toIndex);
-            std::memcpy(toComponent, fromComponent, component_info(fromArray.componentId)->sizeBytes);
-        }
-        *accsess_entity_handle(toPtr, toIndex) = handle;
-        free_position(from, fromIndex);
-        entityPtr->archetypeHandle = to;
-        entityPtr->arrayIndex = toIndex;
-    }
-
-    void EcsWorld::move_entity_subset(ArchetypeHandle from, ArchetypeHandle to, EntityHandle handle) noexcept
-    {
-        Archetype* fromPtr = archetype(from);
-        Archetype* toPtr = archetype(to);
-        Entity* entityPtr = entity(handle);
-        EcsSizeT fromIndex = entityPtr->arrayIndex;
-        EcsSizeT toIndex = reserve_position(to);
-        for (ComponentArray& toArray : toPtr->components)
-        {
-            if (!is_valid_component_array(&toArray))
-            {
-                continue;
-            }
-            ComponentArray* fromArray = accsess_component_array(from, toArray.componentId);
-            uint8_t* fromComponent = accsess_component(fromArray, fromIndex);
-            uint8_t* toComponent = accsess_component(&toArray, toIndex);
-            std::memcpy(toComponent, fromComponent, component_info(toArray.componentId)->sizeBytes);
-        }
-        *accsess_entity_handle(toPtr, toIndex) = handle;
-        free_position(from, fromIndex);
-        entityPtr->archetypeHandle = to;
-        entityPtr->arrayIndex = toIndex;
-    }
-
-    template<typename T>
-    inline T* EcsWorld::accsess_component_template(Archetype* archetypePtr, EcsSizeT index) noexcept
-    {
-        return accsess_component_template<T>(&archetypePtr->components[ComponentTypeInfo<T>::get_id()], index);
-    }
-
-    template<typename T>
-    inline T* EcsWorld::accsess_component_template(ComponentArray* array, EcsSizeT index) noexcept
-    {
-        al_assert(array->componentId == ComponentTypeInfo<T>::get_id());
-        const EcsSizeT chunkIndex = index / EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK;
-        const EcsSizeT inChunkIndex = index % EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK;
-        return &reinterpret_cast<T*>(array->chunks[chunkIndex])[inChunkIndex];
-    }
-
-    inline uint8_t* EcsWorld::accsess_component(ComponentArray* array, EcsSizeT index) noexcept
-    {
-        const EcsSizeT chunkIndex = index / EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK;
-        const EcsSizeT inChunkIndex = index % EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK;
-        return &array->chunks[chunkIndex][inChunkIndex * component_info(array->componentId)->sizeBytes];
-    }
-
-    inline EntityHandle* EcsWorld::accsess_entity_handle(ArchetypeHandle handle, EcsSizeT index) noexcept
-    {
-        const EcsSizeT chunkIndex = index / EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK;
-        const EcsSizeT inChunkIndex = index % EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK;
-        return &archetype(handle)->entityHandlesChunks[chunkIndex][inChunkIndex];
-    }
-
-    inline EntityHandle* EcsWorld::accsess_entity_handle(Archetype* archetypePtr, EcsSizeT index) noexcept
-    {
-        const EcsSizeT chunkIndex = index / EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK;
-        const EcsSizeT inChunkIndex = index % EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK;
-        return &archetypePtr->entityHandlesChunks[chunkIndex][inChunkIndex];
-    }
-
-    EcsWorld::ComponentArray* EcsWorld::accsess_component_array(ArchetypeHandle handle, ComponentId componentId) noexcept
-    {
-        Archetype* archetypePtr = archetype(handle);
-        return &archetypePtr->components[componentId];
-    }
-
-    inline bool EcsWorld::is_valid_subset(ComponentFlags subset, ComponentFlags superset) noexcept
+    bool ecs_is_valid_subset(EcsComponentFlags subset, EcsComponentFlags superset)
     {
         return  ((subset.flags[0] & superset.flags[0]) == subset.flags[0]) &&
                 ((subset.flags[1] & superset.flags[1]) == subset.flags[1]);
-    }
-
-    inline bool EcsWorld::is_valid_component_array(ComponentArray* array) noexcept
-    {
-        return array->componentId != 0;
     }
 }

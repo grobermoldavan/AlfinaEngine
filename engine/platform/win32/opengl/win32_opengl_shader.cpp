@@ -85,11 +85,13 @@ namespace al::engine
     {
         GLint infoLength = 0;
         ::glGetShaderiv(shaderId, GL_INFO_LOG_LENGTH, &infoLength);
-
-        DynamicArray<GLchar> infoLog(infoLength);
-        ::glGetShaderInfoLog(shaderId, infoLength, &infoLength, &infoLog[0]);
+        DynamicArray<GLchar> infoLog;
+        construct(&infoLog);
+        expand(&infoLog, infoLength);
+        ::glGetShaderInfoLog(shaderId, infoLength, &infoLength, infoLog.memory);
         ::glDeleteShader(shaderId);
-        al_log_error("Shader", "%s", &infoLog[0]);
+        al_log_error("Shader", "%s", infoLog.memory);
+        destruct(&infoLog);
     }
 
     void Win32OpenglShader::handle_program_compile_error(GLuint programId, GLenum(&shaderIds)[ShaderType::__size], bool(&isShaderIdSpecified)[ShaderType::__size]) const noexcept
@@ -97,14 +99,17 @@ namespace al::engine
         GLint infoLength = 0;
         ::glGetProgramiv(programId, GL_INFO_LOG_LENGTH, &infoLength);
 
-        DynamicArray<GLchar> infoLog(infoLength);
-        ::glGetProgramInfoLog(programId, infoLength, &infoLength, &infoLog[0]);
+        DynamicArray<GLchar> infoLog;
+        construct(&infoLog);
+        expand(&infoLog, infoLength);
+        ::glGetProgramInfoLog(programId, infoLength, &infoLength, infoLog.memory);
         ::glDeleteProgram(programId);
         for (size_t it = 0; it < ShaderType::__size; ++it)
         {
             if(isShaderIdSpecified[it]) { ::glDeleteShader(shaderIds[it]); }
         }
-        al_log_error("Shader", "%s", &infoLog[0]);
+        al_log_error("Shader", "%s", infoLog.memory);
+        destruct(&infoLog);
     }
 
     Win32OpenglShader::GetUniformLocationResult Win32OpenglShader::get_uniform_location(std::string_view name) const noexcept

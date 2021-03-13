@@ -36,9 +36,9 @@ namespace al::engine
     class ResourceManager
     {
     public:
-        static void construct() noexcept;
+        static void construct_manager() noexcept;
         static void destruct() noexcept;
-        static ResourceManager* get() noexcept;
+        static ResourceManager* get_instance() noexcept;
 
         ResourceManager() noexcept;
         ~ResourceManager() noexcept;

@@ -12,6 +12,7 @@
 #include "utilities/function.h"
 #include "utilities/math.h"
 #include "utilities/non_copyable.h"
+#include "utilities/procedural_wrap.h"
 #include "utilities/safe_cast.h"
 #include "utilities/scope_timer.h"
 #include "utilities/smooth_average.h"
@@ -29,6 +30,8 @@
 #include "engine/platform/platform_file_system_config.h"
 
 #include "engine/config/engine_config.h"
+#include "engine/containers/dynamic_array.h"
+#include "engine/containers/array_view.h"
 #include "engine/containers/containers.h"
 #include "engine/debug/debug.h"
 #include "engine/file_system/file_load.h"
@@ -83,6 +86,8 @@
 #endif
 
 // @NOTE :  Implementations
+#include "engine/containers/dynamic_array.cpp"
+#include "engine/containers/array_view.cpp"
 #include "engine/debug/debug.cpp"
 #include "engine/file_system/file_load.cpp"
 #include "engine/file_system/file_system.cpp"

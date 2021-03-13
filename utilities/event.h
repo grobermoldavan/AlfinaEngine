@@ -33,20 +33,22 @@ namespace al
         };
 
         Event() noexcept
-            : subscribers{ }
-        { }
+        {
+            construct(&subscribers);
+        }
 
         void invoke(const Args&... args) noexcept
         {
-            subscribers.for_each([&](EventEntry* entry)
+            for_each_array_container(subscribers, it)
             {
+                EventEntry* entry = get(&subscribers, it);
                 entry->func(args...);
-            });
+            }
         }
 
         EventHandle subscribe(const FunctionT& func) noexcept
         {
-            EventEntry* freeEntry = subscribers.get();
+            EventEntry* freeEntry = push(&subscribers);
             freeEntry->func = func;
             freeEntry->handle = get_next_handle();
             return freeEntry->handle;
@@ -55,19 +57,29 @@ namespace al
         // @NOTE : unsubscribe by host object
         void unsubscribe(void* host) noexcept
         {
-            subscribers.remove_by_condition([&](EventEntry* other) -> bool
+            for_each_array_container(subscribers, it)
             {
-                return host == other->func.get_host_object();
-            });
+                EventEntry* other = get(&subscribers, it);
+                if (other->func.get_host_object() == host)
+                {
+                    remove(&subscribers, it);
+                    it -= 1;
+                }
+            }
         }
 
         // @NOTE : unsubscribe by handle
         void unsubscribe(EventHandle handle) noexcept
         {
-            subscribers.remove_by_condition([&](EventEntry* other) -> bool
+            for_each_array_container(subscribers, it)
             {
-                return handle == other->handle;
-            });
+                EventEntry* other = get(&subscribers, it);
+                if (other->handle == handle)
+                {
+                    remove(&subscribers, it);
+                    break;
+                }
+            }
         }
 
         inline void operator () (const Args&... args) noexcept

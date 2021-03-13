@@ -103,8 +103,8 @@ namespace al::engine
         std::mutex      profileMutex;
     };
 
-    void logger_construct(Logger* logger, uint32_t levelFlags = set_bit(0u, _MESSAGE) | set_bit(0u, _WARNING) | set_bit(0u, _ERROR));
-    void logger_destruct(Logger* logger);
+    void construct(Logger* logger, uint32_t levelFlags = set_bit(0u, _MESSAGE) | set_bit(0u, _WARNING) | set_bit(0u, _ERROR));
+    void destruct(Logger* logger);
 
     template<typename ... Args> void logger_printf_log          (Logger* logger, LogLevel level, const char* category, const char* format, Args ... args);
     template<typename ... Args> void logger_printf_profile      (Logger* logger, const char* format, Args ... args);

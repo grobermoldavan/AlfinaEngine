@@ -16,14 +16,17 @@ namespace al::engine
         //          because opengl expects them the other way around.
         //          I'm not shure if it is common for all OBJ files, but
         //          it is the thing with files exported from blender
-        const std::size_t size = submesh->vertices.size();
-        submesh->indices.reserve(size);
+        const std::size_t size = submesh->vertices.size;
+        expand(&submesh->indices, size);
         uint32_t triangleIt = 0;
-        for (uint32_t it = 0; it < submesh->vertices.size(); it++)
+        for (uint32_t it = 0; it < submesh->vertices.size; it++)
         {
             // 0 : 2, 1 : 0, 2 : -2
-            int32_t additional = (triangleIt == 0) ? 2 : (triangleIt == 1) ? 0 : -2;
-            submesh->indices.push_back(submesh->indices.size() + additional);
+            int additional = (triangleIt == 0) ? 2 : (triangleIt == 1) ? 0 : -2;
+            uint32_t index;
+            const bool castResult = safe_cast_int64_to_uint32(submesh->indices.size + additional, &index);
+            al_assert(castResult);
+            push(&submesh->indices, index);
             triangleIt = (triangleIt + 1) % 3;
         }
     }
@@ -31,13 +34,14 @@ namespace al::engine
     CpuMesh load_cpu_mesh_obj(FileHandle* handle) noexcept
     {
         al_profile_function();
-        CpuMesh result{ };
+        CpuMesh result;
+        construct(&result.submeshes);
         const char* fileText = reinterpret_cast<const char*>(handle->memory);
         const char* fileTextPtr = fileText;
         CpuSubmesh* activeSubmesh = nullptr;
-        DynamicArray<float3> positions; positions.reserve(EngineConfig::CPU_MESH_DEFAULT_DYNAMIC_ARRAYS_SIZE);
-        DynamicArray<float3> normals;   normals  .reserve(EngineConfig::CPU_MESH_DEFAULT_DYNAMIC_ARRAYS_SIZE);
-        DynamicArray<float2> uvs;       uvs      .reserve(EngineConfig::CPU_MESH_DEFAULT_DYNAMIC_ARRAYS_SIZE);
+        DynamicArray<float3> positions; construct(&positions); expand(&positions, EngineConfig::CPU_MESH_DEFAULT_DYNAMIC_ARRAYS_SIZE);
+        DynamicArray<float3> normals;   construct(&normals  ); expand(&normals  , EngineConfig::CPU_MESH_DEFAULT_DYNAMIC_ARRAYS_SIZE);
+        DynamicArray<float2> uvs;       construct(&uvs      ); expand(&uvs      , EngineConfig::CPU_MESH_DEFAULT_DYNAMIC_ARRAYS_SIZE);
         while(true)
         {
             if (is_starts_with(fileTextPtr, "v "))
@@ -49,7 +53,7 @@ namespace al::engine
                     std::strtof((fileTextPtr = advance_to_next_word(fileTextPtr), fileTextPtr), nullptr),
                     std::strtof((fileTextPtr = advance_to_next_word(fileTextPtr), fileTextPtr), nullptr)
                 };
-                positions.push_back(position);
+                push(&positions, position);
             }
             else if (is_starts_with(fileTextPtr, "vn "))
             {
@@ -60,7 +64,7 @@ namespace al::engine
                     std::strtof((fileTextPtr = advance_to_next_word(fileTextPtr), fileTextPtr), nullptr),
                     std::strtof((fileTextPtr = advance_to_next_word(fileTextPtr), fileTextPtr), nullptr)
                 };
-                normals.push_back(normal);
+                push(&normals, normal);
             }
             else if (is_starts_with(fileTextPtr, "vt "))
             {
@@ -70,7 +74,7 @@ namespace al::engine
                     std::strtof((fileTextPtr = advance_to_next_word(fileTextPtr), fileTextPtr), nullptr),
                     std::strtof((fileTextPtr = advance_to_next_word(fileTextPtr), fileTextPtr), nullptr)
                 };
-                uvs.push_back(uv);
+                push(&uvs, uv);
             }
             else if (is_starts_with(fileTextPtr, "f "))
             {
@@ -95,25 +99,25 @@ namespace al::engine
                     uint32_t v = 0;
                     {
                         fileTextPtr = advance_to_next_word(fileTextPtr, '/');
-                        cast_from_obj(positions.size(), std::strtoll(fileTextPtr, nullptr, 10), &v);
+                        cast_from_obj(positions.size, std::strtoll(fileTextPtr, nullptr, 10), &v);
                     }
                     uint32_t vt = 0;
-                    if (uvs.size() > 0)
+                    if (uvs.size > 0)
                     {
                         fileTextPtr = advance_to_next_word(fileTextPtr, '/');
-                        cast_from_obj(uvs.size(), std::strtoll(fileTextPtr, nullptr, 10), &vt);
+                        cast_from_obj(uvs.size, std::strtoll(fileTextPtr, nullptr, 10), &vt);
                     }
                     uint32_t vn = 0;
-                    if (normals.size() > 0)
+                    if (normals.size > 0)
                     {
                         fileTextPtr = advance_to_next_word(fileTextPtr, '/');
-                        cast_from_obj(normals.size(), std::strtoll(fileTextPtr, nullptr, 10), &vn);
+                        cast_from_obj(normals.size, std::strtoll(fileTextPtr, nullptr, 10), &vn);
                     }
-                    activeSubmesh->vertices.push_back
-                    ({
-                        .position = positions[v],
-                        .normal   = normals[vn],
-                        .uv       = uvs[vt]
+                    push(&activeSubmesh->vertices,
+                    {
+                        .position = positions.memory[v],
+                        .normal   = normals.memory[vn],
+                        .uv       = uvs.memory[vt]
                     });
                 }
             }
@@ -131,17 +135,15 @@ namespace al::engine
                 {
                     fill_indices(activeSubmesh);
                 }
-                activeSubmesh = result.submeshes.get();
+                activeSubmesh = push(&result.submeshes);
                 al_assert(activeSubmesh);
                 fileTextPtr = advance_to_next_word(fileTextPtr);
                 const char* submeshNameStart = fileTextPtr;
                 fileTextPtr = advance_to_word_ending(fileTextPtr);
                 const char* submeshNameEnd = fileTextPtr;
                 activeSubmesh->name.set_with_length(submeshNameStart, submeshNameEnd - submeshNameStart);
-                // @NOTE :  probably don't need to clear it
-                // positions.clear();
-                // normals.clear();
-                // uvs.clear();
+                construct(&activeSubmesh->vertices);
+                construct(&activeSubmesh->indices);
             }
             const char* prevFileTextPtr = fileTextPtr;
             fileTextPtr = advance_to_next_line(fileTextPtr);
@@ -154,6 +156,9 @@ namespace al::engine
         {
             fill_indices(activeSubmesh);
         }
+        destruct(&positions);
+        destruct(&normals);
+        destruct(&uvs);
         return std::move(result);
     }
 }

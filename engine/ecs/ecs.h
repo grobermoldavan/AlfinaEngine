@@ -8,144 +8,108 @@
 #include "engine/debug/debug.h"
 #include "engine/containers/containers.h"
 
-#include "utilities/non_copyable.h"
-#include "utilities/array_container.h"
 #include "utilities/flags.h"
 #include "utilities/function.h"
 
 namespace al::engine
 {
-    using EcsSizeT      = uint64_t;
-    using EntityHandle  = EcsSizeT;
+    using EcsSizeT              = uint64_t;
+    using EcsEntityHandle       = EcsSizeT;
+    using EcsArchetypeHandle    = EcsSizeT;
+    using EcsComponentId        = EcsSizeT;
+    using EcsComponentFlags     = Flags128;
 
-    class EcsWorld : public NonCopyable
+    template<typename ... T> using EcsForEachFunctionPointer    = void(*)(struct EcsWorld*, EcsEntityHandle, T*...);
+    template<typename ... T> using EcsForEachFunctionObject     = Function<void(struct EcsWorld*, EcsEntityHandle, T*...)>;
+
+    // @NOTE :  Must correlate with EcsComponentFlags type.
+    //          One is subtracted because ComponentCounter::count
+    //          value starts from one, not zero.
+    constexpr EcsSizeT              ECS_WORLD_MAX_COMPONENTS    = 128 - 1;
+    constexpr EcsArchetypeHandle    ECS_WORLD_EMPTY_ARCHETYPE   = 0 ;
+
+    extern        EcsComponentId            gEcsComponentCount;
+    extern struct EcsComponentRuntimeInfo   gEcsComponentInfos[ECS_WORLD_MAX_COMPONENTS];
+
+    struct al_align EcsComponentRuntimeInfo
     {
-    private:
-        using ArchetypeHandle   = EcsSizeT;
-        using ComponentId       = EcsSizeT;
-        using ComponentFlags    = Flags128;
-
-        // @NOTE :  Must correlate with ComponentFlags type.
-        //          One is subtracted because ComponentCounter::count
-        //          value starts from one, not zero.
-        static constexpr EcsSizeT MAX_COMPONENTS{ 128 - 1 };
-
-        // @NOTE :  Entity has the following data.
-        //          componentFlags - describes the components that this entity has.
-        //          archetypeHandle - handle to an archetype which stores this entity.
-        //          arrayIndex - index af entity components in archetype component arrays.
-        struct al_align Entity
-        {
-            ComponentFlags componentFlags;
-            ArchetypeHandle archetypeHandle;
-            EcsSizeT arrayIndex;
-        };
-
-        struct ComponentCounter { static ComponentId count; };
-
-        template<typename T>
-        class ComponentTypeInfo : public ComponentCounter
-        {
-        public:
-            inline static ComponentId get_id() noexcept
-            {
-                static ComponentId id = count++;
-                return id;
-            }
-
-            inline static EcsSizeT get_size() noexcept
-            {
-                return sizeof(T);
-            }
-        };
-
-        struct al_align ComponentRuntimeInfo
-        {
-            EcsSizeT sizeBytes = 0;
-        };
-
-        // @NOTE :  ComponentArray stores instances of a single component type.
-        //          Instances are stored in chunks. Each chunk has size of
-        //          EngineConfig::NUMBER_OF_ELEMENTS_IN_ARCHETYPE_CHUNK * sizeof(*COMPONENT TYPE*).
-        //          Pointers to chunks are stored as uint8_t* and reinterpreted as pointers of 
-        //          *COMPONENT TYPE* at runtime via templated methods (accsess_component_template).
-        struct ComponentArray
-        {
-            ComponentId componentId;
-            DynamicArray<uint8_t*> chunks;
-        };
-
-        // @NOTE :  Archetype has the following data.
-        //          componentFlags - describes the components of entities that stored in this archetype.
-        //          selfHandle - handle of this archetype in the archetypes array.
-        //          size - current number of entities in arhcetype.
-        //          capacity - max possible number of stored entities without additional allocations.
-        //          entityHandlesChunks - chunks of entity handles. There stored handles to entities that
-        //                                are belong to this archetype.
-        //          components - array of the component arrays.
-        struct al_align Archetype
-        {
-            ComponentFlags componentFlags;
-            ArchetypeHandle selfHandle;
-            EcsSizeT size;
-            EcsSizeT capacity;
-            DynamicArray<EntityHandle*> entityHandlesChunks;
-            ComponentArray components[MAX_COMPONENTS];
-        };
-
-    public:
-        EcsWorld() noexcept;
-        ~EcsWorld() noexcept;
-
-                                    void            log_world_state     ()                      noexcept;
-                                    EntityHandle    create_entity       ()                      noexcept;
-                                    // @TODO :  maybe return tuple with added components from this method ?
-        template<typename ... T>    void            add_components      (EntityHandle handle)   noexcept;
-        template<typename ... T>    void            remove_components   (EntityHandle handle)   noexcept;
-        template<typename T>        T*              get_component       (EntityHandle handle)   noexcept;
-
-        template<typename ... T>
-        using ForEachFunction = void(*)(EcsWorld*, EntityHandle, T*...);
-
-        // @NOTE :  This version of for_each is faster than the one below
-        template<typename ... T>
-        void for_each_fp(ForEachFunction<T...> func) noexcept;
-
-        template<typename ... T>
-        void for_each(Function<void(EcsWorld*, EntityHandle, T*...)> func) noexcept;
-
-    private:
-        static constexpr ArchetypeHandle EMPTY_ARCHETYPE{ 0 };
-
-        ComponentRuntimeInfo    componentInfos[MAX_COMPONENTS];
-        DynamicArray<Entity>    entities;
-        DynamicArray<Archetype> archetypes;
-
-                                                Entity*                 entity                          (EntityHandle handle)                                           noexcept;
-                                                Archetype*              archetype                       (ArchetypeHandle handle)                                        noexcept;
-                                                ComponentRuntimeInfo*   component_info                  (ComponentId componentId)                                       noexcept;
-        template<typename T>                    bool                    is_component_registered         ()                                                              noexcept;
-        template<typename T, typename ... U>    bool                    is_components_registered        (bool value = true)                                             noexcept;
-        template<typename T>                    void                    register_component              ()                                                              noexcept;
-        template<typename T, typename ... U>    void                    register_components_if_needed   ()                                                              noexcept;
-        template<typename T, typename ... U>    void                    set_component_flags             (ComponentFlags* flags)                                         noexcept;
-        template<typename T, typename ... U>    void                    clear_component_flags           (ComponentFlags* flags)                                         noexcept;
-                                                ArchetypeHandle         match_or_create_archetype       (EntityHandle handle)                                           noexcept;
-                                                ArchetypeHandle         create_archetype                (ComponentFlags flags)                                          noexcept;
-                                                void                    allocate_chunks                 (ArchetypeHandle handle)                                        noexcept;
-                                                EcsSizeT                reserve_position                (ArchetypeHandle handle)                                        noexcept;
-                                                void                    free_position                   (ArchetypeHandle handle, EcsSizeT index)                        noexcept;
-                                                void                    move_entity_superset            (ArchetypeHandle from, ArchetypeHandle to, EntityHandle handle) noexcept;
-                                                void                    move_entity_subset              (ArchetypeHandle from, ArchetypeHandle to, EntityHandle handle) noexcept;
-        template<typename T>                    T*                      accsess_component_template      (Archetype* archetypePtr, EcsSizeT index)                       noexcept;
-        template<typename T>                    T*                      accsess_component_template      (ComponentArray* array, EcsSizeT index)                         noexcept;
-                                                uint8_t*                accsess_component               (ComponentArray* array, EcsSizeT index)                         noexcept;
-                                                EntityHandle*           accsess_entity_handle           (ArchetypeHandle handle, EcsSizeT index)                        noexcept;
-                                                EntityHandle*           accsess_entity_handle           (Archetype* archetypePtr, EcsSizeT index)                       noexcept;
-                                                ComponentArray*         accsess_component_array         (ArchetypeHandle handle, ComponentId componentId)               noexcept;
-                                                bool                    is_valid_subset                 (ComponentFlags subset, ComponentFlags superset)                noexcept;
-                                                bool                    is_valid_component_array        (ComponentArray* array)                                         noexcept;
+        EcsSizeT sizeBytes = 0;
     };
+
+    // @NOTE :  EcsEntity has the following data.
+    //          componentFlags - describes the components that this entity has.
+    //          archetypeHandle - handle to an archetype which stores this entity.
+    //          archetypeArrayIndex - index af entity components in archetype component arrays.
+    struct al_align EcsEntity
+    {
+        EcsComponentFlags   componentFlags;
+        EcsArchetypeHandle  archetypeHandle;
+        EcsSizeT            archetypeArrayIndex;
+    };
+
+    struct al_align EcsArchetype
+    {
+        EcsComponentFlags                                                               componentFlags;         // 16
+        EcsArchetypeHandle                                                              selfHandle;             // 8
+        EcsSizeT                                                                        size;                   // 8
+        EcsSizeT                                                                        capacity;               // 8
+        EcsSizeT                                                                        singleChunkCapacity;    // 8
+        ArrayView<EcsSizeT, ECS_WORLD_MAX_COMPONENTS>                                   componentArrayPointers; // 8
+        ArrayView<EcsEntityHandle, EngineConfig::ECS_MAX_ENTITIES_IN_ARCHETYPE_CHUNK>   entityHandles;          // 8
+        DynamicArray<uint8_t*>                                                          chunks;                 // 32
+    };
+
+    struct al_align EcsWorld
+    {
+        // Theese pools are used in archetypes
+        EcsSizeT        componentArrayPointersPool  [ECS_WORLD_MAX_COMPONENTS * EngineConfig::ECS_MAX_ARCHETYPES];
+        EcsEntityHandle entityHandlesPool           [EngineConfig::ECS_MAX_ENTITIES_IN_ARCHETYPE_CHUNK * EngineConfig::ECS_MAX_ARCHETYPES];
+
+        ArrayContainer<EcsEntity, EngineConfig::ECS_MAX_ENTITIES>       entities;
+        ArrayContainer<EcsArchetype, EngineConfig::ECS_MAX_ARCHETYPES>  archetypes;
+    };
+
+    // =================================================================================================================================
+    // USER STUFF
+    // =================================================================================================================================
+
+    void construct(EcsWorld* world);
+    void destruct(EcsWorld* world);
+
+                                EcsEntityHandle ecs_create_entity       (EcsWorld* world);
+    template<typename ... T>    void            ecs_add_components      (EcsWorld* world, EcsEntityHandle handle);
+    template<typename ... T>    void            ecs_remove_components   (EcsWorld* world, EcsEntityHandle handle);
+    template<typename T>        T*              ecs_get_component       (EcsWorld* world, EcsEntityHandle handle);
+
+    // // @NOTE :  This version of for_each is faster than the one below
+    template<typename ... T>    void            ecs_for_each_fp         (EcsWorld* world, EcsForEachFunctionPointer<T...> func);
+    template<typename ... T>    void            ecs_for_each            (EcsWorld* world, EcsForEachFunctionObject<T...> func);
+
+    // =================================================================================================================================
+    // INNER STUFF
+    // =================================================================================================================================
+
+    EcsArchetypeHandle  ecs_match_or_create_archetype   (EcsWorld* world, EcsEntityHandle handle);
+    EcsArchetypeHandle  ecs_create_archetype            (EcsWorld* world, EcsComponentFlags flags);
+    void                ecs_allocate_chunks             (EcsWorld* world, EcsArchetypeHandle handle);
+    void                ecs_move_entity_superset        (EcsWorld* world, EcsArchetypeHandle from, EcsArchetypeHandle to, EcsEntityHandle handle);
+    void                ecs_move_entity_subset          (EcsWorld* world, EcsArchetypeHandle from, EcsArchetypeHandle to, EcsEntityHandle handle);
+    EcsSizeT            ecs_reserve_position            (EcsWorld* world, EcsArchetypeHandle handle);
+    void                ecs_free_position               (EcsWorld* world, EcsArchetypeHandle handle, EcsSizeT index);
+    uint8_t*            ecs_access_component           (EcsWorld* world, EcsArchetypeHandle handle, EcsComponentId componentId, EcsSizeT index);
+
+    template<typename T>
+    T* ecs_access_component(EcsArchetype* archetype, EcsSizeT index);
+
+    template<typename T>                    EcsComponentId  ecs_component_type_info_get_id      ();
+    template<typename T>                    EcsSizeT        ecs_component_type_info_get_size    ();
+    template<typename T>                    bool            ecs_is_component_registered         ();
+    template<typename T, typename ... U>    bool            ecs_is_components_registered        (bool value = true);
+    template<typename T>                    void            ecs_register_component              ();
+    template<typename T, typename ... U>    void            ecs_register_components_if_needed   ();
+    template<typename T, typename ... U>    void            ecs_set_component_flags             (EcsComponentFlags* flags);
+    template<typename T, typename ... U>    void            ecs_clear_component_flags           (EcsComponentFlags* flags);
+                                            bool            ecs_is_valid_subset                 (EcsComponentFlags subset, EcsComponentFlags superset);
 }
 
 #endif

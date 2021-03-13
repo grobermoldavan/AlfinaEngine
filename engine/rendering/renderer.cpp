@@ -105,7 +105,7 @@ namespace al::engine
         instance = reinterpret_cast<Renderer*>(MemoryManager::get_stack()->allocate(internal::get_max_renderer_size_bytes()));
     }
 
-    void Renderer::construct(RendererType type, OsWindow* window) noexcept
+    void Renderer::construct_renderer(RendererType type, OsWindow* window) noexcept
     {
         if (!instance)
         {
@@ -145,11 +145,11 @@ namespace al::engine
         , screenRectangleVb{ 0 }
         , screenRectangleIb{ 0 }
         , screenRectangleVa{ 0 }
-        , indexBuffers{ 0 }
-        , vertexBuffers{ 0 }
-        , vertexArrays{ 0 }
-        , shaders{ 0 }
-        , texture2ds{ 0 }
+        , indexBuffers{ }
+        , vertexBuffers{ }
+        , vertexArrays{ }
+        , shaders{ }
+        , texture2ds{ }
         , freeIndexBufferHandles{ }
         , freeVertexBufferHandles{ }
         , freeVertexArrayHandles{ }
@@ -239,14 +239,12 @@ namespace al::engine
         {
             al_profile_scope("Renderer post-init");
             {
-                FramebufferDescription gbufferDesciption;
-                gbufferDesciption.attachments =
-                {
-                    FramebufferAttachmentType::RGB_8,               // Position
-                    FramebufferAttachmentType::RGB_8,               // Normal
-                    FramebufferAttachmentType::RGB_8,               // Albedo
-                    FramebufferAttachmentType::DEPTH_24_STENCIL_8   // Depth + stencil (maybe?)
-                };
+                FramebufferDescription gbufferDesciption{ };
+                construct(&gbufferDesciption.attachments);
+                push(&gbufferDesciption.attachments, FramebufferAttachmentType::RGB_8);                 // Position
+                push(&gbufferDesciption.attachments, FramebufferAttachmentType::RGB_8);                 // Normal
+                push(&gbufferDesciption.attachments, FramebufferAttachmentType::RGB_8);                 // Albedo
+                push(&gbufferDesciption.attachments, FramebufferAttachmentType::DEPTH_24_STENCIL_8);    // Depth + stencil (maybe?)
                 gbufferDesciption.width = window->get_params()->width;
                 gbufferDesciption.height = window->get_params()->height;
                 gbuffer = reserve_framebuffer();

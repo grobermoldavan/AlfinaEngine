@@ -10,14 +10,18 @@ namespace al::engine
         , dispatchFunction{ }
         , jobSystem{ nullptr }
         , userData{ nullptr }
-    { }
+    {
+        construct(&nextJobs);
+    }
 
     Job::Job(JobSystem* jobSystem) noexcept
         : previousJobsNum{ 0 }
         , dispatchFunction{ }
         , jobSystem{ jobSystem }
         , userData{ nullptr }
-    { }
+    {
+        construct(&nextJobs);
+    }
 
     void Job::configure(DispatchFunction func, void* data) noexcept
     {
@@ -56,17 +60,18 @@ namespace al::engine
     void Job::set_before(Job* job) noexcept
     {
 #ifdef AL_DEBUG
-        nextJobs.for_each([job](Job** other)
+        for_each_array_container(nextJobs, it)
         {
-            al_assert_msg(job != *other, "Job is already stored in the nextJobs array");
-        });
+            Job* other = *get(&nextJobs, it);
+            al_assert_msg(job != other, "Job is already stored in the nextJobs array");
+        }
 #endif
         al_assert(!is_finished());
         if (job->is_finished())
         {
             return;
         }
-        nextJobs.push(job);
+        push(&nextJobs, job);
     }
 
     void Job::set_after(Job* job) noexcept
@@ -95,12 +100,12 @@ namespace al::engine
     {
         al_assert(is_ready_for_dispatch());
         previousJobsNum.fetch_sub(1, std::memory_order_relaxed);
-        nextJobs.for_each([](Job** _job)
+        for_each_array_container(nextJobs, it)
         {
-            Job* job = *_job;
+            Job* job = *get(&nextJobs, it);
             job->notify_previous_job_finished();
-        });
-        nextJobs.clear();
+        };
+        clear(&nextJobs);
         jobSystem->return_job(this);
     }
 }

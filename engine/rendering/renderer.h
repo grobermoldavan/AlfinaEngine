@@ -46,7 +46,7 @@ namespace al::engine
     {
     public:
         static void allocate_space() noexcept;
-        static void construct(RendererType type, OsWindow* window) noexcept;
+        static void construct_renderer(RendererType type, OsWindow* window) noexcept;
         static void destruct() noexcept;
         static Renderer* get() noexcept;
 

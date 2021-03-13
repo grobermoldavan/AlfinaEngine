@@ -95,7 +95,7 @@ namespace al::engine
 
     Win32OpenglFramebuffer::Win32OpenglFramebuffer(const FramebufferInitData& initData)
         : description{ initData.description }
-        , attachmentLocations{ 0 }
+        , attachmentLocations{ }
         , rendererId{ 0 }
         , colorAttachmentsCount{ 0 }
     {
@@ -107,7 +107,7 @@ namespace al::engine
         if (rendererId)
         {
             ::glDeleteFramebuffers(1, &rendererId);
-            for (std::size_t it = 0; it < description.attachments.get_current_size(); it++)
+            for_each_array_container(description.attachments, it)
             {
                 ::glDeleteTextures(1, &attachmentLocations[it]);
             }
@@ -133,7 +133,7 @@ namespace al::engine
         if (rendererId)
         {
             ::glDeleteFramebuffers(1, &rendererId);
-            for (std::size_t it = 0; it < description.attachments.get_current_size(); it++)
+            for_each_array_container(description.attachments, it)
             {
                 ::glDeleteTextures(1, &attachmentLocations[it]);
             }
@@ -141,9 +141,9 @@ namespace al::engine
         }
         ::glCreateFramebuffers(1, &rendererId);
         ::glBindFramebuffer(GL_FRAMEBUFFER, rendererId);
-        for (std::size_t it = 0; it < description.attachments.get_current_size(); it++)
+        for_each_array_container(description.attachments, it)
         {
-            FramebufferAttachmentType attachment = description.attachments[it];
+            FramebufferAttachmentType attachment = *get(&description.attachments, it);
             RendererId* attachmentId = &attachmentLocations[it];
             if (is_depth_attachment(attachment))
             {
@@ -178,11 +178,13 @@ namespace al::engine
         }
         {
             DynamicArray<GLenum> colorAttachments;
+            construct(&colorAttachments);
             for (uint32_t it = 0; it < colorAttachmentsCount; it++)
             {
-                colorAttachments.push_back(GL_COLOR_ATTACHMENT0 + it);
+                push(&colorAttachments, GL_COLOR_ATTACHMENT0 + it);
             }
-            ::glDrawBuffers(colorAttachmentsCount, colorAttachments.data());
+            ::glDrawBuffers(colorAttachmentsCount, colorAttachments.memory);
+            destruct(&colorAttachments);
         }
         ::glBindFramebuffer(GL_FRAMEBUFFER, 0);
     }

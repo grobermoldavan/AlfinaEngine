@@ -12,7 +12,7 @@ namespace al::engine
 {
     ResourceManager* ResourceManager::instance{ nullptr };
 
-    void ResourceManager::construct() noexcept
+    void ResourceManager::construct_manager() noexcept
     {
         if (instance)
         {
@@ -30,7 +30,8 @@ namespace al::engine
         instance->~ResourceManager();
     }
 
-    ResourceManager* ResourceManager::get() noexcept
+    // Renamed it for now. Anyway this will be removed later
+    ResourceManager* ResourceManager::get_instance() noexcept
     {
         return instance;
     }
@@ -114,6 +115,7 @@ namespace al::engine
             handle.isValid = 1;
             handle.index = meshResources.get_direct_index(resource);
             resource->path = path;
+            construct(&resource->renderMesh.submeshes);
             // @NOTE :  Step 2. Start loading that resource
             auto [fileHandle, loadJob] = FileSystem::get()->async_load(path, FileLoadMode::READ);
             // @NOTE :  Step 3. Start post load job
@@ -127,12 +129,13 @@ namespace al::engine
                 resource->cpuMesh = load_cpu_mesh_obj(fileHandle);
                 FileSystem::get()->free_handle(fileHandle);
                 // @NOTE :  Step 5. Process loaded submeshes (aka generate render mesh)
-                resource->cpuMesh.submeshes.for_each([resource](CpuSubmesh* submesh)
+                for_each_array_container(resource->cpuMesh.submeshes, it)
                 {
                     al_profile_scope("Proces cpu submesh");
+                    CpuSubmesh* submesh = get(&resource->cpuMesh.submeshes, it);
                     al_log_message(EngineConfig::RESOURCE_MANAGER_LOG_CATEGORY, "Processing submesh with name %s", submesh->name);
                     // @NOTE :  Step 6. Reserve index buffer, vertex buffer and vertex array handles
-                    RenderSubmesh* renderSubmesh = resource->renderMesh.submeshes.get();
+                    RenderSubmesh* renderSubmesh = push(&resource->renderMesh.submeshes);
                     renderSubmesh->ibHandle = Renderer::get()->reserve_index_buffer();
                     renderSubmesh->vbHandle = Renderer::get()->reserve_vertex_buffer();
                     renderSubmesh->vaHandle = Renderer::get()->reserve_vertex_array();
@@ -142,10 +145,10 @@ namespace al::engine
                     {
                         al_profile_scope("Create submesh render resources");
                         al_log_message(EngineConfig::RESOURCE_MANAGER_LOG_CATEGORY, "Creating render resources for submesh with name %s", submesh->name);
-                        al_log_message(EngineConfig::RESOURCE_MANAGER_LOG_CATEGORY, "Submesh %s : number of vertices : %d", submesh->name, submesh->vertices.size());
+                        al_log_message(EngineConfig::RESOURCE_MANAGER_LOG_CATEGORY, "Submesh %s : number of vertices : %d", submesh->name, submesh->vertices.size);
                         // @NOTE :  Step 8. Actually create buffers and vertex array based on loaded mesh data
-                        Renderer::get()->create_index_buffer(renderSubmesh->ibHandle, { submesh->indices.data(), submesh->indices.size() });
-                        Renderer::get()->create_vertex_buffer(renderSubmesh->vbHandle, { submesh->vertices.data(), submesh->vertices.size() * sizeof(MeshVertex) });
+                        Renderer::get()->create_index_buffer(renderSubmesh->ibHandle, { submesh->indices.memory, submesh->indices.size });
+                        Renderer::get()->create_vertex_buffer(renderSubmesh->vbHandle, { submesh->vertices.memory, submesh->vertices.size * sizeof(MeshVertex) });
                         VertexBuffer* vb = Renderer::get()->vertex_buffer(renderSubmesh->vbHandle);
                         vb->set_layout(BufferLayout::ElementContainer
                         {
@@ -164,7 +167,7 @@ namespace al::engine
                         // submesh->~CpuSubmesh();
                     });
                     JobSystem::get_render_system()->start_job(createRenderResourcesJob);
-                });
+                }
             });
             postLoadJob->set_after(loadJob);
             JobSystem::get_main_system()->start_job(postLoadJob);

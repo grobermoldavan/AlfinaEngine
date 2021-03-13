@@ -40,16 +40,16 @@ void UserApplication::initialize_components() noexcept
     onKeyboardButtonPressed.subscribe({ this, &UserApplication::handle_keyboard_input });
     onMouseButtonPressed.subscribe({ this, &UserApplication::handle_mouse_input });
 
-    tex = ResourceManager::get()->add_texture_resource(construct_path("assets", "materials", "metal_plate", "diffuse.png"));
-    mesh = ResourceManager::get()->add_mesh_resource(construct_path("assets", "geometry", "sponza", "sponza.obj"));
+    tex = ResourceManager::get_instance()->add_texture_resource(construct_path("assets", "materials", "metal_plate", "diffuse.png"));
+    mesh = ResourceManager::get_instance()->add_mesh_resource(construct_path("assets", "geometry", "sponza", "sponza.obj"));
 
     // Add scene node with render mesh component
     SceneNodeHandle testSceneNode;
     testSceneNode = defaultScene->create_node();
-    EntityHandle entity = defaultScene->scene_node(testSceneNode)->entityHandle;
+    EcsEntityHandle entity = defaultScene->scene_node(testSceneNode)->entityHandle;
     EcsWorld* world = defaultScene->get_ecs_world();
-    world->add_components<RenderMeshComponent>(entity);
-    RenderMeshComponent* meshComponent = world->get_component<RenderMeshComponent>(entity);
+    ecs_add_components<RenderMeshComponent>(world, entity);
+    RenderMeshComponent* meshComponent = ecs_get_component<RenderMeshComponent>(world, entity);
     meshComponent->resourceHandle = mesh;
 }
 
@@ -67,18 +67,22 @@ void UserApplication::render() noexcept
 {
     al_profile_function();
     using namespace al::engine;
-    defaultEcsWorld->for_each<SceneTransform, RenderMeshComponent>([&](EcsWorld* world, EntityHandle handle, SceneTransform* trf, RenderMeshComponent* mesh)
+    ecs_for_each<SceneTransform, RenderMeshComponent>(defaultEcsWorld, [&](EcsWorld* world, EcsEntityHandle handle, SceneTransform* trf, RenderMeshComponent* mesh)
     {
-        ResourceManager::get()->get_render_mesh(mesh->resourceHandle)->submeshes.for_each([&](RenderSubmesh* submesh)
+        RenderMesh* renderMesh = ResourceManager::get_instance()->get_render_mesh(mesh->resourceHandle);
+        for_each_array_container(renderMesh->submeshes, it)
         {
+            RenderSubmesh* submesh = get(&renderMesh->submeshes, it);
             if (submesh->vaHandle.isValid)
             {
                 GeometryCommandData* data = Renderer::get()->add_geometry_command({ /* dummy key */ });
                 data->trf = trf->get_world_transform();
+                // @TODO :  It is better to directly store pointer to a VA instead of handle because this will be faster
                 data->va = Renderer::get()->vertex_array(submesh->vaHandle);
-                data->diffuseTexture = Renderer::get()->texture_2d(ResourceManager::get()->get_renderer_texture_handle(tex));
+                // @TODO :  Same here. Better store diffuse texture pointer instead of getting it from handle which we got from another handle
+                data->diffuseTexture = Renderer::get()->texture_2d(ResourceManager::get_instance()->get_renderer_texture_handle(tex));
             }
-        });
+        };
     });
 }
 

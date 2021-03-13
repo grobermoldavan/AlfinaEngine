@@ -8,9 +8,11 @@ namespace al::engine
 {
     void AlfinaEngineApplication::initialize_components() noexcept
     {
-        MemoryManager::construct();
+        MemoryManager::construct_manager();
+
         gLogger = MemoryManager::get_stack()->allocate_as<Logger>();
-        logger_construct(gLogger);
+        construct(gLogger);
+
         MemoryManager::log_memory_init_info();
         JobSystem::construct(get_number_of_job_system_threads());
         FileSystem::construct();
@@ -20,12 +22,14 @@ namespace al::engine
             window = create_window(&params);
         }
         Renderer::allocate_space();
-        Renderer::construct(EngineConfig::DEFAULT_RENDERER_TYPE, window);
-        ResourceManager::construct();
+        Renderer::construct_renderer(EngineConfig::DEFAULT_RENDERER_TYPE, window);
+        ResourceManager::construct_manager();
 
         distribute_threads_to_cpu_cores();
 
-        defaultEcsWorld = MemoryManager::get_stack()->allocate_and_construct<EcsWorld>();
+        defaultEcsWorld = MemoryManager::get_stack()->allocate_as<EcsWorld>();
+        construct(defaultEcsWorld);
+
         defaultScene = MemoryManager::get_stack()->allocate_and_construct<Scene>(defaultEcsWorld);
 
         dbgFlyCamera.get_render_camera()->set_aspect_ratio(static_cast<float>(window->get_params()->width) / static_cast<float>(window->get_params()->height));
@@ -39,14 +43,14 @@ namespace al::engine
         al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Terminating engine components");
 
         defaultScene->~Scene();
-        defaultEcsWorld->~EcsWorld();
+        destruct(defaultEcsWorld);
 
         ResourceManager::destruct();
         Renderer::destruct();
         destroy_window(window);
         FileSystem::destruct();
         JobSystem::destruct();
-        logger_destruct(gLogger);
+        destruct(gLogger);
         MemoryManager::destruct();
     }
 
@@ -79,7 +83,7 @@ namespace al::engine
             process_end_frame();
             Renderer::get()->wait_for_render_finish();
         }
-        defaultEcsWorld->log_world_state();
+        // ecs_log_world_state(defaultEcsWorld);
     }
 
     void AlfinaEngineApplication::update_input() noexcept
@@ -125,7 +129,6 @@ namespace al::engine
     {
         al_profile_function();
         al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Fps : %f", 1.0f / dt);
-        // std::cout << 1.0f / dt << std::endl;
         dbgFlyCamera.process_inputs(&inputState.get_current(), dt);
     }
 
@@ -164,18 +167,19 @@ namespace al::engine
     void AlfinaEngineApplication::distribute_threads_to_cpu_cores() noexcept
     {
         // Collect handles to all threads used by the program
-        ArrayContainer<ThreadHandle, EngineConfig::MAX_SUPPORTED_THREADS> threads;
-        threads.push(get_current_thread_handle());
-        threads.push(Renderer::get()->get_render_thread()->native_handle());
+        ArrayContainer<ThreadHandle, EngineConfig::MAX_SUPPORTED_THREADS> threads{ };
+        construct(&threads);
+        push(&threads, get_current_thread_handle());
+        push(&threads, Renderer::get()->get_render_thread()->native_handle());
         std::span<JobSystemThread> jobSystemThread = JobSystem::get_main_system()->get_threads();
         for (JobSystemThread& jobSystemThread : jobSystemThread)
         {
-            threads.push(jobSystemThread.get_thread()->native_handle());
+            push(&threads, jobSystemThread.get_thread()->native_handle());
         }
         // Get max number of threads supported by the user's computer
         const std::size_t systemMaxThreads = std::thread::hardware_concurrency();
         // Get number of program threads
-        const std::size_t programThreadsCount = threads.get_current_size();
+        const std::size_t programThreadsCount = threads.size;
         // Print warnings if needed
         if (systemMaxThreads > EngineConfig::MAX_SUPPORTED_THREADS)
         {
@@ -197,8 +201,8 @@ namespace al::engine
         for (uint64_t it = 0; it < programThreadsCount; it++)
         {
             const uint64_t mask = uint64_t{1} << (it % maxThreads);
-            set_thread_affinity_mask(threads[it], mask);
-            set_thread_highest_priority(threads[it]);
+            set_thread_affinity_mask(*get(&threads, it), mask);
+            set_thread_highest_priority(*get(&threads, it));
         }
     }
 }

@@ -26,7 +26,7 @@ namespace al::engine
 
     float4x4 PerspectiveRenderCamera::get_projection() const noexcept
     {
-        float4x4 result{ 0 };
+        float4x4 result{ };
         float tanHalfFov = std::tan(to_radians(fovDeg) / 2.0f);
         result.m[0][0] = 1.0f / (aspectRatio * tanHalfFov);
         result.m[1][1] = 1.0f / tanHalfFov;

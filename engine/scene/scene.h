@@ -12,6 +12,7 @@
 
 #include "utilities/array_container.h"
 #include "utilities/function.h"
+#include "utilities/fixed_size_string.h"
 
 namespace al::engine
 {
@@ -20,15 +21,16 @@ namespace al::engine
 
     using SceneSizeT = uint64_t;
     using SceneNodeHandle = SceneNode*;
+    using SceneNodeName = FixedSizeString<EngineConfig::MAX_SCENE_NODE_NAME_LENGTH>;
 
     struct al_align SceneNode
     {
         using ChildContainer = ArrayContainer<SceneNodeHandle, EngineConfig::MAX_NUMBER_OF_NODE_CHILDS>;
-        EntityHandle    entityHandle;
+        EcsEntityHandle entityHandle;
         Scene*          scene;
         SceneNodeHandle parent;
         ChildContainer  childs;
-        char            name[EngineConfig::MAX_SCENE_NODE_NAME_LENGTH];
+        SceneNodeName   name;
     };
 
     class Scene
