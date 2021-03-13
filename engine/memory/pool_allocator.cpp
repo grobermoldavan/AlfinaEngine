@@ -1,5 +1,6 @@
 
 #include "pool_allocator.h"
+#include "utilities/procedural_wrap.h"
 
 namespace al::engine
 {
@@ -222,6 +223,11 @@ namespace al::engine
     void PoolAllocator::initialize(BucketDescContainer bucketDescriptions, AllocatorBase* allocator) noexcept
     {
         construct(&buckets);
+        // @TODO :  remove after finishing migration to procedural code style
+        for (std::size_t it = 0; it < EngineConfig::POOL_ALLOCATOR_MAX_BUCKETS; it++)
+        {
+            wrap_construct(get(&buckets, it));
+        }
         construct(&ptrSizePairs);
         for_each_array_container(bucketDescriptions, it)
         {

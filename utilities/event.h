@@ -6,6 +6,7 @@
 
 #include "function.h"
 #include "array_container.h"
+#include "procedural_wrap.h"
 
 namespace al
 {
@@ -35,6 +36,11 @@ namespace al
         Event() noexcept
         {
             construct(&subscribers);
+            // @TODO :  remove after finishing migration to procedural code style
+            for (std::size_t it = 0; it < SubscribersNum; it++)
+            {
+                wrap_construct(get(&subscribers, it));
+            }
         }
 
         void invoke(const Args&... args) noexcept
