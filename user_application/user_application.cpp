@@ -67,8 +67,14 @@ void UserApplication::render() noexcept
 {
     al_profile_function();
     using namespace al::engine;
+    using namespace al;
     ecs_for_each<SceneTransform, RenderMeshComponent>(defaultEcsWorld, [&](EcsWorld* world, EcsEntityHandle handle, SceneTransform* trf, RenderMeshComponent* mesh)
     {
+        // Transform localTrf = trf->get_local_transform();
+        // float3 rotationCurrent = localTrf.get_rotation();
+        // rotationCurrent.y += 0.1f;
+        // localTrf.set_rotation(rotationCurrent);
+        // trf->set_local_transform(localTrf.matrix);
         RenderMesh* renderMesh = ResourceManager::get_instance()->get_render_mesh(mesh->resourceHandle);
         for_each_array_container(renderMesh->submeshes, it)
         {

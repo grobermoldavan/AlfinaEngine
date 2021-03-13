@@ -4,22 +4,24 @@
 namespace al::engine
 {
 
-    FlyCamera::FlyCamera() noexcept
-        : cursorPosition{ }
-        , cachedWheelState{ 0 }
-        , mouseSensitivity{ 5.0f }
-        , isRmbPressed{ false }
-    { }
-
-    PerspectiveRenderCamera* FlyCamera::get_render_camera() noexcept
+    void construct(FlyCamera* flyCamera)
     {
-        return &renderCamera;
+        flyCamera->renderCamera = { };
+        flyCamera->cursorPosition = { };
+        flyCamera->cachedWheelState = 0;
+        flyCamera->mouseSensitivity = 5.0f;
+        flyCamera->isRmbPressed = false;
     }
 
-    void FlyCamera::process_inputs(const OsWindowInput* input, float dt) noexcept
+    PerspectiveRenderCamera* get_render_camera(FlyCamera* flyCamera)
+    {
+        return &flyCamera->renderCamera;
+    }
+
+    void process_inputs(FlyCamera* flyCamera, const OsWindowInput* input, float dt)
     {
         al_profile_function();
-        Transform* trf = renderCamera.get_transform();
+        Transform* trf = flyCamera->renderCamera.get_transform();
         // Process keyboard input
         {
             constexpr float FAST_MOVEMENT_SPEED = 5.0f;
@@ -38,32 +40,32 @@ namespace al::engine
         {
             if (input->mouse.buttons.get_flag(static_cast<uint32_t>(OsWindowInput::MouseInputFlags::RMB_PRESSED)))
             {
-                const bool isJustPressed = !isRmbPressed;
+                const bool isJustPressed = !flyCamera->isRmbPressed;
                 const int32_t cursorX = input->mouse.x;
                 const int32_t cursorY = input->mouse.y;
                 if (!isJustPressed)
                 {
-                    const int32_2 diff{ cursorX - cursorPosition.x, cursorY - cursorPosition.y };
+                    const int32_2 diff{ cursorX - flyCamera->cursorPosition.x, cursorY - flyCamera->cursorPosition.y };
                     float3 rotation = trf->get_rotation();
-                    rotation.x += static_cast<float>(diff.y) * dt * mouseSensitivity;
-                    rotation.y += static_cast<float>(diff.x) * dt * mouseSensitivity;
+                    rotation.x += static_cast<float>(diff.y) * dt * flyCamera->mouseSensitivity;
+                    rotation.y += static_cast<float>(diff.x) * dt * flyCamera->mouseSensitivity;
                     trf->set_rotation(rotation);
                 }
-                cursorPosition.x = cursorX;
-                cursorPosition.y = cursorY;
-                isRmbPressed = true;
+                flyCamera->cursorPosition.x = cursorX;
+                flyCamera->cursorPosition.y = cursorY;
+                flyCamera->isRmbPressed = true;
             }
             else
             {
-                isRmbPressed = false;
+                flyCamera->isRmbPressed = false;
             }
         }
         // Process mouse wheel input
         {
             const int32_t currentWheelState = input->mouse.wheel;
-            const int32_t diff = currentWheelState - cachedWheelState;
-            renderCamera.set_fov(renderCamera.get_fov() + (static_cast<float>(diff) * 0.005f));
-            cachedWheelState = currentWheelState;
+            const int32_t diff = currentWheelState - flyCamera->cachedWheelState;
+            flyCamera->renderCamera.set_fov(flyCamera->renderCamera.get_fov() + (static_cast<float>(diff) * 0.005f));
+            flyCamera->cachedWheelState = currentWheelState;
         }
     }
 }

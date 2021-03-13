@@ -117,7 +117,7 @@ namespace al::engine
             construct(&resource->path, &path);
             construct(&resource->renderMesh.submeshes);
             // @NOTE :  Step 2. Start loading that resource
-            auto [fileHandle, loadJob] = FileSystem::get()->async_load(path, FileLoadMode::READ);
+            auto [fileHandle, loadJob] = file_async_load(gFileSystem, path, FileLoadMode::READ);
             // @NOTE :  Step 3. Start post load job
             Job* postLoadJob = JobSystem::get_main_system()->get_job();
             postLoadJob->configure([fileHandle, resource](Job* job)
@@ -127,7 +127,7 @@ namespace al::engine
                 al_log_message(EngineConfig::RESOURCE_MANAGER_LOG_CATEGORY, "Loading mesh");
                 // @NOTE :  Step 4. Load mesh data from file
                 resource->cpuMesh = load_cpu_mesh_obj(fileHandle);
-                FileSystem::get()->free_handle(fileHandle);
+                file_free_handle(gFileSystem, fileHandle);
                 // @NOTE :  Step 5. Process loaded submeshes (aka generate render mesh)
                 for_each_array_container(resource->cpuMesh.submeshes, it)
                 {

@@ -35,6 +35,8 @@
 
 namespace al::engine
 {
+    extern struct FileSystem* gFileSystem;
+
     struct AsyncFileReadUserData
     {
         StaticString file;
@@ -48,25 +50,17 @@ namespace al::engine
         Job* job;
     };
 
-    class FileSystem
+    struct FileSystem
     {
-    public:
-        static void        construct_system() noexcept;
-        static void        destruct() noexcept;
-        static FileSystem* get() noexcept;
-
-        [[nodiscard]] FileHandle*   sync_load   (const StaticString& file, FileLoadMode mode)   noexcept;
-        [[nodiscard]] HandleJobPair async_load  (const StaticString& file, FileLoadMode mode)   noexcept;
-        void                        free_handle (FileHandle* handle)                            noexcept;
-
-    private:
-        static FileSystem* instance;
-
         AllocatorBase* allocator;
-
-        FileSystem() noexcept;
-        ~FileSystem() noexcept;
     };
+
+    void construct(FileSystem* fileSystem);
+    void destruct(FileSystem* fileSystem);
+
+    [[nodiscard]] FileHandle*   file_sync_load  (FileSystem* fileSystem, const StaticString& file, FileLoadMode mode);
+    [[nodiscard]] HandleJobPair file_async_load (FileSystem* fileSystem, const StaticString& file, FileLoadMode mode);
+    void                        file_free_handle(FileSystem* fileSystem, FileHandle* handle);
 }
 
 #endif

@@ -15,7 +15,9 @@ namespace al::engine
 
         MemoryManager::log_memory_init_info();
         JobSystem::construct(get_number_of_job_system_threads());
-        FileSystem::construct_system();
+
+        gFileSystem = MemoryManager::get_stack()->allocate_as<FileSystem>();
+        construct(gFileSystem);
         {
             OsWindowParams params;
             params.isFullscreen = false;
@@ -32,8 +34,9 @@ namespace al::engine
 
         defaultScene = MemoryManager::get_stack()->allocate_and_construct<Scene>(defaultEcsWorld);
 
-        dbgFlyCamera.get_render_camera()->set_aspect_ratio(static_cast<float>(window->get_params()->width) / static_cast<float>(window->get_params()->height));
-        Renderer::get()->set_camera(dbgFlyCamera.get_render_camera());
+        construct(&dbgFlyCamera);
+        get_render_camera(&dbgFlyCamera)->set_aspect_ratio(static_cast<float>(window->get_params()->width) / static_cast<float>(window->get_params()->height));
+        Renderer::get()->set_camera(get_render_camera(&dbgFlyCamera));
 
         al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Initialized engine components");
     }
@@ -48,7 +51,7 @@ namespace al::engine
         ResourceManager::destruct();
         Renderer::destruct();
         destroy_window(window);
-        FileSystem::destruct();
+        destruct(gFileSystem);
         JobSystem::destruct();
         destruct(gLogger);
         MemoryManager::destruct();
@@ -129,7 +132,7 @@ namespace al::engine
     {
         al_profile_function();
         al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Fps : %f", 1.0f / dt);
-        dbgFlyCamera.process_inputs(&inputState.get_current(), dt);
+        process_inputs(&dbgFlyCamera, &inputState.get_current(), dt);
     }
 
     void AlfinaEngineApplication::render() noexcept

@@ -251,26 +251,26 @@ namespace al::engine
                 create_framebuffer(gbuffer, { gbufferDesciption });
             }
             {
-                FileHandle* vertGpassShaderSrc = FileSystem::get()->sync_load(construct_static_string(EngineConfig::DEFFERED_GEOMETRY_PASS_VERT_SHADER_PATH), FileLoadMode::READ);
-                FileHandle* fragGpassShaderSrc = FileSystem::get()->sync_load(construct_static_string(EngineConfig::DEFFERED_GEOMETRY_PASS_FRAG_SHADER_PATH), FileLoadMode::READ);
+                FileHandle* vertGpassShaderSrc = file_sync_load(gFileSystem, construct_static_string(EngineConfig::DEFFERED_GEOMETRY_PASS_VERT_SHADER_PATH), FileLoadMode::READ);
+                FileHandle* fragGpassShaderSrc = file_sync_load(gFileSystem, construct_static_string(EngineConfig::DEFFERED_GEOMETRY_PASS_FRAG_SHADER_PATH), FileLoadMode::READ);
                 const char* vertGpassShaderStr = reinterpret_cast<const char*>(vertGpassShaderSrc->memory);
                 const char* fragGpassShaderStr = reinterpret_cast<const char*>(fragGpassShaderSrc->memory);
                 gpassShader = reserve_shader();
                 create_shader(gpassShader, { vertGpassShaderStr, fragGpassShaderStr });
-                FileSystem::get()->free_handle(vertGpassShaderSrc);
-                FileSystem::get()->free_handle(fragGpassShaderSrc);
+                file_free_handle(gFileSystem, vertGpassShaderSrc);
+                file_free_handle(gFileSystem, fragGpassShaderSrc);
                 shader(gpassShader)->bind();
                 shader(gpassShader)->set_int(EngineConfig::DEFFERED_GEOMETRY_PASS_DIFFUSE_TEXTURE_NAME, EngineConfig::DEFFERED_GEOMETRY_PASS_DIFFUSE_TEXTURE_LOCATION);
             }
             {
-                FileHandle* vertDrawFramebufferToScreenShaderSrc = FileSystem::get()->sync_load(construct_static_string(EngineConfig::DRAW_FRAMEBUFFER_TO_SCREEN_VERT_SHADER_PATH), FileLoadMode::READ);
-                FileHandle* fragDrawFramebufferToScreenShaderSrc = FileSystem::get()->sync_load(construct_static_string(EngineConfig::DRAW_FRAMEBUFFER_TO_SCREEN_FRAG_SHADER_PATH), FileLoadMode::READ);
+                FileHandle* vertDrawFramebufferToScreenShaderSrc = file_sync_load(gFileSystem, construct_static_string(EngineConfig::DRAW_FRAMEBUFFER_TO_SCREEN_VERT_SHADER_PATH), FileLoadMode::READ);
+                FileHandle* fragDrawFramebufferToScreenShaderSrc = file_sync_load(gFileSystem, construct_static_string(EngineConfig::DRAW_FRAMEBUFFER_TO_SCREEN_FRAG_SHADER_PATH), FileLoadMode::READ);
                 const char* vertDrawFramebufferToScreenShaderStr = reinterpret_cast<const char*>(vertDrawFramebufferToScreenShaderSrc->memory);
                 const char* fragDrawFramebufferToScreenShaderStr = reinterpret_cast<const char*>(fragDrawFramebufferToScreenShaderSrc->memory);
                 drawFramebufferToScreenShader = reserve_shader();
                 create_shader(drawFramebufferToScreenShader, { vertDrawFramebufferToScreenShaderStr, fragDrawFramebufferToScreenShaderStr });
-                FileSystem::get()->free_handle(vertDrawFramebufferToScreenShaderSrc);
-                FileSystem::get()->free_handle(fragDrawFramebufferToScreenShaderSrc);
+                file_free_handle(gFileSystem, vertDrawFramebufferToScreenShaderSrc);
+                file_free_handle(gFileSystem, fragDrawFramebufferToScreenShaderSrc);
             }
             {
                 static float screenPlaneVertices[] =

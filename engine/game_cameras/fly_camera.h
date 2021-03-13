@@ -6,22 +6,19 @@
 
 namespace al::engine
 {
-    class FlyCamera
+    struct FlyCamera
     {
-    public:
-        FlyCamera() noexcept;
-        ~FlyCamera() = default;
-
-        PerspectiveRenderCamera* get_render_camera() noexcept;
-        void process_inputs(const OsWindowInput* input, float dt) noexcept;
-
-    public:
         PerspectiveRenderCamera renderCamera;
         int32_2 cursorPosition;
         int32_t cachedWheelState;
         float mouseSensitivity;
         bool isRmbPressed;
     };
+
+    void construct(FlyCamera* flyCamera);
+
+    PerspectiveRenderCamera* get_render_camera(FlyCamera* flyCamera);
+    void process_inputs(FlyCamera* flyCamera, const OsWindowInput* input, float dt);
 }
 
 #endif

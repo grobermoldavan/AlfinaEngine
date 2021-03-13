@@ -25,7 +25,6 @@ namespace al::engine
             LOADED,
             LOADING
         };
-
         std::size_t size;
         State state;
         std::byte* memory;
@@ -37,7 +36,7 @@ namespace al::engine
         "wb"
     };
 
-    FileHandle sync_load(std::string_view name, AllocatorBase* allocator, FileLoadMode mode);
+    FileHandle sync_load(const char* name, AllocatorBase* allocator, FileLoadMode mode);
 }
 
 #endif
