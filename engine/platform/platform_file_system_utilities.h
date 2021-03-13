@@ -10,13 +10,14 @@ namespace al::engine
     StaticString construct_path(Args ... args) noexcept
     {
         StaticString result;
+        construct(&result);
         int count = sizeof...(Args);
         bool appendResult = true;
         int unpack[]
         {
-            0, (appendResult = appendResult && result.append(args), 
+            0, (appendResult = appendResult && append(&result, args), 
             count -= 1, 
-            (count > 0) ? appendResult = appendResult && result.append(AL_PATH_SEPARATOR) : result, 0)...
+            (count > 0) ? appendResult = appendResult && append(&result, AL_PATH_SEPARATOR) : true, 0)...
         };
         // StaticString is not long enough to hold full path 
         al_assert(appendResult);

@@ -51,7 +51,7 @@ namespace al::engine
     class FileSystem
     {
     public:
-        static void        construct() noexcept;
+        static void        construct_system() noexcept;
         static void        destruct() noexcept;
         static FileSystem* get() noexcept;
 

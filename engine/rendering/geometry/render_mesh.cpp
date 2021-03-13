@@ -10,7 +10,7 @@
 
 namespace al::engine
 {
-    void fill_indices(CpuSubmesh* submesh) noexcept
+    void fill_indices(CpuSubmesh* submesh)
     {
         // @NOTE :  Triangle is needed to invert indices of triangles
         //          because opengl expects them the other way around.
@@ -31,7 +31,7 @@ namespace al::engine
         }
     }
 
-    CpuMesh load_cpu_mesh_obj(FileHandle* handle) noexcept
+    CpuMesh load_cpu_mesh_obj(FileHandle* handle)
     {
         al_profile_function();
         CpuMesh result;
@@ -141,7 +141,7 @@ namespace al::engine
                 const char* submeshNameStart = fileTextPtr;
                 fileTextPtr = advance_to_word_ending(fileTextPtr);
                 const char* submeshNameEnd = fileTextPtr;
-                activeSubmesh->name.set_with_length(submeshNameStart, submeshNameEnd - submeshNameStart);
+                construct(&activeSubmesh->name, submeshNameStart, submeshNameEnd - submeshNameStart);
                 construct(&activeSubmesh->vertices);
                 construct(&activeSubmesh->indices);
             }

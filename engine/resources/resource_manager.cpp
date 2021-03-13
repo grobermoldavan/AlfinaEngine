@@ -47,7 +47,7 @@ namespace al::engine
     TextureResourceHandle ResourceManager::add_texture_resource(const StaticString& path)
     {
         al_profile_function();
-        al_log_message(EngineConfig::RESOURCE_MANAGER_LOG_CATEGORY, "Adding texture resource at path : \"%s\"", path);
+        al_log_message(EngineConfig::RESOURCE_MANAGER_LOG_CATEGORY, "Adding texture resource at path : \"%s\"", cstr(&path));
         TextureResourceHandle handle{ 0 };
         // @NOTE :  Check if this texture is already registered. It true, simply
         //          return handle to already registered resource
@@ -62,9 +62,9 @@ namespace al::engine
             TextureResource* resource = textureResources.get();
             handle.isValid = 1;
             handle.index = textureResources.get_direct_index(resource);
-            resource->path = path;
+            construct(&resource->path, &path);
             resource->rendererHandle = Renderer::get()->reserve_texture_2d();
-            Renderer::get()->create_texture_2d(resource->rendererHandle, { static_cast<const char*>(resource->path) });
+            Renderer::get()->create_texture_2d(resource->rendererHandle, { cstr(&resource->path) });
         }
         return handle;
     }
@@ -75,7 +75,7 @@ namespace al::engine
         TextureResourceHandle handle{ 0 };
         textureResources.for_each_interruptible([&](TextureResource* resource)
         {
-            if (resource->path == path)
+            if (is_equal(&resource->path, &path))
             {
                 handle.isValid = 1;
                 handle.index = textureResources.get_direct_index(resource);
@@ -98,7 +98,7 @@ namespace al::engine
     MeshResourceHandle ResourceManager::add_mesh_resource(const StaticString& path)
     {
         al_profile_function();
-        al_log_message(EngineConfig::RESOURCE_MANAGER_LOG_CATEGORY, "Adding mesh resource at path : \"%s\"", path);
+        al_log_message(EngineConfig::RESOURCE_MANAGER_LOG_CATEGORY, "Adding mesh resource at path : \"%s\"", cstr(&path));
         MeshResourceHandle handle{ 0 };
         // @NOTE :  Check if this mesh is already registered. It true, simply
         //          return handle to already registered resource
@@ -114,7 +114,7 @@ namespace al::engine
             MeshResource* resource = meshResources.get();
             handle.isValid = 1;
             handle.index = meshResources.get_direct_index(resource);
-            resource->path = path;
+            construct(&resource->path, &path);
             construct(&resource->renderMesh.submeshes);
             // @NOTE :  Step 2. Start loading that resource
             auto [fileHandle, loadJob] = FileSystem::get()->async_load(path, FileLoadMode::READ);
@@ -181,7 +181,7 @@ namespace al::engine
         MeshResourceHandle handle{ 0 };
         meshResources.for_each_interruptible([&](MeshResource* resource)
         {
-            if (resource->path == path)
+            if (is_equal(&resource->path, &path))
             {
                 handle.isValid = 1;
                 handle.index = meshResources.get_direct_index(resource);

@@ -45,8 +45,8 @@ namespace al::engine
         ArrayContainer<CpuSubmesh, EngineConfig::RENDER_MESH_MAX_SUBMESHES> submeshes;
     };
 
-    void fill_indices(CpuSubmesh* submesh) noexcept;
-    CpuMesh load_cpu_mesh_obj(FileHandle* handle) noexcept;
+    void fill_indices(CpuSubmesh* submesh);
+    CpuMesh load_cpu_mesh_obj(FileHandle* handle);
 }
 
 #endif

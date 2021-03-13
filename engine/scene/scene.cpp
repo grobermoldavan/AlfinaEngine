@@ -95,7 +95,7 @@ namespace al::engine
             .parent             = EMPTY_NODE_HANDLE
         };
         construct(&node->childs);
-        std::memcpy(node->name, name.data(), name.length());
+        construct(&node->name, name.data(), name.length());
         ecs_add_components<SceneTransform>(world, node->entityHandle);
         auto* sceneTransform = ecs_get_component<SceneTransform>(world, node->entityHandle);
         new(sceneTransform) SceneTransform{ };

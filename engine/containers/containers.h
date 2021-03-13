@@ -14,6 +14,13 @@ namespace al::engine
 {
     using String        = std::basic_string<char, std::char_traits<char>, PoolAllocatorStdWrap<char>>;
     using StaticString  = FixedSizeString<EngineConfig::STATIC_STRING_LENGTH>;
+
+    StaticString construct_static_string(const char* cstr = "")
+    {
+        StaticString result;
+        construct(&result, cstr);
+        return result;
+    }
 }
 
 #endif

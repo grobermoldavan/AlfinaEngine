@@ -13,7 +13,7 @@ namespace al::engine
     FileSystem::~FileSystem() noexcept
     { }
 
-    void FileSystem::construct() noexcept
+    void FileSystem::construct_system() noexcept
     {
         if (instance)
         {
@@ -42,9 +42,9 @@ namespace al::engine
         al_profile_function();
         al_log_message( EngineConfig::FILE_SYSTEM_LOG_CATEGORY,
                         "Requested sync load file at path %s with mode %s",
-                        file, LOAD_MODE_TO_STR[static_cast<int>(mode)]);
+                        cstr(&file), LOAD_MODE_TO_STR[static_cast<int>(mode)]);
         FileHandle* handle = allocator->allocate_and_construct<FileHandle>();
-        *handle = al::engine::sync_load(static_cast<const char*>(file), allocator, mode);
+        *handle = al::engine::sync_load(cstr(&file), allocator, mode);
         return handle;
     }
 
@@ -53,11 +53,11 @@ namespace al::engine
         al_profile_function();
         al_log_message( EngineConfig::FILE_SYSTEM_LOG_CATEGORY,
                         "Requested async load file at path %s with mode %s",
-                        file, LOAD_MODE_TO_STR[static_cast<int>(mode)]);
+                        cstr(&file), LOAD_MODE_TO_STR[static_cast<int>(mode)]);
         FileHandle* handle = allocator->allocate_and_construct<FileHandle>();
         handle->state = FileHandle::State::LOADING;
         AsyncFileReadUserData* userData = allocator->allocate_and_construct<AsyncFileReadUserData>();
-        userData->file = file;
+        construct(&userData->file, &file);
         userData->mode = mode;
         userData->handle = handle;
         Job* job = JobSystem::get_main_system()->get_job();
@@ -66,8 +66,8 @@ namespace al::engine
             AsyncFileReadUserData* userData = reinterpret_cast<AsyncFileReadUserData*>(job->get_user_data());
             al_log_message( EngineConfig::FILE_SYSTEM_LOG_CATEGORY,
                             "Processing async load of file at path %s with mode %s",
-                            userData->file, LOAD_MODE_TO_STR[static_cast<int>(userData->mode)]);
-            *userData->handle = al::engine::sync_load(static_cast<const char*>(userData->file), allocator, userData->mode);
+                            cstr(&userData->file), LOAD_MODE_TO_STR[static_cast<int>(userData->mode)]);
+            *userData->handle = al::engine::sync_load(cstr(&userData->file), allocator, userData->mode);
         }, userData);
         JobSystem::get_main_system()->start_job(job);
         return { handle, job };

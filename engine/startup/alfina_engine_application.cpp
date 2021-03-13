@@ -15,7 +15,7 @@ namespace al::engine
 
         MemoryManager::log_memory_init_info();
         JobSystem::construct(get_number_of_job_system_threads());
-        FileSystem::construct();
+        FileSystem::construct_system();
         {
             OsWindowParams params;
             params.isFullscreen = false;
