@@ -5,49 +5,32 @@
 
 namespace al::engine
 {
-    JobSystemThread::JobSystemThread(JobSystem* jobSystem) noexcept
-        : shouldRun{ true }
-        , thread{ &JobSystemThread::work, this }
-        , jobSystem{ jobSystem }
-    {  }
-
-    JobSystemThread::~JobSystemThread() noexcept
+    void construct(JobSystemThread* thread, JobSystem* jobSystem)
     {
-        shouldRun = false;
-        try
-        {
-            thread.join();
-        }
-        catch(const std::exception& e)
-        {
-            // @TODO : handle system error
-            al_assert_msg(false, "Unable to join thread - exception was thrown. Message : %s", e.what());
-        }
+        thread->shouldRun   = true;
+        thread->thread      = { work, thread };
+        thread->jobSystem   = jobSystem;
     }
 
-    std::thread* JobSystemThread::get_thread() noexcept
+    void destruct(JobSystemThread* thread)
     {
-        return &thread;
+        thread->shouldRun = false;
+        thread->thread.join();
     }
 
-    void JobSystemThread::work() noexcept
+    void work(JobSystemThread* thread)
     {
-        while(shouldRun)
+        while(thread->shouldRun)
         {
-            Job* job = get_job();
+            Job* job = get_job_from_queue(thread->jobSystem);
             if (job)
             {
-                job->dispatch();
+                dispatch(job);
             }
             else
             {
                 std::this_thread::sleep_for(EngineConfig::JOB_THREAD_SLEEP_TIME);
             }
         }
-    }
-
-    Job* JobSystemThread::get_job() noexcept
-    {
-        return jobSystem->get_job_from_queue();
     }
 }

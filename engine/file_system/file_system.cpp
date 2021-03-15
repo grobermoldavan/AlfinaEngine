@@ -39,16 +39,16 @@ namespace al::engine
         construct(&userData->file, &file);
         userData->mode = mode;
         userData->handle = handle;
-        Job* job = JobSystem::get_main_system()->get_job();
-        job->configure([fileSystem](Job* job)
+        Job* job = get_job(gMainJobSystem);
+        configure(job, [fileSystem](Job* job)
         {
-            AsyncFileReadUserData* userData = reinterpret_cast<AsyncFileReadUserData*>(job->get_user_data());
+            AsyncFileReadUserData* userData = reinterpret_cast<AsyncFileReadUserData*>(job->userData);
             al_log_message( EngineConfig::FILE_SYSTEM_LOG_CATEGORY,
                             "Processing async load of file at path %s with mode %s",
                             cstr(&userData->file), LOAD_MODE_TO_STR[static_cast<int>(userData->mode)]);
             *userData->handle = al::engine::sync_load(cstr(&userData->file), fileSystem->allocator, userData->mode);
         }, userData);
-        JobSystem::get_main_system()->start_job(job);
+        start_job(gMainJobSystem, job);
         return { handle, job };
     }
 

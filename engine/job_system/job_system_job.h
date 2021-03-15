@@ -13,28 +13,9 @@ namespace al::engine
 {
     class JobSystem;
 
-    class Job : NonCopyable
+    struct Job
     {
-    public:
-        using DispatchFunction = Function<void(Job*)>;
-
-        Job() noexcept;
-        Job(JobSystem* jobSystem) noexcept;
-        ~Job() = default;
-
-        void configure(DispatchFunction func, void* data = nullptr) noexcept;
-        JobSystem* get_job_system() noexcept;
-
-        void    dispatch() noexcept;
-        bool    is_finished() const noexcept;
-        bool    is_ready_for_dispatch() const noexcept;
-        void*   get_user_data() noexcept;
-        void    set_before(Job* job) noexcept;
-        void    set_after(Job* job) noexcept;
-
-        void    notify_previous_job_finished() noexcept;
-
-    private:
+        using DispatchFunction  = Function<void(Job*)>;
         using CachelinePadding  = std::byte[std::hardware_destructive_interference_size];
         using NextJobs          = ArrayContainer<Job*, EngineConfig::MAX_NEXT_JOBS>;
 
@@ -44,9 +25,18 @@ namespace al::engine
         JobSystem*                  jobSystem;
         void*                       userData;
         CachelinePadding            padding;
-
-        void finish() noexcept;
     };
+
+    void    construct                   (Job* job, JobSystem* jobSystem);
+
+    void    configure                   (Job* job, Job::DispatchFunction func, void* data = nullptr);
+    void    dispatch                    (Job* job);
+    bool    is_finished                 (Job* job);
+    bool    is_ready_for_dispatch       (Job* job);
+    void    set_before                  (Job* job, Job* other);
+    void    set_after                   (Job* job, Job* other);
+    void    notify_previous_job_finished(Job* job);
+    void    finish                      (Job* job);
 }
 
 #endif

@@ -6,25 +6,19 @@
 
 namespace al::engine
 {
-    class Job;
+    struct Job;
     class JobSystem;
 
-    class JobSystemThread
+    struct JobSystemThread
     {
-    public:
-        JobSystemThread(JobSystem* jobSystem) noexcept;
-        ~JobSystemThread() noexcept;
-
-        std::thread* get_thread() noexcept;
-
-    private:
         std::atomic<bool> shouldRun;
         std::thread thread;
         JobSystem* jobSystem;
-
-        void work() noexcept;
-        Job* get_job() noexcept;
     };
+
+    void construct  (JobSystemThread* thread, JobSystem* jobSystem);
+    void destruct   (JobSystemThread* thread);
+    void work       (JobSystemThread* thread);
 }
 
 #endif

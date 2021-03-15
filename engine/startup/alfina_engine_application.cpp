@@ -13,8 +13,13 @@ namespace al::engine
         gLogger = MemoryManager::get_stack()->allocate_as<Logger>();
         construct(gLogger);
 
-        MemoryManager::log_memory_init_info();
-        JobSystem::construct(get_number_of_job_system_threads());
+        gMainJobSystem = MemoryManager::get_stack()->allocate_as<JobSystem>();
+        construct(gMainJobSystem, get_number_of_job_system_threads());
+
+        gRenderJobSystem = MemoryManager::get_stack()->allocate_as<JobSystem>();
+        construct(gRenderJobSystem, 0);
+
+        init_jobs();
 
         gFileSystem = MemoryManager::get_stack()->allocate_as<FileSystem>();
         construct(gFileSystem);
@@ -38,6 +43,8 @@ namespace al::engine
         get_render_camera(&dbgFlyCamera)->set_aspect_ratio(static_cast<float>(window->get_params()->width) / static_cast<float>(window->get_params()->height));
         Renderer::get()->set_camera(get_render_camera(&dbgFlyCamera));
 
+        MemoryManager::log_memory_init_info();
+
         al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Initialized engine components");
     }
 
@@ -52,7 +59,8 @@ namespace al::engine
         Renderer::destruct();
         destroy_window(window);
         destruct(gFileSystem);
-        JobSystem::destruct();
+        destruct(gMainJobSystem);
+        destruct(gRenderJobSystem);
         destruct(gLogger);
         MemoryManager::destruct();
     }
@@ -174,10 +182,10 @@ namespace al::engine
         construct(&threads);
         push(&threads, get_current_thread_handle());
         push(&threads, Renderer::get()->get_render_thread()->native_handle());
-        std::span<JobSystemThread> jobSystemThread = JobSystem::get_main_system()->get_threads();
+        std::span<JobSystemThread> jobSystemThread = gMainJobSystem->threads;
         for (JobSystemThread& jobSystemThread : jobSystemThread)
         {
-            push(&threads, jobSystemThread.get_thread()->native_handle());
+            push(&threads, jobSystemThread.thread.native_handle());
         }
         // Get max number of threads supported by the user's computer
         const std::size_t systemMaxThreads = std::thread::hardware_concurrency();

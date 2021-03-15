@@ -5,107 +5,87 @@
 
 namespace al::engine
 {
-    Job::Job() noexcept
-        : previousJobsNum{ 0 }
-        , dispatchFunction{ }
-        , jobSystem{ nullptr }
-        , userData{ nullptr }
+    void construct(Job* job, JobSystem* jobSystem)
     {
-        construct(&nextJobs);
+        job->previousJobsNum = 0;
+        job->jobSystem = jobSystem;
+        job->userData = nullptr;
+        construct(&job->nextJobs);
     }
 
-    Job::Job(JobSystem* jobSystem) noexcept
-        : previousJobsNum{ 0 }
-        , dispatchFunction{ }
-        , jobSystem{ jobSystem }
-        , userData{ nullptr }
+    void configure(Job* job, Job::DispatchFunction func, void* data)
     {
-        construct(&nextJobs);
+        std::atomic_store_explicit(&job->previousJobsNum, 1, std::memory_order_relaxed);
+        job->dispatchFunction = func;
+        job->userData = data;
     }
 
-    void Job::configure(DispatchFunction func, void* data) noexcept
+    void dispatch(Job* job)
     {
-        previousJobsNum.store(1, std::memory_order_relaxed);
-        dispatchFunction = func;
-        userData = data;
-    }
-
-    JobSystem* Job::get_job_system() noexcept
-    {
-        return jobSystem;
-    }
-
-    void Job::dispatch() noexcept
-    {
-        al_assert(is_ready_for_dispatch());
-        dispatchFunction(this);
-        finish();
+        al_assert(is_ready_for_dispatch(job));
+        job->dispatchFunction(job);
+        finish(job);
     }
     
-    bool Job::is_finished() const noexcept
+    bool is_finished(Job* job)
     {
-        return previousJobsNum.load(std::memory_order_relaxed) == 0;
+        return std::atomic_load_explicit(&job->previousJobsNum, std::memory_order_relaxed) == 0;
     }
 
-    bool Job::is_ready_for_dispatch() const noexcept
+    bool is_ready_for_dispatch(Job* job)
     {
-        return previousJobsNum.load(std::memory_order_relaxed) == 1;
+        return std::atomic_load_explicit(&job->previousJobsNum, std::memory_order_relaxed) == 1;
     }
 
-    void* Job::get_user_data() noexcept
-    {
-        return userData;
-    }
-
-    void Job::set_before(Job* job) noexcept
+    void set_before(Job* job, Job* other)
     {
 #ifdef AL_DEBUG
-        for_each_array_container(nextJobs, it)
+        for_each_array_container(job->nextJobs, it)
         {
-            Job* other = *get(&nextJobs, it);
-            al_assert_msg(job != other, "Job is already stored in the nextJobs array");
+            Job* nextJob = *get(&job->nextJobs, it);
+            al_assert_msg(other != nextJob, "Job is already stored in the nextJobs array");
         }
 #endif
-        al_assert(!is_finished());
-        if (job->is_finished())
+        al_assert(!is_finished(job));
+        if (is_finished(other))
         {
             return;
         }
-        push(&nextJobs, job);
+        push(&job->nextJobs, other);
     }
 
-    void Job::set_after(Job* job) noexcept
+    void set_after(Job* job, Job* other)
     {
-        al_assert(!is_finished());
-        if (job->is_finished())
+        al_assert(!is_finished(job));
+        if (is_finished(other))
         {
             return;
         }
-        job->set_before(this);
-        previousJobsNum.fetch_add(1, std::memory_order_relaxed);
+        set_before(other, job);
+        std::atomic_fetch_add_explicit(&job->previousJobsNum, 1, std::memory_order_relaxed);
     }
 
-    void Job::notify_previous_job_finished() noexcept
+    void notify_previous_job_finished(Job* job)
     {
-        al_assert(!is_finished());
-        al_assert(!is_ready_for_dispatch());
-        previousJobsNum.fetch_sub(1, std::memory_order_relaxed);
-        if (is_ready_for_dispatch())
+        al_assert(!is_finished(job));
+        al_assert(!is_ready_for_dispatch(job));
+        std::atomic_fetch_sub_explicit(&job->previousJobsNum, 1, std::memory_order_relaxed);
+        if (is_ready_for_dispatch(job))
         {
-            jobSystem->add_job_to_queue(this);
+            add_job_to_queue(job->jobSystem, job);
         }
     }
 
-    void Job::finish() noexcept
+    void finish(Job* job)
     {
-        al_assert(is_ready_for_dispatch());
-        previousJobsNum.fetch_sub(1, std::memory_order_relaxed);
-        for_each_array_container(nextJobs, it)
+        al_assert(is_ready_for_dispatch(job));
+        std::atomic_fetch_sub_explicit(&job->previousJobsNum, 1, std::memory_order_relaxed);
+        for_each_array_container(job->nextJobs, it)
         {
-            Job* job = *get(&nextJobs, it);
-            job->notify_previous_job_finished();
+            Job* nextJob = *get(&job->nextJobs, it);
+            notify_previous_job_finished(nextJob);
         };
-        clear(&nextJobs);
-        jobSystem->return_job(this);
+        clear(&job->nextJobs);
+        return_job(job->jobSystem, job);
     }
 }

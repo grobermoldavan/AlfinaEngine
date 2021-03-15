@@ -40,13 +40,13 @@
         }                                                                                                                       \
         else                                                                                                                    \
         {                                                                                                                       \
-            Job* job = JobSystem::get_render_system()->get_job();                                                               \
-            job->configure([this, handle, initData](Job*)                                                                       \
+            Job* job = get_job(gRenderJobSystem);                                                                               \
+            configure(job, [this, handle, initData](Job*)                                                                       \
             {                                                                                                                   \
                 resourceNameSnakeCase(handle) =                                                                                 \
                     internal::create_##resourceNameSnakeCase<EngineConfig::DEFAULT_RENDERER_TYPE>(initData);                    \
             });                                                                                                                 \
-            JobSystem::get_render_system()->start_job(job);                                                                     \
+            start_job(gRenderJobSystem, job);                                                                                   \
             return { false, job };                                                                                              \
         }                                                                                                                       \
     }                                                                                                                           \
@@ -64,14 +64,14 @@
         }                                                                                                                       \
         else                                                                                                                    \
         {                                                                                                                       \
-            Job* job = JobSystem::get_render_system()->get_job();                                                               \
-            job->configure([this, handle](Job*)                                                                                 \
+            Job* job = get_job(gRenderJobSystem);                                                                               \
+            configure(job, [this, handle](Job*)                                                                                 \
             {                                                                                                                   \
                 internal::destroy_##resourceNameSnakeCase<EngineConfig::DEFAULT_RENDERER_TYPE>(                                 \
                     resourceNameSnakeCase(handle));                                                                             \
                 resourceNameSnakeCase(handle) = nullptr;                                                                        \
             });                                                                                                                 \
-            JobSystem::get_render_system()->start_job(job);                                                                     \
+            start_job(gRenderJobSystem, job);                                                                                   \
             return { false, job };                                                                                              \
         }                                                                                                                       \
     }                                                                                                                           \
@@ -315,11 +315,11 @@ namespace al::engine
                 }
                 {
                     al_profile_scope("Process render jobs");
-                    Job* job = JobSystem::get_render_system()->get_job_from_queue();
+                    Job* job = get_job_from_queue(gRenderJobSystem);
                     while (job)
                     {
-                        job->dispatch();
-                        job = JobSystem::get_render_system()->get_job_from_queue();
+                        dispatch(job);
+                        job = get_job_from_queue(gRenderJobSystem);
                     }
                 }
                 {

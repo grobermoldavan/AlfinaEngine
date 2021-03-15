@@ -5,126 +5,108 @@
 #include "engine/memory/memory_manager.h"
 #include "engine/debug/debug.h"
 
+#include "utilities/procedural_wrap.h"
+
 namespace al::engine
 {
-    JobSystem* JobSystem::mainSystemInstance{ nullptr };
-    JobSystem* JobSystem::renderSystemInstance{ nullptr };
+    JobSystem* gMainJobSystem = nullptr;
+    JobSystem* gRenderJobSystem = nullptr;
 
-    Job JobSystem::jobs[EngineConfig::MAX_JOBS]{ };
-    StaticThreadSafeQueue<Job*, EngineConfig::MAX_JOBS> JobSystem::freeJobs{ };
+    Job                                                 gJobs[EngineConfig::MAX_JOBS] = { };
+    StaticThreadSafeQueue<Job*, EngineConfig::MAX_JOBS> gFreeJobs;
 
-    JobSystem::JobSystem(std::size_t numThreads) noexcept
-        : threads{ reinterpret_cast<JobSystemThread*>(MemoryManager::get_stack()->allocate(sizeof(JobSystemThread) * numThreads)), numThreads }
-        , jobQueue{ }
+    void init_jobs()
     {
-        for (JobSystemThread& thread : threads)
-        {
-            new(&thread) JobSystemThread{ this };
-        }
-    }
-
-    JobSystem::JobSystem() noexcept
-        : threads{ }
-        , jobQueue{ }
-    { }
-
-    JobSystem::~JobSystem() noexcept
-    {
-        for (JobSystemThread& thread : threads)
-        {
-            thread.~JobSystemThread();
-        }
-    }
-
-    void JobSystem::construct(std::size_t mainSystemNumThreads) noexcept
-    {
-        al_assert(!mainSystemInstance);
-        al_assert(!renderSystemInstance);
-        mainSystemInstance = MemoryManager::get_stack()->allocate_as<JobSystem>();
-        ::new(mainSystemInstance) JobSystem{ mainSystemNumThreads };
-        renderSystemInstance = MemoryManager::get_stack()->allocate_as<JobSystem>();
-        ::new(renderSystemInstance) JobSystem{ };
+        wrap_construct(&gFreeJobs);
         for (std::size_t it = 0; it < EngineConfig::MAX_JOBS; it++)
         {
-            Job* job = &jobs[it];
-            freeJobs.enqueue(&job);
+            Job* job = &gJobs[it];
+            gFreeJobs.enqueue(&job);
         }
     }
 
-    void JobSystem::destruct() noexcept
+    void construct(JobSystem* jobSystem, std::size_t numThreads)
     {
-        al_assert(mainSystemInstance);
-        al_assert(renderSystemInstance);
-        mainSystemInstance->~JobSystem();
-        renderSystemInstance->~JobSystem();
+        // @TODO : replace std::string_view
+        // @TODO : remove wrap_construct's
+        if (numThreads)
+        {
+            JobSystemThread* memory = reinterpret_cast<JobSystemThread*>(MemoryManager::get_stack()->allocate(sizeof(JobSystemThread) * numThreads));
+            wrap_construct(&jobSystem->threads, memory, numThreads);
+            for (JobSystemThread& thread : jobSystem->threads)
+            {
+                construct(&thread, jobSystem);
+            }
+        }
+        else
+        {
+            wrap_construct(&jobSystem->threads);
+        }
+        wrap_construct(&jobSystem->jobQueue);
     }
 
-    JobSystem* JobSystem::get_main_system() noexcept
+    void destruct(JobSystem* jobSystem)
     {
-        return mainSystemInstance;
+        for (JobSystemThread& thread : jobSystem->threads)
+        {
+            destruct(&thread);
+        }
+        // @TODO : replace std::string_view
+        wrap_destruct(&jobSystem->threads);
+        wrap_destruct(&jobSystem->jobQueue);
+        MemoryManager::get_stack()->deallocate(reinterpret_cast<std::byte*>(jobSystem->threads.data()), sizeof(JobSystemThread) * jobSystem->threads.size());
     }
 
-    JobSystem* JobSystem::get_render_system() noexcept
-    {
-        return renderSystemInstance;
-    }
-
-    Job* JobSystem::get_job() noexcept
+    Job* get_job(JobSystem* jobSystem)
     {
         Job* job = nullptr;
-        freeJobs.dequeue(&job);
+        gFreeJobs.dequeue(&job);
         al_assert(job);
-        ::new(job) Job{ this };
+        construct(job, jobSystem);
         return job;
     }
 
-    void JobSystem::return_job(Job* job) noexcept
+    void return_job(JobSystem* jobSystem, Job* job)
     {
         al_assert(job);
-        al_assert(job->is_finished());
-        job->~Job();
-        freeJobs.enqueue(&job);
+        al_assert(is_finished(job));
+        gFreeJobs.enqueue(&job);
     }
 
-    void JobSystem::start_job(Job* job) noexcept
+    void start_job(JobSystem* jobSystem, Job* job)
     {
-        al_assert(job->get_job_system() == this);
-        al_assert(!job->is_finished());
-        if (job->is_ready_for_dispatch())
+        al_assert(job->jobSystem == jobSystem);
+        al_assert(!is_finished(job));
+        if (is_ready_for_dispatch(job))
         {
-            add_job_to_queue(job);
+            add_job_to_queue(jobSystem, job);
         }
     }
 
-    inline std::span<JobSystemThread> JobSystem::get_threads() noexcept
+    void add_job_to_queue(JobSystem* jobSystem, Job* job)
     {
-        return threads;
-    }
-
-    void JobSystem::add_job_to_queue(Job* job) noexcept
-    {
-        al_assert(job->get_job_system() == this);
-        al_assert_msg(job->is_ready_for_dispatch(), "add_job_to_queue only adds jobs that are ready for dispatch");
-        bool result = jobQueue.enqueue(&job);
+        al_assert(job->jobSystem == jobSystem);
+        al_assert_msg(is_ready_for_dispatch(job), "add_job_to_queue only adds jobs that are ready for dispatch");
+        bool result = jobSystem->jobQueue.enqueue(&job);
         al_assert(result);
     }
 
-    Job* JobSystem::get_job_from_queue() noexcept
+    Job* get_job_from_queue(JobSystem* jobSystem)
     {
         Job* job = nullptr;
-        bool result = jobQueue.dequeue(&job);
-        al_assert_msg(!job || job->is_ready_for_dispatch(), "Job must be ready for dispatch");
+        bool result = jobSystem->jobQueue.dequeue(&job);
+        al_assert_msg(!job || is_ready_for_dispatch(job), "Job must be ready for dispatch");
         return job;
     }
 
-    void JobSystem::wait_for(Job* job) noexcept
+    void wait_for(JobSystem* jobSystem, Job* job)
     {
-        while(!job->is_finished())
+        while(!is_finished(job))
         {
-            Job* otherJob = get_job_from_queue();
+            Job* otherJob = get_job_from_queue(jobSystem);
             if (otherJob)
             {
-                otherJob->dispatch();
+                dispatch(otherJob);
             }
             else
             {

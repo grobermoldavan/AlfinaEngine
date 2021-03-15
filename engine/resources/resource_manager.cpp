@@ -119,8 +119,8 @@ namespace al::engine
             // @NOTE :  Step 2. Start loading that resource
             auto [fileHandle, loadJob] = file_async_load(gFileSystem, path, FileLoadMode::READ);
             // @NOTE :  Step 3. Start post load job
-            Job* postLoadJob = JobSystem::get_main_system()->get_job();
-            postLoadJob->configure([fileHandle, resource](Job* job)
+            Job* postLoadJob = get_job(gMainJobSystem);
+            configure(postLoadJob, [fileHandle, resource](Job* job)
             {
                 // @NOTE :  This job should not be executed on render thread.
                 al_assert(!Renderer::get()->is_render_thread());
@@ -140,8 +140,8 @@ namespace al::engine
                     renderSubmesh->vbHandle = Renderer::get()->reserve_vertex_buffer();
                     renderSubmesh->vaHandle = Renderer::get()->reserve_vertex_array();
                     // @NOTE :  Step 7. Start create render resource job
-                    Job* createRenderResourcesJob = JobSystem::get_render_system()->get_job();
-                    createRenderResourcesJob->configure([renderSubmesh, submesh](Job*)
+                    Job* createRenderResourcesJob = get_job(gRenderJobSystem);
+                    configure(createRenderResourcesJob, [renderSubmesh, submesh](Job*)
                     {
                         al_profile_scope("Create submesh render resources");
                         al_log_message(EngineConfig::RESOURCE_MANAGER_LOG_CATEGORY, "Creating render resources for submesh with name %s", submesh->name);
@@ -166,11 +166,11 @@ namespace al::engine
                         // @NOTE :  Maybe we need to destruct cpu submesh, thus erasing all mesh information from it ?
                         // submesh->~CpuSubmesh();
                     });
-                    JobSystem::get_render_system()->start_job(createRenderResourcesJob);
+                    start_job(gRenderJobSystem, createRenderResourcesJob);
                 }
             });
-            postLoadJob->set_after(loadJob);
-            JobSystem::get_main_system()->start_job(postLoadJob);
+            set_after(postLoadJob, loadJob);
+            start_job(gMainJobSystem, postLoadJob);
         }
         return handle;
     }
