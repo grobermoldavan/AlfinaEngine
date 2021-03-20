@@ -24,18 +24,19 @@ namespace al::engine
             std::size_t bucketSize3 = alignBucketSize(percent_of<std::size_t>(EngineConfig::POOL_ALLOCATOR_MEMORY_SIZE, 30), 16);
             std::size_t bucketSize4 = EngineConfig::POOL_ALLOCATOR_MEMORY_SIZE - (bucketSize1 + bucketSize2 + bucketSize3);
             PoolAllocator::BucketDescContainer poolContainer;
-            construct(&poolContainer);
+            al_memzero(&poolContainer);
             push(&poolContainer, memory_bucket_desc(kilobytes<std::size_t>(1)   , bucketSize1));
             push(&poolContainer, memory_bucket_desc(128                         , bucketSize2));
             push(&poolContainer, memory_bucket_desc(16                          , bucketSize3));
             push(&poolContainer, memory_bucket_desc(8                           , bucketSize4));
-            manager->pool.initialize(poolContainer, get_allocator_bindings(&manager->stack));
+            construct(&manager->pool, poolContainer, get_allocator_bindings(&manager->stack));
         }
     }
 
     void destruct(MemoryManager* manager)
     {
         destruct(&manager->stack);
+        destruct(&manager->pool);
         std::free(manager->memory);
     }
 

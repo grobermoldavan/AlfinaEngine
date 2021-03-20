@@ -11,14 +11,15 @@ namespace al::engine
     {
         template<> [[nodiscard]] Shader* create_shader<RendererType::OPEN_GL>(const ShaderInitData& initData) noexcept
         {
-            Shader* shader = gMemoryManager->pool.allocate_and_construct<Win32OpenglShader>(initData);
+            Win32OpenglShader* shader = static_cast<Win32OpenglShader*>(allocate(&gMemoryManager->pool, sizeof(Win32OpenglShader)));
+            wrap_construct(shader, initData);
             return shader;
         }
 
         template<> void destroy_shader<RendererType::OPEN_GL>(Shader* shader) noexcept
         {
-            shader->~Shader();
-            gMemoryManager->pool.deallocate(reinterpret_cast<std::byte*>(shader), sizeof(Win32OpenglShader));
+            wrap_destruct(shader);
+            deallocate(&gMemoryManager->pool, shader, sizeof(Win32OpenglShader));
         }
     }
 

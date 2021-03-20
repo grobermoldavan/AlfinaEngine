@@ -1,16 +1,20 @@
 
 #include "job_system_job.h"
 #include "job_system.h"
+
 #include "engine/debug/debug.h"
+
+#include "utilities/memory.h"
+#include "utilities/procedural_wrap.h"
 
 namespace al::engine
 {
-    void construct(Job* job, JobSystem* jobSystem)
+    void initialize(Job* job, JobSystem* jobSystem)
     {
-        job->previousJobsNum = 0;
+        wrap_construct(&job->previousJobsNum, std::size_t{ 0 });
         job->jobSystem = jobSystem;
         job->userData = nullptr;
-        construct(&job->nextJobs);
+        al_memzero(&job->nextJobs);
     }
 
     void configure(Job* job, Job::DispatchFunction func, void* data)

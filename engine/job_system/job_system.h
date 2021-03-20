@@ -24,7 +24,7 @@ namespace al::engine
         StaticThreadSafeQueue<Job*, EngineConfig::MAX_JOBS> jobQueue; // Stores jobs that are ready for dispatch
     };
 
-    void init_jobs();
+    void construct_jobs();
 
     void construct(JobSystem* jobSystem, std::size_t numThreads);
     void destruct(JobSystem* jobSystem);

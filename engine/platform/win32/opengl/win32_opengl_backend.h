@@ -11,9 +11,9 @@
 #include "engine/debug/debug.h"
 
 #define STB_IMAGE_IMPLEMENTATION
-#define STBI_MALLOC(size)       reinterpret_cast<void*>(al::engine::gMemoryManager->pool.allocate_using_allocation_info(size));
-#define STBI_REALLOC(ptr, size) reinterpret_cast<void*>(al::engine::gMemoryManager->pool.reallocate_using_allocation_info(reinterpret_cast<std::byte*>(ptr), size));
-#define STBI_FREE(ptr)          al::engine::gMemoryManager->pool.deallocate_using_allocation_info(reinterpret_cast<std::byte*>(ptr));
+#define STBI_MALLOC(size)       al::engine::allocate_using_allocation_info(&al::engine::gMemoryManager->pool, size);
+#define STBI_REALLOC(ptr, size) al::engine::reallocate_using_allocation_info(&al::engine::gMemoryManager->pool, ptr, size);
+#define STBI_FREE(ptr)          al::engine::deallocate_using_allocation_info(&al::engine::gMemoryManager->pool, ptr);
 #define STBI_ASSERT(cond)       al_assert(cond)
 #include "engine/3d_party_libs/stb/stb_image.h"
 

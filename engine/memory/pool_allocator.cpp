@@ -1,12 +1,32 @@
 
+#include <algorithm>    // for std::sort
+#include <cstring>      // for std::memset, std::memcpy
+
 #include "pool_allocator.h"
+
+#include "utilities/memory.h"
 #include "utilities/procedural_wrap.h"
 
 namespace al::engine
 {
-    void construct(MemoryBucket* bucket, std::size_t blockSizeBytes, std::size_t blockCount, AllocatorBindings bindings)
+    void construct(MemoryBucket* bucket)
     {
         wrap_construct(&bucket->memoryMutex);
+        bucket->blockSizeBytes  = 0;
+        bucket->blockCount      = 0;
+        bucket->memorySizeBytes = 0;
+        bucket->ledgerSizeBytes = 0;
+        bucket->memory          = nullptr;
+        bucket->ledger          = nullptr;
+    }
+
+    void destruct(MemoryBucket* bucket)
+    {
+        wrap_destruct(&bucket->memoryMutex);
+    }
+
+    void memory_bucket_initialize(MemoryBucket* bucket, std::size_t blockSizeBytes, std::size_t blockCount, AllocatorBindings bindings)
+    {
         bucket->blockSizeBytes  = blockSizeBytes;
         bucket->blockCount      = blockCount;
         bucket->memorySizeBytes = blockSizeBytes * blockCount;
@@ -14,11 +34,6 @@ namespace al::engine
         bucket->memory          = bindings.allocate(bindings.allocator, bucket->memorySizeBytes);
         bucket->ledger          = bindings.allocate(bindings.allocator, bucket->ledgerSizeBytes);
         std::memset(bucket->ledger, 0, bucket->ledgerSizeBytes);
-    }
-
-    void destruct(MemoryBucket* bucket)
-    {
-        wrap_destruct(&bucket->memoryMutex);
     }
 
     [[nodiscard]] void* memory_bucket_allocate(MemoryBucket* bucket, std::size_t memorySizeBytes)
@@ -124,14 +139,38 @@ namespace al::engine
         return (one.memoryWasted == other.memoryWasted) ? one.blocksUsed < other.blocksUsed : one.memoryWasted < other.memoryWasted;
     }
 
-    [[nodiscard]] std::byte* PoolAllocator::allocate(std::size_t memorySizeBytes) noexcept
+    void construct(PoolAllocator* allocator, PoolAllocator::BucketDescContainer bucketDescriptions, AllocatorBindings bindings)
+    {
+        al_memzero(&allocator->buckets);
+        al_memzero(&allocator->ptrSizePairs);
+        for (std::size_t it = 0; it < EngineConfig::POOL_ALLOCATOR_MAX_BUCKETS; it++)
+        {
+            construct(get(&allocator->buckets, it));
+        }
+        for_each_array_container(bucketDescriptions, it)
+        {
+            BucketDescription* desc = get(&bucketDescriptions, it);
+            MemoryBucket* bucket = push(&allocator->buckets);
+            memory_bucket_initialize(bucket, desc->blockSizeBytes, desc->blockCount, bindings);
+        };
+    }
+
+    void destruct(PoolAllocator* allocator)
+    {
+        for_each_array_container(allocator->buckets, it)
+        {
+            destruct(get(&allocator->buckets, it));
+        }
+    }
+
+    [[nodiscard]] void* allocate(PoolAllocator* allocator, std::size_t memorySizeBytes)
     {
         ArrayContainer<BucketCompareInfo, EngineConfig::POOL_ALLOCATOR_MAX_BUCKETS> compareInfos;
-		construct(&compareInfos);
+        al_memzero(&compareInfos);
         std::size_t it = 0;
-        for_each_array_container(buckets, it)
+        for_each_array_container(allocator->buckets, it)
         {
-            MemoryBucket* bucket = get(&buckets, it);
+            MemoryBucket* bucket = get(&allocator->buckets, it);
             BucketCompareInfo* info = push(&compareInfos);
             info->bucketId = it;
             if (bucket->blockSizeBytes >= memorySizeBytes)
@@ -150,11 +189,11 @@ namespace al::engine
         }
         // @TODO : replace std::sort mb
         std::sort(compareInfos.memory, compareInfos.memory + compareInfos.size);
-        std::byte* result = nullptr;
+        void* result = nullptr;
         for_each_array_container(compareInfos, it)
         {
-			BucketCompareInfo* compareInfo = get(&compareInfos, it);
-            result = static_cast<std::byte*>(memory_bucket_allocate(get(&buckets, compareInfo->bucketId), memorySizeBytes));
+            BucketCompareInfo* compareInfo = get(&compareInfos, it);
+            result = memory_bucket_allocate(get(&allocator->buckets, compareInfo->bucketId), memorySizeBytes);
             if (result)
             {
                 break;
@@ -163,11 +202,11 @@ namespace al::engine
         return result;
     }
 
-    void PoolAllocator::deallocate(std::byte* ptr, std::size_t memorySizeBytes) noexcept
+    void deallocate(PoolAllocator* allocator, void* ptr, std::size_t memorySizeBytes)
     {
-        for_each_array_container(buckets, it)
+        for_each_array_container(allocator->buckets, it)
         {
-            MemoryBucket* bucket = get(&buckets, it);
+            MemoryBucket* bucket = get(&allocator->buckets, it);
             if (memory_bucket_is_belongs(bucket, ptr))
             {
                 memory_bucket_deallocate(bucket, ptr, memorySizeBytes);
@@ -176,60 +215,53 @@ namespace al::engine
         }
     }
 
-    void PoolAllocator::initialize(BucketDescContainer bucketDescriptions, AllocatorBindings bindings) noexcept
+    [[nodiscard]] void* allocate_using_allocation_info(PoolAllocator* allocator, std::size_t memorySizeBytes)
     {
-        construct(&buckets);
-        construct(&ptrSizePairs);
-        for_each_array_container(bucketDescriptions, it)
-        {
-            BucketDescription* desc = get(&bucketDescriptions, it);
-            MemoryBucket* bucket = push(&buckets);
-            construct(bucket, desc->blockSizeBytes, desc->blockCount, bindings);
-        };
-    }
-    
-    [[nodiscard]] std::byte* PoolAllocator::allocate_using_allocation_info(std::size_t memorySizeBytes) noexcept
-    {
-        std::byte* ptr = allocate(memorySizeBytes);
-        push(&ptrSizePairs, {
+        void* ptr = allocate(allocator, memorySizeBytes);
+        push(&allocator->ptrSizePairs, {
             .ptr = ptr,
             .size = memorySizeBytes
         });
         return ptr;
     }
 
-    void PoolAllocator::deallocate_using_allocation_info(std::byte* ptr) noexcept
+    void deallocate_using_allocation_info(PoolAllocator* allocator, void* ptr)
     {
-        for_each_dynamic_array(ptrSizePairs, it)
+        for_each_dynamic_array(allocator->ptrSizePairs, it)
         {
-            AllocationInfo* allocationInfo = get(&ptrSizePairs, it);
+            PoolAllocator::AllocationInfo* allocationInfo = get(&allocator->ptrSizePairs, it);
             if (allocationInfo->ptr == ptr)
             {
-                deallocate(allocationInfo->ptr, allocationInfo->size);
-                remove(&ptrSizePairs, it);
+                deallocate(allocator, allocationInfo->ptr, allocationInfo->size);
+                remove(&allocator->ptrSizePairs, it);
                 break;
             }
         };
     }
 
-    [[nodiscard]] std::byte* PoolAllocator::reallocate_using_allocation_info(std::byte* ptr, std::size_t newMemorySizeBytes) noexcept
+    [[nodiscard]] void* reallocate_using_allocation_info(PoolAllocator* allocator, void* ptr, std::size_t newMemorySizeBytes)
     {
-        std::byte* newMemory = allocate_using_allocation_info(newMemorySizeBytes);
-        for_each_dynamic_array(ptrSizePairs, it)
+        void* newMemory = allocate_using_allocation_info(allocator, newMemorySizeBytes);
+        for_each_dynamic_array(allocator->ptrSizePairs, it)
         {
-            AllocationInfo* allocationInfo = get(&ptrSizePairs, it);
+            PoolAllocator::AllocationInfo* allocationInfo = get(&allocator->ptrSizePairs, it);
             if (allocationInfo->ptr == ptr)
             {
                 std::memcpy(newMemory, allocationInfo->ptr, allocationInfo->size);
                 break;
             }
         };
-        deallocate_using_allocation_info(ptr);
+        deallocate_using_allocation_info(allocator, ptr);
         return newMemory;
     }
 
-    PoolAllocator::BucketContainer& PoolAllocator::get_buckets() noexcept
+    AllocatorBindings get_allocator_bindings(PoolAllocator* pool)
     {
-        return buckets;
+        return
+        {
+            .allocate = [](void* allocator, std::size_t size){ return allocate(static_cast<PoolAllocator*>(allocator), size); },
+            .deallocate = [](void* allocator, void* ptr, std::size_t size){ deallocate(static_cast<PoolAllocator*>(allocator), ptr, size); },
+            .allocator = pool
+        };
     }
 }

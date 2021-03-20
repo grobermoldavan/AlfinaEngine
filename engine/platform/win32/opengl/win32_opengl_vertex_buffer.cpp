@@ -1,7 +1,7 @@
 
 #include "win32_opengl_vertex_buffer.h"
-
 #include "engine/memory/memory_manager.h"
+#include "utilities/procedural_wrap.h"
 
 namespace al::engine
 {
@@ -9,14 +9,15 @@ namespace al::engine
     {
         template<> [[nodiscard]] VertexBuffer* create_vertex_buffer<RendererType::OPEN_GL>(const VertexBufferInitData& initData) noexcept
         {
-            VertexBuffer* vb = gMemoryManager->pool.allocate_and_construct<Win32OpenglVertexBuffer>(initData);
+            Win32OpenglVertexBuffer* vb = static_cast<Win32OpenglVertexBuffer*>(allocate(&gMemoryManager->pool, sizeof(Win32OpenglVertexBuffer)));
+            wrap_construct(vb, initData);
             return vb;
         }
 
         template<> void destroy_vertex_buffer<RendererType::OPEN_GL>(VertexBuffer* vb) noexcept
         {
-            vb->~VertexBuffer();
-            gMemoryManager->pool.deallocate(reinterpret_cast<std::byte*>(vb), sizeof(Win32OpenglVertexBuffer));
+            wrap_destruct(vb);
+            deallocate(&gMemoryManager->pool, vb, sizeof(Win32OpenglVertexBuffer));
         }
     }
 

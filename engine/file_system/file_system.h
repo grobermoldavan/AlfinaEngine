@@ -52,7 +52,7 @@ namespace al::engine
 
     struct FileSystem
     {
-        AllocatorBase* allocator;
+        AllocatorBindings bindings;
     };
 
     void construct(FileSystem* fileSystem);

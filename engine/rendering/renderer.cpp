@@ -240,7 +240,7 @@ namespace al::engine
             al_profile_scope("Renderer post-init");
             {
                 FramebufferDescription gbufferDesciption{ };
-                construct(&gbufferDesciption.attachments);
+                al_memzero(&gbufferDesciption.attachments);
                 push(&gbufferDesciption.attachments, FramebufferAttachmentType::RGB_8);                 // Position
                 push(&gbufferDesciption.attachments, FramebufferAttachmentType::RGB_8);                 // Normal
                 push(&gbufferDesciption.attachments, FramebufferAttachmentType::RGB_8);                 // Albedo

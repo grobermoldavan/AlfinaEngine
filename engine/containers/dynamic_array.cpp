@@ -4,10 +4,10 @@
 namespace al::engine
 {
     template<typename T>
-    void construct(DynamicArray<T>* array, AllocatorBase* allocator)
+    void construct(DynamicArray<T>* array, AllocatorBindings bindings)
     {
         al_memzero(array);
-        array->allocator = allocator;
+        array->bindings = bindings;
     }
 
     template<typename T>
@@ -15,9 +15,8 @@ namespace al::engine
     {
         if (array->capacity)
         {
-            array->allocator->deallocate(reinterpret_cast<std::byte*>(array->memory), sizeof(T) * array->capacity);
+            array->bindings.deallocate(array->bindings.allocator, array->memory, sizeof(T) * array->capacity);
         }
-        // @TODO :  maybe need to call destructors here if neccsessary
     }
 
     template<typename T>
@@ -37,14 +36,14 @@ namespace al::engine
         {
             return;
         }
-        T* newMemory = reinterpret_cast<T*>(array->allocator->allocate(sizeof(T) * newCapacity));
+        T* newMemory = static_cast<T*>(array->bindings.allocate(array->bindings.allocator, sizeof(T) * newCapacity));
         if (array->size)
         {
             std::memcpy(newMemory, array->memory, sizeof(T) * array->size);
         }
         if (array->capacity)
         {
-            array->allocator->deallocate(reinterpret_cast<std::byte*>(array->memory), sizeof(T) * array->capacity);
+            array->bindings.deallocate(array->bindings.allocator, array->memory, sizeof(T) * array->capacity);
         }
         array->memory = newMemory;
         array->capacity = newCapacity;

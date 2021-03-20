@@ -27,7 +27,7 @@ namespace al::engine
         };
         std::size_t size;
         State state;
-        std::byte* memory;
+        void* memory;
     };
 
     static const char* LOAD_MODE_TO_STR[] =
@@ -36,7 +36,7 @@ namespace al::engine
         "wb"
     };
 
-    FileHandle sync_load(const char* name, AllocatorBase* allocator, FileLoadMode mode);
+    FileHandle sync_load(const char* name, AllocatorBindings bindings, FileLoadMode mode);
 }
 
 #endif

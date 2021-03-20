@@ -12,14 +12,14 @@ namespace al::engine
     template<typename T>
     struct DynamicArray
     {
-        AllocatorBase*  allocator;
-        T*              memory;
-        std::size_t     size;
-        std::size_t     capacity;
+        AllocatorBindings   bindings;
+        T*                  memory;
+        std::size_t         size;
+        std::size_t         capacity;
     };
 
     template<typename T>
-    void construct(DynamicArray<T>* array, AllocatorBase* allocator = &gMemoryManager->pool);
+    void construct(DynamicArray<T>* array, AllocatorBindings bindings = get_allocator_bindings(&gMemoryManager->pool));
 
     template<typename T>
     void destruct(DynamicArray<T>* array);

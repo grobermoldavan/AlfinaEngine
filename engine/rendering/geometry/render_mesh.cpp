@@ -35,7 +35,7 @@ namespace al::engine
     {
         al_profile_function();
         CpuMesh result;
-        construct(&result.submeshes);
+        al_memzero(&result.submeshes);
         const char* fileText = reinterpret_cast<const char*>(handle->memory);
         const char* fileTextPtr = fileText;
         CpuSubmesh* activeSubmesh = nullptr;

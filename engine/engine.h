@@ -11,6 +11,7 @@
 #include "utilities/flags.h"
 #include "utilities/function.h"
 #include "utilities/math.h"
+#include "utilities/memory.h"
 #include "utilities/non_copyable.h"
 #include "utilities/procedural_wrap.h"
 #include "utilities/safe_cast.h"

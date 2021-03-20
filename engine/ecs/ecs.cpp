@@ -7,6 +7,7 @@
 #include "engine/debug/debug.h"
 
 #include "utilities/constexpr_functions.h"
+#include "utilities/memory.h"
 #include "utilities/procedural_wrap.h"
 
 namespace al::engine
@@ -21,8 +22,8 @@ namespace al::engine
 
     void construct(EcsWorld* world)
     {
-        construct(&world->entities);
-        construct(&world->archetypes);
+        al_memzero(&world->entities);
+        al_memzero(&world->archetypes);
         for (EcsSizeT it = 0; it < EngineConfig::ECS_MAX_ARCHETYPES; it++)
         {
             // @NOTE :  Set each archetype to the correct areas of the pools
@@ -48,7 +49,7 @@ namespace al::engine
             for_each_dynamic_array(archetype->chunks, chunkIt)
             {
                 uint8_t* chunk = *get(&archetype->chunks, chunkIt);
-                gMemoryManager->pool.deallocate(reinterpret_cast<std::byte*>(chunk), EngineConfig::ECS_COMPONENT_ARRAY_CHUNK_SIZE);
+                deallocate(&gMemoryManager->pool, chunk, EngineConfig::ECS_COMPONENT_ARRAY_CHUNK_SIZE);
             }
             destruct(&archetype->chunks);
         }
@@ -196,7 +197,7 @@ namespace al::engine
     void ecs_allocate_chunks(EcsWorld* world, EcsArchetypeHandle handle)
     {
         EcsArchetype* archetype = get(&world->archetypes, handle);
-        push(&archetype->chunks, reinterpret_cast<uint8_t*>(gMemoryManager->pool.allocate(EngineConfig::ECS_COMPONENT_ARRAY_CHUNK_SIZE)));
+        push(&archetype->chunks, static_cast<uint8_t*>(allocate(&gMemoryManager->pool, EngineConfig::ECS_COMPONENT_ARRAY_CHUNK_SIZE)));
         archetype->capacity += archetype->singleChunkCapacity;
     }
 

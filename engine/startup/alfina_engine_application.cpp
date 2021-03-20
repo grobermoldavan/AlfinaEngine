@@ -20,7 +20,7 @@ namespace al::engine
         gRenderJobSystem = static_cast<JobSystem*>(allocate(&gMemoryManager->stack, sizeof(JobSystem)));
         construct(gRenderJobSystem, 0);
 
-        init_jobs();
+        construct_jobs();
 
         gFileSystem = static_cast<FileSystem*>(allocate(&gMemoryManager->stack, sizeof(FileSystem)));
         construct(gFileSystem);
@@ -181,7 +181,7 @@ namespace al::engine
     {
         // Collect handles to all threads used by the program
         ArrayContainer<ThreadHandle, EngineConfig::MAX_SUPPORTED_THREADS> threads{ };
-        construct(&threads);
+        al_memzero(&threads);
         push(&threads, get_current_thread_handle());
         push(&threads, Renderer::get()->get_render_thread()->native_handle());
         std::span<JobSystemThread> jobSystemThread = gMainJobSystem->threads;

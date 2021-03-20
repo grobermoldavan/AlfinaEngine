@@ -15,7 +15,7 @@ namespace al::engine
 
     struct Job
     {
-        using DispatchFunction  = Function<void(Job*)>;
+        using DispatchFunction  = Function<void(Job*)>; // @TODO :  change this to function pointer : void(*)(Job*);
         using CachelinePadding  = std::byte[std::hardware_destructive_interference_size];
         using NextJobs          = ArrayContainer<Job*, EngineConfig::MAX_NEXT_JOBS>;
 
@@ -27,8 +27,7 @@ namespace al::engine
         CachelinePadding            padding;
     };
 
-    void    construct                   (Job* job, JobSystem* jobSystem);
-
+    void    initialize_job              (Job* job, JobSystem* jobSystem);
     void    configure                   (Job* job, Job::DispatchFunction func, void* data = nullptr);
     void    dispatch                    (Job* job);
     bool    is_finished                 (Job* job);

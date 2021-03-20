@@ -35,7 +35,7 @@ namespace al
 
         Event() noexcept
         {
-            construct(&subscribers);
+            al_memzero(&subscribers);
             // @TODO :  remove after finishing migration to procedural code style
             for (std::size_t it = 0; it < SubscribersNum; it++)
             {

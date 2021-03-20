@@ -18,13 +18,6 @@ namespace al
     };
 
     template<typename T, std::size_t Capacity>
-    void construct(ArrayContainer<T, Capacity>* array)
-    {
-        array->size = 0;
-        std::memset(array->memory, 0, sizeof(T) * Capacity);
-    }
-
-    template<typename T, std::size_t Capacity>
     T* push(ArrayContainer<T, Capacity>* array, const T& value)
     {
         if (Capacity <= array->size)

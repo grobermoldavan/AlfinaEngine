@@ -117,7 +117,7 @@ namespace al::engine
             handle.isValid = 1;
             handle.index = meshResources.get_direct_index(resource);
             construct(&resource->path, &path);
-            construct(&resource->renderMesh.submeshes);
+            al_memzero(&resource->renderMesh.submeshes);
             // @NOTE :  Step 2. Start loading that resource
             auto [fileHandle, loadJob] = file_async_load(gFileSystem, path, FileLoadMode::READ);
             // @NOTE :  Step 3. Start post load job

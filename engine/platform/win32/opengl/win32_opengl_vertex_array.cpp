@@ -7,16 +7,17 @@ namespace al::engine
 {
     namespace internal
     {
-        template<> [[nodiscard]] VertexArray* create_vertex_array<RendererType::OPEN_GL>(const VertexArrayInitData& initData) noexcept
+        template<> [[nodiscard]] VertexArray* create_vertex_array<RendererType::OPEN_GL>(const VertexArrayInitData& initData /* not used */) noexcept
         {
-            VertexArray* va = gMemoryManager->pool.allocate_and_construct<Win32OpenglVertexArray>();
+            Win32OpenglVertexArray* va = static_cast<Win32OpenglVertexArray*>(allocate(&gMemoryManager->pool, sizeof(Win32OpenglVertexArray)));
+            wrap_construct(va);
             return va;
         }
 
         template<> void destroy_vertex_array<RendererType::OPEN_GL>(VertexArray* va) noexcept
         {
-            va->~VertexArray();
-            gMemoryManager->pool.deallocate(reinterpret_cast<std::byte*>(va), sizeof(Win32OpenglVertexArray));
+            wrap_destruct(va);
+            deallocate(&gMemoryManager->pool, va, sizeof(Win32OpenglVertexArray));
         }
     }
 

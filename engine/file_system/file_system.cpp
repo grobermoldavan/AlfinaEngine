@@ -1,6 +1,9 @@
 
 #include "file_system.h"
+
 #include "engine/debug/debug.h"
+
+#include "utilities/memory.h"
 
 namespace al::engine
 {
@@ -8,7 +11,7 @@ namespace al::engine
 
     void construct(FileSystem* fileSystem)
     {
-        fileSystem->allocator = &gMemoryManager->pool;
+        fileSystem->bindings = get_allocator_bindings(&gMemoryManager->pool);
     }
 
     void destruct(FileSystem* fileSystem)
@@ -22,8 +25,9 @@ namespace al::engine
         al_log_message( EngineConfig::FILE_SYSTEM_LOG_CATEGORY,
                         "Requested sync load file at path %s with mode %s",
                         cstr(&file), LOAD_MODE_TO_STR[static_cast<int>(mode)]);
-        FileHandle* handle = fileSystem->allocator->allocate_and_construct<FileHandle>();
-        *handle = al::engine::sync_load(cstr(&file), fileSystem->allocator, mode);
+        FileHandle* handle = static_cast<FileHandle*>(fileSystem->bindings.allocate(fileSystem->bindings.allocator, sizeof(FileHandle)));
+        al_memzero(handle);
+        *handle = al::engine::sync_load(cstr(&file), fileSystem->bindings, mode);
         return handle;
     }
 
@@ -33,9 +37,11 @@ namespace al::engine
         al_log_message( EngineConfig::FILE_SYSTEM_LOG_CATEGORY,
                         "Requested async load file at path %s with mode %s",
                         cstr(&file), LOAD_MODE_TO_STR[static_cast<int>(mode)]);
-        FileHandle* handle = fileSystem->allocator->allocate_and_construct<FileHandle>();
+        FileHandle* handle = static_cast<FileHandle*>(fileSystem->bindings.allocate(fileSystem->bindings.allocator, sizeof(FileHandle)));
+        al_memzero(handle);
         handle->state = FileHandle::State::LOADING;
-        AsyncFileReadUserData* userData = fileSystem->allocator->allocate_and_construct<AsyncFileReadUserData>();
+        AsyncFileReadUserData* userData = static_cast<AsyncFileReadUserData*>(fileSystem->bindings.allocate(fileSystem->bindings.allocator, sizeof(AsyncFileReadUserData)));
+        al_memzero(handle);
         construct(&userData->file, &file);
         userData->mode = mode;
         userData->handle = handle;
@@ -46,7 +52,7 @@ namespace al::engine
             al_log_message( EngineConfig::FILE_SYSTEM_LOG_CATEGORY,
                             "Processing async load of file at path %s with mode %s",
                             cstr(&userData->file), LOAD_MODE_TO_STR[static_cast<int>(userData->mode)]);
-            *userData->handle = al::engine::sync_load(cstr(&userData->file), fileSystem->allocator, userData->mode);
+            *userData->handle = al::engine::sync_load(cstr(&userData->file), fileSystem->bindings, userData->mode);
         }, userData);
         start_job(gMainJobSystem, job);
         return { handle, job };
@@ -57,7 +63,7 @@ namespace al::engine
         al_profile_function();
         // @TODO : implement freeing currently loading handle
         al_assert(handle->state != FileHandle::State::LOADING);
-        fileSystem->allocator->deallocate(handle->memory, handle->size);
-        fileSystem->allocator->deallocate_as<FileHandle>(handle);
+        fileSystem->bindings.deallocate(fileSystem->bindings.allocator, handle->memory, handle->size);
+        fileSystem->bindings.deallocate(fileSystem->bindings.allocator, handle, sizeof(FileHandle));
     }
 }

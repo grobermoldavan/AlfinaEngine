@@ -15,7 +15,7 @@ namespace al::engine
     Job                                                 gJobs[EngineConfig::MAX_JOBS] = { };
     StaticThreadSafeQueue<Job*, EngineConfig::MAX_JOBS> gFreeJobs;
 
-    void init_jobs()
+    void construct_jobs()
     {
         wrap_construct(&gFreeJobs);
         for (std::size_t it = 0; it < EngineConfig::MAX_JOBS; it++)
@@ -62,7 +62,7 @@ namespace al::engine
         Job* job = nullptr;
         gFreeJobs.dequeue(&job);
         al_assert(job);
-        construct(job, jobSystem);
+        initialize(job, jobSystem);
         return job;
     }
 

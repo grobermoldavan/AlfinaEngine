@@ -11,7 +11,7 @@ namespace al::engine
         : world{ ecsWorld }
         , root{ }
     {
-        construct(&nodes);
+        al_memzero(&nodes);
         root = push(&nodes);
         al_assert(root);
         initialize_node_no_parent(root, EngineConfig::SCENE_ROOT_NODE_NAME);
@@ -94,7 +94,7 @@ namespace al::engine
             .scene              = this,
             .parent             = EMPTY_NODE_HANDLE
         };
-        construct(&node->childs);
+        al_memzero(&node->childs);
         construct(&node->name, name.data(), name.length());
         ecs_add_components<SceneTransform>(world, node->entityHandle);
         auto* sceneTransform = ecs_get_component<SceneTransform>(world, node->entityHandle);

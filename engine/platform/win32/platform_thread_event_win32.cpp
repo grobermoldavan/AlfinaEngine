@@ -1,21 +1,21 @@
 
 #include "platform_thread_event_win32.h"
-
 #include "engine/memory/memory_manager.h"
+#include "utilities/procedural_wrap.h"
 
 namespace al::engine
 {
     [[nodiscard]] ThreadEvent* create_thread_event()
     {
-        ThreadEvent* event = gMemoryManager->pool.allocate_as<Win32ThreadEvent>();
-        ::new(event) Win32ThreadEvent{ };
+        Win32ThreadEvent* event = static_cast<Win32ThreadEvent*>(allocate(&gMemoryManager->pool, sizeof(Win32ThreadEvent)));
+        wrap_construct(event);
         return event;
     }
 
     void destroy_thread_event(ThreadEvent* event)
     {
-        event->~ThreadEvent();
-        gMemoryManager->pool.deallocate(reinterpret_cast<std::byte*>(event), sizeof(Win32ThreadEvent));
+        wrap_destruct(event);
+        deallocate(&gMemoryManager->pool, event, sizeof(Win32ThreadEvent));
     }
 
     Win32ThreadEvent::Win32ThreadEvent() noexcept

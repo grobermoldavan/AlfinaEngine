@@ -9,14 +9,15 @@ namespace al::engine
     {
         template<> [[nodiscard]] IndexBuffer* create_index_buffer<RendererType::OPEN_GL>(const IndexBufferInitData& initData) noexcept
         {
-            IndexBuffer* ib = gMemoryManager->pool.allocate_and_construct<Win32OpenglIndexBuffer>(initData);
+            Win32OpenglIndexBuffer* ib = static_cast<Win32OpenglIndexBuffer*>(allocate(&gMemoryManager->pool, sizeof(Win32OpenglIndexBuffer)));
+            wrap_construct(ib, initData);
             return ib;
         }
 
         template<> void destroy_index_buffer<RendererType::OPEN_GL>(IndexBuffer* ib) noexcept
         {
-            ib->~IndexBuffer();
-            gMemoryManager->pool.deallocate(reinterpret_cast<std::byte*>(ib), sizeof(Win32OpenglIndexBuffer));
+            wrap_destruct(ib);
+            deallocate(&gMemoryManager->pool, ib, sizeof(Win32OpenglIndexBuffer));
         }
     }
 
