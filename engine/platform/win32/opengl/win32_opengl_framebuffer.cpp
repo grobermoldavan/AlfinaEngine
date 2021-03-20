@@ -11,14 +11,14 @@ namespace al::engine
     {
         template<> [[nodiscard]] Framebuffer* create_framebuffer<RendererType::OPEN_GL>(const FramebufferInitData& initData) noexcept
         {
-            Framebuffer* fb = MemoryManager::get_pool()->allocate_and_construct<Win32OpenglFramebuffer>(initData);
+            Framebuffer* fb = gMemoryManager->pool.allocate_and_construct<Win32OpenglFramebuffer>(initData);
             return fb;
         }
 
         template<> void destroy_framebuffer<RendererType::OPEN_GL>(Framebuffer* fb) noexcept
         {
             fb->~Framebuffer();
-            MemoryManager::get_pool()->deallocate(reinterpret_cast<std::byte*>(fb), sizeof(Win32OpenglFramebuffer));
+            gMemoryManager->pool.deallocate(reinterpret_cast<std::byte*>(fb), sizeof(Win32OpenglFramebuffer));
         }
     }
 

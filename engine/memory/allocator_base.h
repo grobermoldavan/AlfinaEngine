@@ -5,6 +5,13 @@
 
 namespace al::engine
 {
+    struct AllocatorBindings
+    {
+        [[nodiscard]] void* (*allocate)(void* allocator, std::size_t memorySizeBytes);
+        void (*deallocate)(void* allocator, void* ptr, std::size_t memorySizeBytes);
+        void* allocator;
+    };
+
     class AllocatorBase 
     {
     public:

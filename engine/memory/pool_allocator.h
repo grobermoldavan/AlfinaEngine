@@ -1,15 +1,11 @@
 #ifndef AL_POOL_ALLOCATOR_H
 #define AL_POOL_ALLOCATOR_H
 
-#define POOL_ALLOCATOR_USE_LOCK 1
-
 #include <cstddef>
 #include <cstring>
 #include <array>
 #include <algorithm>
-#if(POOL_ALLOCATOR_USE_LOCK)
-#   include <mutex>
-#endif
+#include <mutex>
 
 #include "allocator_base.h"
 #include "engine/config/engine_config.h"
@@ -25,41 +21,26 @@
 
 namespace al::engine
 {
-    class MemoryBucket
+    struct MemoryBucket
     {
-    public:
-        MemoryBucket() noexcept;
-        ~MemoryBucket() noexcept;
-
-        void                        initialize              (std::size_t blockSize, std::size_t blockCount, AllocatorBase* allocator)           noexcept;
-        [[nodiscard]] std::byte*    allocate                (std::size_t memorySizeBytes)                                                       noexcept;
-        void                        deallocate              (std::byte* ptr, std::size_t memorySizeBytes)                                       noexcept;
-        const bool                  is_belongs              (std::byte* ptr)                                                            const   noexcept;
-        const std::size_t           get_block_size          ()                                                                          const   noexcept;
-        const std::size_t           get_block_count         ()                                                                          const   noexcept;
-        const bool                  is_bucket_initialized   ()                                                                          const   noexcept;
-
-        const std::byte*    get_ledger              () const noexcept;
-        const std::size_t   get_ledger_size_bytes   () const noexcept;
-
-    private:
-#if(POOL_ALLOCATOR_USE_LOCK)
         std::mutex memoryMutex;
-#endif
-
         std::size_t blockSizeBytes;
         std::size_t blockCount;
-
         std::size_t memorySizeBytes;
         std::size_t ledgerSizeBytes;
-
-        std::byte* memory;
-        std::byte* ledger;
-
-        std::size_t find_contiguous_blocks  (std::size_t number)                    const   noexcept;
-        void        set_blocks_in_use       (std::size_t first, std::size_t number)         noexcept;
-        void        set_blocks_free         (std::size_t first, std::size_t number)         noexcept;
+        void* memory;
+        void* ledger;
     };
+
+    void                construct   (MemoryBucket* bucket, std::size_t blockSizeBytes, std::size_t blockCount, AllocatorBindings bindings);
+    void                destruct    (MemoryBucket* bucket);
+    
+    [[nodiscard]] void* memory_bucket_allocate              (MemoryBucket* bucket, std::size_t memorySizeBytes);
+    void                memory_bucket_deallocate            (MemoryBucket* bucket, void* ptr, std::size_t memorySizeBytes);
+    bool                memory_bucket_is_belongs            (MemoryBucket* bucket, void* ptr);
+    std::size_t         memory_bucket_find_contiguous_blocks(MemoryBucket* bucket, std::size_t number);
+    void                memory_bucket_set_blocks_in_use     (MemoryBucket* bucket, std::size_t first, std::size_t number);
+    void                memory_bucket_set_blocks_free       (MemoryBucket* bucket, std::size_t first, std::size_t number);
 
     struct BucketDescription
     {
@@ -67,16 +48,16 @@ namespace al::engine
         std::size_t blockCount = 0;
     };
 
-    constexpr BucketDescription bucket_desc(std::size_t blockSizeBytes, std::size_t memorySizeBytes);
+    constexpr BucketDescription memory_bucket_desc(std::size_t blockSizeBytes, std::size_t memorySizeBytes);
 
     struct BucketCompareInfo
     {
         std::size_t bucketId;
         std::size_t blocksUsed;
         std::size_t memoryWasted;
-
-        bool operator < (const BucketCompareInfo& other) const noexcept;
     };
+
+    bool operator < (const BucketCompareInfo& one, const BucketCompareInfo& other);
 
     class PoolAllocator : public AllocatorBase
     {
@@ -90,7 +71,7 @@ namespace al::engine
         virtual [[nodiscard]] std::byte*    allocate    (std::size_t memorySizeBytes)                   noexcept override;
         virtual void                        deallocate  (std::byte* ptr, std::size_t memorySizeBytes)   noexcept override;
 
-        void initialize(BucketDescContainer bucketDescriptions, AllocatorBase* allocator) noexcept;
+        void initialize(BucketDescContainer bucketDescriptions, AllocatorBindings bindings) noexcept;
 
         // @NOTE :  This methods allow user to deallocate and reallocate memory using only memory pointer without passing memory size.
         //          This might be useful for connecting allocator to other API's. For example, this methods are currently used with stbi_image

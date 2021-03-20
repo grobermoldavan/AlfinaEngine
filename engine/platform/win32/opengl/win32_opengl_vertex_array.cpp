@@ -9,14 +9,14 @@ namespace al::engine
     {
         template<> [[nodiscard]] VertexArray* create_vertex_array<RendererType::OPEN_GL>(const VertexArrayInitData& initData) noexcept
         {
-            VertexArray* va = MemoryManager::get_pool()->allocate_and_construct<Win32OpenglVertexArray>();
+            VertexArray* va = gMemoryManager->pool.allocate_and_construct<Win32OpenglVertexArray>();
             return va;
         }
 
         template<> void destroy_vertex_array<RendererType::OPEN_GL>(VertexArray* va) noexcept
         {
             va->~VertexArray();
-            MemoryManager::get_pool()->deallocate(reinterpret_cast<std::byte*>(va), sizeof(Win32OpenglVertexArray));
+            gMemoryManager->pool.deallocate(reinterpret_cast<std::byte*>(va), sizeof(Win32OpenglVertexArray));
         }
     }
 

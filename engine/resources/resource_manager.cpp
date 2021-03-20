@@ -7,6 +7,7 @@
 #include "engine/debug/debug.h"
 #include "engine/file_system/file_system.h"
 #include "engine/job_system/job_system.h"
+#include "utilities/procedural_wrap.h"
 
 namespace al::engine
 {
@@ -18,7 +19,8 @@ namespace al::engine
         {
             return;
         }
-        instance = MemoryManager::get_stack()->allocate_and_construct<ResourceManager>();
+        instance = static_cast<ResourceManager*>(allocate(&gMemoryManager->stack, sizeof(ResourceManager)));
+        wrap_construct(instance);
     }
 
     void ResourceManager::destruct() noexcept
@@ -27,7 +29,7 @@ namespace al::engine
         {
             return;
         }
-        instance->~ResourceManager();
+        wrap_destruct(instance);
     }
 
     // Renamed it for now. Anyway this will be removed later

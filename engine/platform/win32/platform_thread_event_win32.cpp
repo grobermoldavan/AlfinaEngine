@@ -7,7 +7,7 @@ namespace al::engine
 {
     [[nodiscard]] ThreadEvent* create_thread_event()
     {
-        ThreadEvent* event = MemoryManager::get_pool()->allocate_as<Win32ThreadEvent>();
+        ThreadEvent* event = gMemoryManager->pool.allocate_as<Win32ThreadEvent>();
         ::new(event) Win32ThreadEvent{ };
         return event;
     }
@@ -15,7 +15,7 @@ namespace al::engine
     void destroy_thread_event(ThreadEvent* event)
     {
         event->~ThreadEvent();
-        MemoryManager::get_pool()->deallocate(reinterpret_cast<std::byte*>(event), sizeof(Win32ThreadEvent));
+        gMemoryManager->pool.deallocate(reinterpret_cast<std::byte*>(event), sizeof(Win32ThreadEvent));
     }
 
     Win32ThreadEvent::Win32ThreadEvent() noexcept

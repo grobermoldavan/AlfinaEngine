@@ -102,7 +102,7 @@ namespace al::engine
         //          and this is will be done (probably) by recreating renderer instance of the new renderer type.
         //          To avoid allocating renderer memory in the pool over and over, we simply allocate space large enough to
         //          store any kind of renderer available for target system and reuse that space.
-        instance = reinterpret_cast<Renderer*>(MemoryManager::get_stack()->allocate(internal::get_max_renderer_size_bytes()));
+        instance = reinterpret_cast<Renderer*>(allocate(&gMemoryManager->stack, internal::get_max_renderer_size_bytes()));
     }
 
     void Renderer::construct_renderer(RendererType type, OsWindow* window) noexcept

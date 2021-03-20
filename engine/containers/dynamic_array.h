@@ -19,7 +19,7 @@ namespace al::engine
     };
 
     template<typename T>
-    void construct(DynamicArray<T>* array, AllocatorBase* allocator = MemoryManager::get_pool());
+    void construct(DynamicArray<T>* array, AllocatorBase* allocator = &gMemoryManager->pool);
 
     template<typename T>
     void destruct(DynamicArray<T>* array);

@@ -8,7 +8,7 @@ namespace al::engine
 
     void construct(FileSystem* fileSystem)
     {
-        fileSystem->allocator = MemoryManager::get_pool();
+        fileSystem->allocator = &gMemoryManager->pool;
     }
 
     void destruct(FileSystem* fileSystem)

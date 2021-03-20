@@ -10,23 +10,19 @@
 
 namespace al::engine
 {
-    class StackAllocator : public AllocatorBase
+    struct StackAllocator
     {
-    public:
-        StackAllocator() noexcept;
-        ~StackAllocator() noexcept;
-
-        virtual [[nodiscard]] std::byte* allocate(std::size_t memorySizeBytes) noexcept;
-        virtual void deallocate(std::byte*, std::size_t) noexcept override;
-
-        void initialize(std::byte* memory, std::size_t memorySizeBytes) noexcept;
-        void free_to_pointer(std::byte* ptr) noexcept;
-
-    private:
-        std::byte* memory;
-        std::byte* memoryLimit;
-        std::atomic<std::byte*> top;
+        void* memory;
+        void* memoryLimit;
+        std::atomic<void*> top;
     };
+
+    void                construct   (StackAllocator* stack, void* memory, std::size_t memorySizeBytes);
+    void                destruct    (StackAllocator* stack);
+    [[nodiscard]] void* allocate    (StackAllocator* stack, std::size_t memorySizeBytes);
+    void                deallocate  (StackAllocator* stack, void* ptr, std::size_t memorySizeBytes);
+
+    AllocatorBindings get_allocator_bindings(StackAllocator* stack);
 }
 
 #endif

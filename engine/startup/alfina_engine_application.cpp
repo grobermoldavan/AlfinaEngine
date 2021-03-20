@@ -8,20 +8,21 @@ namespace al::engine
 {
     void AlfinaEngineApplication::initialize_components() noexcept
     {
-        MemoryManager::construct_manager();
+        gMemoryManager = &memoryManager;
+        construct(gMemoryManager);
 
-        gLogger = MemoryManager::get_stack()->allocate_as<Logger>();
+        gLogger = static_cast<Logger*>(allocate(&gMemoryManager->stack, sizeof(Logger)));
         construct(gLogger);
 
-        gMainJobSystem = MemoryManager::get_stack()->allocate_as<JobSystem>();
+        gMainJobSystem = static_cast<JobSystem*>(allocate(&gMemoryManager->stack, sizeof(JobSystem)));
         construct(gMainJobSystem, get_number_of_job_system_threads());
 
-        gRenderJobSystem = MemoryManager::get_stack()->allocate_as<JobSystem>();
+        gRenderJobSystem = static_cast<JobSystem*>(allocate(&gMemoryManager->stack, sizeof(JobSystem)));
         construct(gRenderJobSystem, 0);
 
         init_jobs();
 
-        gFileSystem = MemoryManager::get_stack()->allocate_as<FileSystem>();
+        gFileSystem = static_cast<FileSystem*>(allocate(&gMemoryManager->stack, sizeof(FileSystem)));
         construct(gFileSystem);
         {
             OsWindowParams params;
@@ -34,16 +35,17 @@ namespace al::engine
 
         distribute_threads_to_cpu_cores();
 
-        defaultEcsWorld = MemoryManager::get_stack()->allocate_as<EcsWorld>();
+        defaultEcsWorld = static_cast<EcsWorld*>(allocate(&gMemoryManager->stack, sizeof(EcsWorld)));
         construct(defaultEcsWorld);
 
-        defaultScene = MemoryManager::get_stack()->allocate_and_construct<Scene>(defaultEcsWorld);
+        defaultScene = static_cast<Scene*>(allocate(&gMemoryManager->stack, sizeof(Scene)));
+        wrap_construct(defaultScene, defaultEcsWorld);
 
         construct(&dbgFlyCamera);
         get_render_camera(&dbgFlyCamera)->set_aspect_ratio(static_cast<float>(window->get_params()->width) / static_cast<float>(window->get_params()->height));
         Renderer::get()->set_camera(get_render_camera(&dbgFlyCamera));
 
-        MemoryManager::log_memory_init_info();
+        // MemoryManager::log_memory_init_info();
 
         al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Initialized engine components");
     }
@@ -52,7 +54,7 @@ namespace al::engine
     {
         al_log_message(LOG_CATEGORY_BASE_APPLICATION, "Terminating engine components");
 
-        defaultScene->~Scene();
+        wrap_destruct(defaultScene);
         destruct(defaultEcsWorld);
 
         ResourceManager::destruct();
@@ -62,7 +64,7 @@ namespace al::engine
         destruct(gMainJobSystem);
         destruct(gRenderJobSystem);
         destruct(gLogger);
-        MemoryManager::destruct();
+        destruct(gMemoryManager);
     }
 
     void AlfinaEngineApplication::run() noexcept

@@ -16,12 +16,12 @@ namespace al::engine
         using value_type = T;
 
         PoolAllocatorStdWrap() noexcept
-            : allocator { MemoryManager::get_pool() }
+            : allocator { &gMemoryManager->stack }
         { }
 
         template<typename U>
         PoolAllocatorStdWrap(const PoolAllocatorStdWrap<U>&) noexcept
-            : allocator { MemoryManager::get_pool() }
+            : allocator { &gMemoryManager->stack }
         { }
 
         ~PoolAllocatorStdWrap() = default;

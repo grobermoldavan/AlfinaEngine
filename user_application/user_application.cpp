@@ -66,8 +66,8 @@ void UserApplication::terminate_components() noexcept
 void UserApplication::render() noexcept
 {
     al_profile_function();
-    using namespace al::engine;
     using namespace al;
+    using namespace al::engine;
     ecs_for_each<SceneTransform, RenderMeshComponent>(defaultEcsWorld, [&](EcsWorld* world, EcsEntityHandle handle, SceneTransform* trf, RenderMeshComponent* mesh)
     {
         // Transform localTrf = trf->get_local_transform();

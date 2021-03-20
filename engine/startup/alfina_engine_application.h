@@ -42,6 +42,8 @@ namespace al::engine
     protected:
         static constexpr const char* LOG_CATEGORY_BASE_APPLICATION = "Engine";
 
+        MemoryManager memoryManager;
+
         EcsWorld*   defaultEcsWorld;
         Scene*      defaultScene;
         OsWindow*   window;

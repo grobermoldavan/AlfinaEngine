@@ -4,98 +4,60 @@
 
 namespace al::engine
 {
-    MemoryBucket::MemoryBucket() noexcept
-        : blockSizeBytes{ 0 }
-        , blockCount{ 0 }
-        , memorySizeBytes{ 0 }
-        , ledgerSizeBytes{ 0 }
-        , memory{ nullptr }
-        , ledger{ nullptr }
-    { }
-
-    MemoryBucket::~MemoryBucket() noexcept
-    { }
-
-    void MemoryBucket::initialize(std::size_t blockSizeBytes, std::size_t blockCount, AllocatorBase* allocator) noexcept
+    void construct(MemoryBucket* bucket, std::size_t blockSizeBytes, std::size_t blockCount, AllocatorBindings bindings)
     {
-        this->blockSizeBytes = blockSizeBytes;
-        this->blockCount = blockCount;
-
-        memorySizeBytes = blockSizeBytes * blockCount;
-        ledgerSizeBytes = 1 + ((blockCount - 1) / 8);
-
-        memory = allocator->allocate(memorySizeBytes);
-        ledger = allocator->allocate(ledgerSizeBytes);
-
-        std::memset(ledger, 0, ledgerSizeBytes);
+        wrap_construct(&bucket->memoryMutex);
+        bucket->blockSizeBytes  = blockSizeBytes;
+        bucket->blockCount      = blockCount;
+        bucket->memorySizeBytes = blockSizeBytes * blockCount;
+        bucket->ledgerSizeBytes = 1 + ((blockCount - 1) / 8);
+        bucket->memory          = bindings.allocate(bindings.allocator, bucket->memorySizeBytes);
+        bucket->ledger          = bindings.allocate(bindings.allocator, bucket->ledgerSizeBytes);
+        std::memset(bucket->ledger, 0, bucket->ledgerSizeBytes);
     }
 
-    [[nodiscard]] std::byte* MemoryBucket::allocate(std::size_t memorySizeBytes) noexcept
+    void destruct(MemoryBucket* bucket)
     {
-#if(POOL_ALLOCATOR_USE_LOCK)
-        const std::lock_guard<std::mutex> lock{ memoryMutex };
-#endif
-        const std::size_t blockNum = 1 + ((memorySizeBytes - 1) / blockSizeBytes);
-        const std::size_t blockId = find_contiguous_blocks(blockNum);
-        if (blockId == blockCount)
+        wrap_destruct(&bucket->memoryMutex);
+    }
+
+    [[nodiscard]] void* memory_bucket_allocate(MemoryBucket* bucket, std::size_t memorySizeBytes)
+    {
+        std::lock_guard<std::mutex> lock{ bucket->memoryMutex };
+        std::size_t blockNum = 1 + ((memorySizeBytes - 1) / bucket->blockSizeBytes);
+        std::size_t blockId = memory_bucket_find_contiguous_blocks(bucket, blockNum);
+        if (blockId == bucket->blockCount)
         {
             return nullptr;
         }
-        set_blocks_in_use(blockId, blockNum);
-        return memory + blockId * blockSizeBytes;
+        memory_bucket_set_blocks_in_use(bucket, blockId, blockNum);
+        return static_cast<uint8_t*>(bucket->memory) + blockId * bucket->blockSizeBytes;
     }
 
-    void MemoryBucket::deallocate(std::byte* ptr, std::size_t memorySizeBytes) noexcept
+    void memory_bucket_deallocate(MemoryBucket* bucket, void* ptr, std::size_t memorySizeBytes)
     {
-#if(POOL_ALLOCATOR_USE_LOCK)
-        const std::lock_guard<std::mutex> lock{ memoryMutex };
-#endif
-
-        const std::size_t blockNum = 1 + ((memorySizeBytes - 1) / blockSizeBytes);
-        const std::size_t blockId = static_cast<std::size_t>(ptr - memory) / blockSizeBytes;
-        set_blocks_free(blockId, blockNum);
+        std::lock_guard<std::mutex> lock{ bucket->memoryMutex };
+        std::size_t blockNum = 1 + ((memorySizeBytes - 1) / bucket->blockSizeBytes);
+        std::size_t blockId = (static_cast<uint8_t*>(ptr) - static_cast<uint8_t*>(bucket->memory)) / bucket->blockSizeBytes;
+        memory_bucket_set_blocks_free(bucket, blockId, blockNum);
     }
 
-    const bool MemoryBucket::is_belongs(std::byte* ptr) const noexcept
+    bool memory_bucket_is_belongs(MemoryBucket* bucket, void* ptr)
     {
-        return (ptr >= memory) && (ptr < (memory + memorySizeBytes));
+        uint8_t* bytePtr = static_cast<uint8_t*>(ptr);
+        uint8_t* byteMem = static_cast<uint8_t*>(bucket->memory);
+        return (bytePtr >= byteMem) && (bytePtr < (byteMem + bucket->memorySizeBytes));
     }
 
-    const std::size_t MemoryBucket::get_block_size() const noexcept
-    {
-        return blockSizeBytes;
-    }
-    
-    const std::size_t MemoryBucket::get_block_count() const noexcept
-    {
-        return blockCount;
-    }
-
-    const bool MemoryBucket::is_bucket_initialized() const noexcept
-    {
-        return blockCount != 0;
-    }
-
-    const std::byte* MemoryBucket::get_ledger() const noexcept
-    {
-        return ledger;
-    }
-
-    const std::size_t MemoryBucket::get_ledger_size_bytes() const noexcept
-    {
-        return ledgerSizeBytes;
-    }
-
-    std::size_t MemoryBucket::find_contiguous_blocks(std::size_t number) const noexcept
+    std::size_t memory_bucket_find_contiguous_blocks(MemoryBucket* bucket, std::size_t number)
     {
         std::size_t blockCounter = 0;   // contains the number of contiguous free blocks
         std::size_t currentBlockId = 0; // contains id of current block
         std::size_t firstBlockId = 0;   // contains id of the first block in the group of contiguous free blocks
-
-        for (std::size_t it = 0; it < ledgerSizeBytes; it++)
+        for (std::size_t it = 0; it < bucket->ledgerSizeBytes; it++)
         {
-            std::byte ledgerByte = *(ledger + it);
-            if (static_cast<uint8_t>(ledgerByte) == 255)
+            uint8_t ledgerByte = *(static_cast<uint8_t*>(bucket->ledger) + it);
+            if (ledgerByte == 255)
             {
                 // @NOTE :  small optimization.
                 //          We don't need to check byte if is already full.
@@ -103,7 +65,6 @@ namespace al::engine
                 currentBlockId += 8;
                 continue;
             }
-
             for (std::size_t byteIt = 0; byteIt < 8; byteIt++)
             {
                 if (is_bit_set(ledgerByte, byteIt))
@@ -118,54 +79,49 @@ namespace al::engine
                     }
                     blockCounter++;
                 }
-
                 currentBlockId++;
-
                 if (blockCounter == number)
                 {
                     goto block_found;
                 }
             }
         }
-
         // if nothing was found set firstBlockId to blockCount - this indicates failure of method
-        firstBlockId = blockCount;
-
+        firstBlockId = bucket->blockCount;
         block_found:
-
         return firstBlockId;
     }
 
-    void MemoryBucket::set_blocks_in_use(std::size_t first, std::size_t number) noexcept
+    void memory_bucket_set_blocks_in_use(MemoryBucket* bucket, std::size_t first, std::size_t number)
     {
         for (std::size_t it = 0; it < number; it++)
         {
             std::size_t currentByte = (first + it) / 8;
             std::size_t currentBit = (first + it) % 8;
-            std::byte* byte = ledger + currentByte;
+            uint8_t* byte = static_cast<uint8_t*>(bucket->ledger) + currentByte;
             *byte = set_bit(*byte, currentBit);
         }
     }
 
-    void MemoryBucket::set_blocks_free(std::size_t first, std::size_t number) noexcept
+    void memory_bucket_set_blocks_free(MemoryBucket* bucket, std::size_t first, std::size_t number)
     {
         for (std::size_t it = 0; it < number; it++)
         {
             std::size_t currentByte = (first + it) / 8;
             std::size_t currentBit = (first + it) % 8;
-            std::byte* byte = ledger + currentByte;
+            uint8_t* byte = static_cast<uint8_t*>(bucket->ledger) + currentByte;
             *byte = remove_bit(*byte, currentBit);
         }
     }
 
-    constexpr BucketDescription bucket_desc(std::size_t blockSizeBytes, std::size_t memorySizeBytes)
+    constexpr BucketDescription memory_bucket_desc(std::size_t blockSizeBytes, std::size_t memorySizeBytes)
     {
         return { blockSizeBytes, memorySizeBytes / blockSizeBytes };
     }
 
-    bool BucketCompareInfo::operator < (const BucketCompareInfo& other) const noexcept
+    bool operator < (const BucketCompareInfo& one, const BucketCompareInfo& other)
     {
-        return (memoryWasted == other.memoryWasted) ? blocksUsed < other.blocksUsed : memoryWasted < other.memoryWasted;
+        return (one.memoryWasted == other.memoryWasted) ? one.blocksUsed < other.blocksUsed : one.memoryWasted < other.memoryWasted;
     }
 
     [[nodiscard]] std::byte* PoolAllocator::allocate(std::size_t memorySizeBytes) noexcept
@@ -178,15 +134,15 @@ namespace al::engine
             MemoryBucket* bucket = get(&buckets, it);
             BucketCompareInfo* info = push(&compareInfos);
             info->bucketId = it;
-            if (bucket->get_block_size() >= memorySizeBytes)
+            if (bucket->blockSizeBytes >= memorySizeBytes)
             {
                 info->blocksUsed = 1;
-                info->memoryWasted = bucket->get_block_size() - memorySizeBytes;
+                info->memoryWasted = bucket->blockSizeBytes - memorySizeBytes;
             }
             else
             {
-                const std::size_t blockNum = 1 + ((memorySizeBytes - 1) / bucket->get_block_size());
-                const std::size_t blockMemory = blockNum * bucket->get_block_size();
+                const std::size_t blockNum = 1 + ((memorySizeBytes - 1) / bucket->blockSizeBytes);
+                const std::size_t blockMemory = blockNum * bucket->blockSizeBytes;
                 info->blocksUsed = blockNum;
                 info->memoryWasted = blockMemory - memorySizeBytes;
             }
@@ -198,7 +154,7 @@ namespace al::engine
         for_each_array_container(compareInfos, it)
         {
 			BucketCompareInfo* compareInfo = get(&compareInfos, it);
-            result = get(&buckets, compareInfo->bucketId)->allocate(memorySizeBytes);
+            result = static_cast<std::byte*>(memory_bucket_allocate(get(&buckets, compareInfo->bucketId), memorySizeBytes));
             if (result)
             {
                 break;
@@ -212,28 +168,23 @@ namespace al::engine
         for_each_array_container(buckets, it)
         {
             MemoryBucket* bucket = get(&buckets, it);
-            if (bucket->is_belongs(ptr))
+            if (memory_bucket_is_belongs(bucket, ptr))
             {
-                bucket->deallocate(ptr, memorySizeBytes);
+                memory_bucket_deallocate(bucket, ptr, memorySizeBytes);
                 break;
             }
         }
     }
 
-    void PoolAllocator::initialize(BucketDescContainer bucketDescriptions, AllocatorBase* allocator) noexcept
+    void PoolAllocator::initialize(BucketDescContainer bucketDescriptions, AllocatorBindings bindings) noexcept
     {
         construct(&buckets);
-        // @TODO :  remove after finishing migration to procedural code style
-        for (std::size_t it = 0; it < EngineConfig::POOL_ALLOCATOR_MAX_BUCKETS; it++)
-        {
-            wrap_construct(get(&buckets, it));
-        }
         construct(&ptrSizePairs);
         for_each_array_container(bucketDescriptions, it)
         {
             BucketDescription* desc = get(&bucketDescriptions, it);
             MemoryBucket* bucket = push(&buckets);
-            bucket->initialize(desc->blockSizeBytes, desc->blockCount, allocator);
+            construct(bucket, desc->blockSizeBytes, desc->blockCount, bindings);
         };
     }
     

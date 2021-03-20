@@ -10,14 +10,14 @@ namespace al::engine
     {
         template<> [[nodiscard]] Texture2d* create_texture_2d<RendererType::OPEN_GL>(const Texture2dInitData& initData) noexcept
         {
-            Texture2d* tex = MemoryManager::get_pool()->allocate_and_construct<Win32OpenglTexure2d>(initData);
+            Texture2d* tex = gMemoryManager->pool.allocate_and_construct<Win32OpenglTexure2d>(initData);
             return tex;
         }
 
         template<> void destroy_texture_2d<RendererType::OPEN_GL>(Texture2d* tex) noexcept
         {
             tex->~Texture2d();
-            MemoryManager::get_pool()->deallocate(reinterpret_cast<std::byte*>(tex), sizeof(Win32OpenglTexure2d));
+            gMemoryManager->pool.deallocate(reinterpret_cast<std::byte*>(tex), sizeof(Win32OpenglTexure2d));
         }
     }
 

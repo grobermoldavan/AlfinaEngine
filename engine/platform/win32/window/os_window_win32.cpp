@@ -3,20 +3,21 @@
 
 #include "engine/debug/debug.h"
 #include "engine/memory/memory_manager.h"
+#include "utilities/procedural_wrap.h"
 
 namespace al::engine
 {
     [[nodsicard]] OsWindow* create_window(OsWindowParams* params) noexcept
     {
-        OsWindow* window = MemoryManager::get_stack()->allocate_as<OsWindowWin32>();
-        ::new(window) OsWindowWin32(params);
+        OsWindowWin32* window = static_cast<OsWindowWin32*>(allocate(&gMemoryManager->stack, sizeof(OsWindowWin32)));
+        wrap_construct(window, params);
         return window;
     }
 
     void destroy_window(OsWindow* window) noexcept
     {
-        window->~OsWindow();
-        MemoryManager::get_stack()->deallocate(reinterpret_cast<std::byte*>(window), sizeof(OsWindowWin32));
+        wrap_destruct(window);
+        deallocate(&gMemoryManager->stack, window, sizeof(OsWindowWin32));
     }
 
     LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) noexcept;

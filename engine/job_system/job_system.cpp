@@ -31,7 +31,7 @@ namespace al::engine
         // @TODO : remove wrap_construct's
         if (numThreads)
         {
-            JobSystemThread* memory = reinterpret_cast<JobSystemThread*>(MemoryManager::get_stack()->allocate(sizeof(JobSystemThread) * numThreads));
+            JobSystemThread* memory = reinterpret_cast<JobSystemThread*>(allocate(&gMemoryManager->stack, sizeof(JobSystemThread) * numThreads));
             wrap_construct(&jobSystem->threads, memory, numThreads);
             for (JobSystemThread& thread : jobSystem->threads)
             {
@@ -54,7 +54,7 @@ namespace al::engine
         // @TODO : replace std::string_view
         wrap_destruct(&jobSystem->threads);
         wrap_destruct(&jobSystem->jobQueue);
-        MemoryManager::get_stack()->deallocate(reinterpret_cast<std::byte*>(jobSystem->threads.data()), sizeof(JobSystemThread) * jobSystem->threads.size());
+        deallocate(&gMemoryManager->stack, reinterpret_cast<std::byte*>(jobSystem->threads.data()), sizeof(JobSystemThread) * jobSystem->threads.size());
     }
 
     Job* get_job(JobSystem* jobSystem)

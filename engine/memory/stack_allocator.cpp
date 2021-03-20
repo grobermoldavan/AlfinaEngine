@@ -5,38 +5,34 @@
 
 namespace al::engine
 {
-    StackAllocator::StackAllocator() noexcept
-        : memory{ nullptr }
-        , memoryLimit{ nullptr }
-        , top{ nullptr }
-    { }
-
-    StackAllocator::~StackAllocator() noexcept
-    { }
-
-    void StackAllocator::initialize(std::byte* memory, std::size_t memorySizeBytes) noexcept
+    void construct(StackAllocator* stack, void* memory, std::size_t memorySizeBytes)
     {
-        this->memory = memory;
-        memoryLimit = memory + memorySizeBytes;
-        top = memory;
+        stack->memory = memory;
+        stack->memoryLimit = static_cast<uint8_t*>(memory) + memorySizeBytes;
+        stack->top = memory;
     }
 
-    std::byte* StackAllocator::allocate(std::size_t memorySizeBytes) noexcept
+    void destruct(StackAllocator* stack)
+    {
+        // nothing
+    }
+
+    [[nodiscard]] void* allocate(StackAllocator* stack, std::size_t memorySizeBytes)
     {
         // @NOTE :  Can't use al_assert here because it writes to the logger, which could not be initialized at this point in time
         // @TODO :  Add another assert macro, which does not write to the logger
         // al_assert(memory);
-        std::byte* result = nullptr;
+        void* result = nullptr;
         while (true)
         {
-            std::byte* currentTop = top.load(std::memory_order_relaxed);
-            std::byte* currentTopAligned = align_pointer(currentTop);
-            if ((memoryLimit - currentTopAligned) < memorySizeBytes)
+            void* currentTop = std::atomic_load_explicit(&stack->top, std::memory_order_relaxed);
+            uint8_t* currentTopAligned = align_pointer(static_cast<uint8_t*>(currentTop));
+            if ((static_cast<uint8_t*>(stack->memoryLimit) - currentTopAligned) < memorySizeBytes)
             {
                 break;
             }
-            std::byte* newTop = currentTopAligned + memorySizeBytes;
-            const bool casResult = top.compare_exchange_strong(currentTop, newTop);
+            uint8_t* newTop = currentTopAligned + memorySizeBytes;
+            const bool casResult = std::atomic_compare_exchange_strong(&stack->top, &currentTop, newTop);
             if (casResult)
             {
                 result = currentTopAligned;
@@ -46,17 +42,18 @@ namespace al::engine
         return result;
     }
 
-    void StackAllocator::deallocate(std::byte*, std::size_t) noexcept
+    void deallocate(StackAllocator* stack, void* ptr, std::size_t memorySizeBytes)
     {
         // Can't deallocate with stack allocator
     }
 
-    void StackAllocator::free_to_pointer(std::byte* ptr) noexcept
+    AllocatorBindings get_allocator_bindings(StackAllocator* stack)
     {
-        // @NOTE :  Can't use al_assert here because it writes to the logger, which could not be initialized at this point in time
-        // @TODO :  Add another assert macro, which does not write to the logger
-        // al_assert(memory);
-        if (ptr >= memory && ptr < memoryLimit) return;
-        top = ptr;
+        return
+        {
+            .allocate = [](void* allocator, std::size_t size){ return allocate(static_cast<StackAllocator*>(allocator), size); },
+            .deallocate = [](void* allocator, void* ptr, std::size_t size){ deallocate(static_cast<StackAllocator*>(allocator), ptr, size); },
+            .allocator = stack
+        };
     }
 }

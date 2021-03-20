@@ -48,7 +48,7 @@ namespace al::engine
             for_each_dynamic_array(archetype->chunks, chunkIt)
             {
                 uint8_t* chunk = *get(&archetype->chunks, chunkIt);
-                MemoryManager::get_ecs_pool()->deallocate(reinterpret_cast<std::byte*>(chunk), EngineConfig::ECS_COMPONENT_ARRAY_CHUNK_SIZE);
+                gMemoryManager->pool.deallocate(reinterpret_cast<std::byte*>(chunk), EngineConfig::ECS_COMPONENT_ARRAY_CHUNK_SIZE);
             }
             destruct(&archetype->chunks);
         }
@@ -196,7 +196,7 @@ namespace al::engine
     void ecs_allocate_chunks(EcsWorld* world, EcsArchetypeHandle handle)
     {
         EcsArchetype* archetype = get(&world->archetypes, handle);
-        push(&archetype->chunks, reinterpret_cast<uint8_t*>(MemoryManager::get_ecs_pool()->allocate(EngineConfig::ECS_COMPONENT_ARRAY_CHUNK_SIZE)));
+        push(&archetype->chunks, reinterpret_cast<uint8_t*>(gMemoryManager->pool.allocate(EngineConfig::ECS_COMPONENT_ARRAY_CHUNK_SIZE)));
         archetype->capacity += archetype->singleChunkCapacity;
     }
 

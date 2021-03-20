@@ -9,14 +9,14 @@ namespace al::engine
     {
         template<> [[nodiscard]] VertexBuffer* create_vertex_buffer<RendererType::OPEN_GL>(const VertexBufferInitData& initData) noexcept
         {
-            VertexBuffer* vb = MemoryManager::get_pool()->allocate_and_construct<Win32OpenglVertexBuffer>(initData);
+            VertexBuffer* vb = gMemoryManager->pool.allocate_and_construct<Win32OpenglVertexBuffer>(initData);
             return vb;
         }
 
         template<> void destroy_vertex_buffer<RendererType::OPEN_GL>(VertexBuffer* vb) noexcept
         {
             vb->~VertexBuffer();
-            MemoryManager::get_pool()->deallocate(reinterpret_cast<std::byte*>(vb), sizeof(Win32OpenglVertexBuffer));
+            gMemoryManager->pool.deallocate(reinterpret_cast<std::byte*>(vb), sizeof(Win32OpenglVertexBuffer));
         }
     }
 
