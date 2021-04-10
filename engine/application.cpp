@@ -1,6 +1,8 @@
 
 #include "engine/application.h"
 
+#include <chrono>
+
 namespace al
 {
     template<typename Bindings>
@@ -11,12 +13,29 @@ namespace al
         {
             application->bindings.create(application, args);
         }
+        // Test code for timing ====================================
+        using ClockT = std::chrono::steady_clock;
+        using DtDuration = std::chrono::duration<float>;
+        auto previousTime = ClockT::now();
+        // =========================================================
         while(!application_should_quit(application))
         {
+            // Test code for timing ====================================
+            auto currentTime = ClockT::now();
+            auto dt = std::chrono::duration_cast<DtDuration>(currentTime - previousTime).count();
+            previousTime = currentTime;
+            printf("%f\n", 1.0f / dt);
+            // =========================================================
+            
             application_default_update(application);
             if constexpr (HAS_CHECK(Bindings, update))
             {
                 application->bindings.update(application);
+            }
+            application_default_render(application);
+            if constexpr (HAS_CHECK(Bindings, render))
+            {
+                application->bindings.render(application);
             }
         }
         application_default_destroy(application);
@@ -68,11 +87,13 @@ namespace al
             }
         });
         platform_input_construct(&application->input);
+        renderer_construct(&application->renderer, { get_allocator_bindings(&application->pool), &application->window });
     }
 
     template<typename Bindings>
     void application_default_destroy(Application<Bindings>* application)
     {
+        renderer_destruct(&application->renderer);
         platform_input_destruct(&application->input);
         platform_window_destruct(&application->window);
         destruct(&application->pool);
@@ -84,6 +105,12 @@ namespace al
     {
         platform_window_process(&application->window);
         platform_input_update(&application->input);
+    }
+
+    template<typename Bindings>
+    void application_default_render(Application<Bindings>* application)
+    {
+        renderer_render(&application->renderer);
     }
 
     template<typename Bindings>

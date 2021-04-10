@@ -3,26 +3,22 @@
 
 #include <cstdio>
 
-template<typename Bindings>
-void user_create(al::Application<Bindings>* application, al::CommandLineArgs args)
+void user_create(UserApplication* application, al::CommandLineArgs args)
 {
     std::fprintf(stdout, "User create function\n");
 }
 
-template<typename Bindings>
-void user_destroy(al::Application<Bindings>* application)
+void user_destroy(UserApplication* application)
 {
     std::fprintf(stdout, "User destroy function\n");
 }
 
-template<typename Bindings>
-void user_update(al::Application<Bindings>* application)
+void user_update(UserApplication* application)
 {
     
 }
 
-template<typename Bindings>
-void user_handle_window_resize(al::Application<Bindings>* application)
+void user_handle_window_resize(UserApplication* application)
 {
     using namespace al;
     u32 width = platform_window_get_current_width(&application->window);
@@ -33,6 +29,6 @@ void user_handle_window_resize(al::Application<Bindings>* application)
 int main(int argc, char* argv[])
 {
     using namespace al;
-    Application<UserBindings> userApplication = { };
+    UserApplication userApplication = { };
     application_run(&userApplication, { argc, argv });
 }

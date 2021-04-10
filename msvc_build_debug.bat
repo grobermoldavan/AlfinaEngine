@@ -4,19 +4,14 @@ call cl ^
 -Z7 -Od -EHsc -MT ^
 user_application\user_application.cpp ^
 /std:c++latest /w34996 ^
-/I "." /I "engine\3d_party_libs\glew\include" ^
+/I "." /I "%VK_SDK_PATH%\Include" ^
 /DAL_LOGGING_ENABLED /DAL_PROFILING_ENABLED /DAL_DEBUG ^
-kernel32.lib user32.lib Gdi32.lib Opengl32.lib Ole32.lib ^
-engine\3d_party_libs\glew\lib\Release\x64\glew32s.lib ^
+kernel32.lib user32.lib Gdi32.lib  Ole32.lib ^
+%VK_SDK_PATH%\Lib\vulkan-1.lib ^
 /link /DEBUG:FULL
 
-REM @TODO : currently this is crashing because program tries to load assets from
-REM         assets folder directly and crashes because can't find it
+REM call %VK_SDK_PATH%\Bin\glslangValidator.exe assets\shaders\triangle.vert -V
+REM call %VK_SDK_PATH%\Bin\glslangValidator.exe assets\shaders\triangle.frag -V
 
-REM if not exist ".\msvc_build\" mkdir msvc_build
-REM move /y .\user_application.exe .\msvc_build\
-REM move /y .\user_application.ilk .\msvc_build\
-REM move /y .\user_application.obj .\msvc_build\
-REM move /y .\user_application.pdb .\msvc_build\
-
-REM pause
+call %VK_SDK_PATH%\Bin\glslc.exe assets\shaders\triangle.vert -o assets\shaders\vert.spv
+call %VK_SDK_PATH%\Bin\glslc.exe assets\shaders\triangle.frag -o assets\shaders\frag.spv

@@ -30,6 +30,16 @@ namespace al
         };
     }
 
+    void* allocate(AllocatorBindings* bindings, uSize memorySizeBytes)
+    {
+        return bindings->allocate(bindings->allocator, memorySizeBytes);
+    }
+
+    void deallocate(AllocatorBindings* bindings, void* ptr, uSize memorySizeBytes)
+    {
+        bindings->deallocate(bindings->allocator, ptr, memorySizeBytes);
+    }
+
     void construct(StackAllocator* stack, uSize memorySizeBytes, AllocatorBindings bindings)
     {
         stack->bindings = bindings;
@@ -313,5 +323,15 @@ namespace al
                 break;
             }
         }
+    }
+
+    AllocatorBindings get_allocator_bindings(PoolAllocator* pool)
+    {
+        return
+        {
+            .allocate = [](void* allocator, uSize size){ return allocate(static_cast<PoolAllocator*>(allocator), size); },
+            .deallocate = [](void* allocator, void* ptr, uSize size){ deallocate(static_cast<PoolAllocator*>(allocator), ptr, size); },
+            .allocator = pool
+        };
     }
 }

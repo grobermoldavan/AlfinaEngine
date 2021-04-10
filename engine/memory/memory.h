@@ -82,6 +82,9 @@ namespace al
     template<typename T> T* align_pointer(T* ptr);
     AllocatorBindings get_system_allocator_bindings();
 
+    void*   allocate    (AllocatorBindings* bindings, uSize memorySizeBytes);
+    void    deallocate  (AllocatorBindings* bindings, void* ptr, uSize memorySizeBytes);
+
     // ===============================================================================================
     // Stack allocator interface
     // ===============================================================================================

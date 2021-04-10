@@ -4,17 +4,19 @@
 #define AL_IMPLEMENTATION
 #include "engine/engine.h"
 
-template<typename Bindings> void user_create                (al::Application<Bindings>* application, al::CommandLineArgs args);
-template<typename Bindings> void user_destroy               (al::Application<Bindings>* application);
-template<typename Bindings> void user_update                (al::Application<Bindings>* application);
-template<typename Bindings> void user_handle_window_resize  (al::Application<Bindings>* application);
+using UserApplication = al::Application<struct UserBindings>;
+
+void user_create                (UserApplication* application, al::CommandLineArgs args);
+void user_destroy               (UserApplication* application);
+void user_update                (UserApplication* application);
+void user_handle_window_resize  (UserApplication* application);
 
 struct UserBindings
 {
-    void(*create)               (al::Application<UserBindings>*, al::CommandLineArgs)   = user_create<UserBindings>;
-    void(*destroy)              (al::Application<UserBindings>*)                        = user_destroy<UserBindings>;
-    void(*update)               (al::Application<UserBindings>*)                        = user_update<UserBindings>;
-    void(*handle_window_resize) (al::Application<UserBindings>*)                        = user_handle_window_resize<UserBindings>;
+    void(*create)               (UserApplication*, al::CommandLineArgs)   = user_create;
+    void(*destroy)              (UserApplication*)                        = user_destroy;
+    void(*update)               (UserApplication*)                        = user_update;
+    void(*handle_window_resize) (UserApplication*)                        = user_handle_window_resize;
 };
 
 #endif
