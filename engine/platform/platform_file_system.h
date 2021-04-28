@@ -15,7 +15,6 @@ namespace al
     struct PlatformFile
     {
         uSize sizeBytes;
-        uSize sizeBytesNoAlign;
         void* memory;
     };
 
@@ -28,7 +27,7 @@ namespace al
     bool platform_file_path_append(PlatformFilePath* path, const char* string);
 
     template<typename ... Args>
-    PlatformFilePath platform_file_path_construct(Args ... args);
+    PlatformFilePath platform_path(Args ... args);
 
     PlatformFile platform_file_load(AllocatorBindings bindings, const PlatformFilePath& path, PlatformFileLoadMode loadMode);
     void platform_file_unload(AllocatorBindings bindings, PlatformFile file);

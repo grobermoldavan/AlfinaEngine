@@ -6,7 +6,6 @@
 #include "engine/memory/memory.h"
 #include "engine/platform/platform.h"
 #include "engine/render/renderer.h"
-#include "engine/render/renderer_backend_vulkan.h"
 
 #define HAS_CHECK_DECLARATION(functionName)                                                     \
     template <typename T, typename = int>                                                       \
@@ -35,12 +34,12 @@ namespace al
     template<typename Bindings>
     struct Application
     {
-        StackAllocator                  stack;
-        PoolAllocator                   pool;
-        PlatformWindow                  window;
-        PlatformInput                   input;
-        Renderer<RendererBackendVulkan> renderer;
-        Bindings                        bindings;
+        StackAllocator          stack;
+        PoolAllocator           pool;
+        PlatformWindow          window;
+        PlatformInput           input;
+        Renderer<VulkanBackend> renderer;
+        Bindings                bindings;
     };
 
     struct ApplicationCreationData

@@ -5,7 +5,7 @@ call cl ^
 user_application\user_application.cpp ^
 /std:c++latest /w34996 ^
 /I "." /I "%VK_SDK_PATH%\Include" ^
-/DAL_LOGGING_ENABLED /DAL_PROFILING_ENABLED /DAL_DEBUG ^
+/DAL_DEBUG ^
 kernel32.lib user32.lib Gdi32.lib  Ole32.lib ^
 %VK_SDK_PATH%\Lib\vulkan-1.lib ^
 /link /DEBUG:FULL

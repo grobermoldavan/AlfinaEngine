@@ -125,6 +125,11 @@ namespace al
         window->resizeCallback = callback;
     }
 
+    bool platform_window_is_minimized(PlatformWindow* window)
+    {
+        return (window->width == 0) && (window->height == 0);
+    }
+
     LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     {
         PlatformWindow* window = reinterpret_cast<PlatformWindow*>(::GetWindowLongPtr(hwnd, GWLP_USERDATA));
@@ -151,9 +156,6 @@ namespace al
                     window->resizeCallback();
                 }
                 return 0;
-            // probably doesn't need to be processed
-            // case WM_DESTROY:
-            // case WM_QUIT:
             }
         }
         return ::DefWindowProc(hwnd, uMsg, wParam, lParam);

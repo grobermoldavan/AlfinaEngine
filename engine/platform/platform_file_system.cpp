@@ -52,24 +52,18 @@ namespace al
         };
         std::FILE* file = std::fopen(path.memory, LOAD_MODE_TO_STR[static_cast<u32>(loadMode)]); // al_assert(file);
         std::fseek(file, 0, SEEK_END);
-        uSize fileSize = std::ftell(file) + 1; // Additional byte for null termination
-        uSize alignment = 0;
-        if (fileSize % EngineConfig::DEFAULT_MEMORY_ALIGNMENT)
-        {
-            alignment = EngineConfig::DEFAULT_MEMORY_ALIGNMENT - (fileSize % EngineConfig::DEFAULT_MEMORY_ALIGNMENT);
-        }
+        uSize fileSize = std::ftell(file);
         std::fseek(file, 0, SEEK_SET);
-        void* memory = allocate(&bindings, fileSize + alignment);
-        std::memset(memory, 0, fileSize + alignment);
+        void* memory = allocate(&bindings, fileSize + 1);
+        std::memset(memory, 0, fileSize + 1);
         // al_assert(memory);
-        uSize readSize = std::fread(memory, sizeof(u8), fileSize - 1, file);
+        uSize readSize = std::fread(memory, sizeof(u8), fileSize, file);
         // al_assert(readSize == (fileSize - 1));
         std::fclose(file);
         return
         {
-            .sizeBytes          = fileSize + alignment,
-            .sizeBytesNoAlign   = fileSize - 1,
-            .memory             = memory
+            .sizeBytes  = fileSize,
+            .memory     = memory
         };
     }
 

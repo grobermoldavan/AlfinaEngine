@@ -1,7 +1,11 @@
 
 #include "engine/application.h"
+#include "engine/utilities/utilities.h"
 
-#include <chrono>
+#define TEST_TIMINGS 0
+#if TEST_TIMINGS
+#   include <chrono>
+#endif
 
 namespace al
 {
@@ -13,29 +17,35 @@ namespace al
         {
             application->bindings.create(application, args);
         }
+#if TEST_TIMINGS
         // Test code for timing ====================================
         using ClockT = std::chrono::steady_clock;
         using DtDuration = std::chrono::duration<float>;
         auto previousTime = ClockT::now();
         // =========================================================
+#endif
         while(!application_should_quit(application))
         {
+#if TEST_TIMINGS
             // Test code for timing ====================================
             auto currentTime = ClockT::now();
             auto dt = std::chrono::duration_cast<DtDuration>(currentTime - previousTime).count();
             previousTime = currentTime;
             printf("%f\n", 1.0f / dt);
             // =========================================================
-            
+#endif
             application_default_update(application);
             if constexpr (HAS_CHECK(Bindings, update))
             {
                 application->bindings.update(application);
             }
-            application_default_render(application);
-            if constexpr (HAS_CHECK(Bindings, render))
+            if (!platform_window_is_minimized(&application->window))
             {
-                application->bindings.render(application);
+                application_default_render(application);
+                if constexpr (HAS_CHECK(Bindings, render))
+                {
+                    application->bindings.render(application);
+                }
             }
         }
         application_default_destroy(application);
@@ -81,13 +91,57 @@ namespace al
         construct(&application->pool, bucketDescriptions, get_system_allocator_bindings());
         platform_window_construct(&application->window, creationData.windowInitData);
         platform_window_set_resize_callback(&application->window, [application](){
+            renderer_handle_resize(&application->renderer);
             if constexpr (HAS_CHECK(Bindings, handle_window_resize))
             {
                 application->bindings.handle_window_resize(application);
             }
         });
         platform_input_construct(&application->input);
-        renderer_construct(&application->renderer, { get_allocator_bindings(&application->pool), &application->window });
+        {
+            AllocatorBindings allocatorBindings = get_allocator_bindings(&application->pool);
+            PlatformFile vertexShader = platform_file_load(allocatorBindings, platform_path("assets", "shaders", "vert.spv"), PlatformFileLoadMode::READ);
+            PlatformFile fragmentShader = platform_file_load(allocatorBindings, platform_path("assets", "shaders", "frag.spv"), PlatformFileLoadMode::READ);
+            defer(platform_file_unload(allocatorBindings, vertexShader));
+            defer(platform_file_unload(allocatorBindings, fragmentShader));
+            AttachmentDescription attachments[] =
+            {
+                SCREEN_FRAMEBUFFER_DESC,
+            };
+            AttachmentDependency outAttachments[] =
+            {
+                {
+                    .attachmentIndex = 0,
+                    .flags = 0
+                }
+            };
+            RenderStageDescription renderStages[] =
+            {
+                {   // This pass takes no input framebuffer and outputs to swap chain framebuffer and it renders all passed geometry
+                    .vertexShader           = vertexShader,
+                    .fragmentShader         = fragmentShader,
+                    .inAttachmentsSize      = 0,
+                    .inAttachments          = nullptr,
+                    .outAttachmentsSize     = array_size(outAttachments),
+                    .outAttachments         = outAttachments,
+                    .flags                  = RenderStageDescription::FLAG_PASS_GEOMETRY
+                },
+            };
+            RenderProcessDescription process
+            {
+                .attachmentsSize    = array_size(attachments),
+                .attachments        = attachments,
+                .renderStagesSize   = array_size(renderStages),
+                .renderStages       = renderStages,
+            };
+            RendererInitData rendererInitData
+            {
+                .bindings           = get_allocator_bindings(&application->pool),
+                .window             = &application->window,
+                .renderProcessDesc  = &process,
+            };
+            renderer_construct(&application->renderer, &rendererInitData);
+        }
     }
 
     template<typename Bindings>

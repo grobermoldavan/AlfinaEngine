@@ -24,6 +24,7 @@ namespace al
     u32     platform_window_get_current_width       (PlatformWindow* window);
     u32     platform_window_get_current_height      (PlatformWindow* window);
     void    platform_window_set_resize_callback     (PlatformWindow* window, const Function<void()>& callback);
+    bool    platform_window_is_minimized            (PlatformWindow* window);
 }
 
 #endif
