@@ -38,7 +38,7 @@ namespace al
         PoolAllocator           pool;
         PlatformWindow          window;
         PlatformInput           input;
-        Renderer<VulkanBackend> renderer;
+        Renderer<vulkan::RendererBackend> renderer;
         Bindings                bindings;
     };
 

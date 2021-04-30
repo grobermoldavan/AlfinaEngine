@@ -10,9 +10,9 @@
 #include "engine/math/math.h"
 #include "engine/utilities/utilities.h"
 
-namespace al
+namespace al::vulkan
 {
-    struct VulkanBackend;
+    struct RendererBackend;
 
     RenderVertex triangle[] = // actually two triangles
     {
@@ -34,6 +34,13 @@ namespace al
 
     SwapChainSupportDetails get_swap_chain_support_details(VkSurfaceKHR surface, VkPhysicalDevice device, AllocatorBindings bindings);
 
+    struct GpuMemory
+    {
+        VkDeviceMemory memory;
+        VkDeviceSize offsetBytes;
+        VkDeviceSize sizeBytes;
+    };
+
     struct VulkanMemoryManager
     {
         static constexpr uSize MAX_CPU_ALLOCATIONS = 4096;
@@ -42,15 +49,50 @@ namespace al
             void* ptr;
             uSize size;
         };
-        AllocatorBindings       cpuAllocationBindings;
-        uSize                   currentNumberOfCpuAllocations;
-        CpuAllocation           allocations[MAX_CPU_ALLOCATIONS];
-        VkAllocationCallbacks   allocationCallbacks;
+        VkAllocationCallbacks   cpu_allocationCallbacks;
+        AllocatorBindings       cpu_allocationBindings;
+        uSize                   cpu_currentNumberOfAllocations;
+        CpuAllocation           cpu_allocations[MAX_CPU_ALLOCATIONS];
+
+        static constexpr uSize GPU_MEMORY_BLOCK_SIZE_BYTES  = 64;
+        static constexpr uSize GPU_CHUNK_SIZE_BYTES         = 16 * 1024 * 1024;
+        static constexpr uSize GPU_LEDGER_SIZE_BYTES        = GPU_CHUNK_SIZE_BYTES / GPU_MEMORY_BLOCK_SIZE_BYTES / 8;
+        static constexpr uSize GPU_MAX_CHUNKS               = 64;
+        struct GpuMemoryChunk
+        {
+            VkDeviceMemory memory;
+            u32 memoryTypeIndex;
+            u32 usedMemoryBytes;
+            u8* ledger;
+        };
+        struct GpuAllocationRequest
+        {
+            uSize sizeBytes;
+            u32 memoryTypeIndex;
+        };
+        ArrayView<GpuMemoryChunk>   gpu_chunks;
+        ArrayView<u8>               gpu_ledgers;
     };
 
     void construct(VulkanMemoryManager* memoryManager, AllocatorBindings bindings);
-    void destruct(VulkanMemoryManager* memoryManager);
-    AllocatorBindings get_bindings(VulkanMemoryManager* manager);
+    void destruct(VulkanMemoryManager* memoryManager, VkDevice device);
+
+    GpuMemory gpu_allocate(VulkanMemoryManager* memoryManager, VkDevice device, VulkanMemoryManager::GpuAllocationRequest request);
+    void gpu_deallocate(VulkanMemoryManager* memoryManager, VkDevice device, GpuMemory allocation);
+
+    struct MemoryBuffer
+    {
+        GpuMemory gpuMemory;
+        VkBuffer handle;
+    };
+
+    MemoryBuffer create_buffer(RendererBackend* backend, VkBufferCreateInfo* createInfo);
+    MemoryBuffer create_vertex_buffer(RendererBackend* backend, uSize sizeSytes);
+    MemoryBuffer create_staging_buffer(RendererBackend* backend, uSize sizeSytes);
+    void destroy_buffer(RendererBackend* backend, MemoryBuffer* buffer);
+
+    void copy_cpu_memory_to_buffer(RendererBackend* backend, MemoryBuffer* buffer, void* data, uSize dataSizeBytes);
+    void copy_buffer_to_buffer(RendererBackend* backend, MemoryBuffer* src, MemoryBuffer* dst, uSize sizeBytes);
 
     struct GPU
     {
@@ -206,7 +248,7 @@ namespace al
         ArrayView<VkFence>        imageInFlightFencesRef;   // Array size is equal to the number of swap chain images
     };
 
-    struct VulkanBackend
+    struct RendererBackend
     {
         static constexpr PlatformFilePath VERTEX_SHADER_PATH    = { .memory = "assets" AL_PATH_SEPARATOR "shaders" AL_PATH_SEPARATOR "vert.spv" };
         static constexpr PlatformFilePath FRAGMENT_SHADER_PATH  = { .memory = "assets" AL_PATH_SEPARATOR "shaders" AL_PATH_SEPARATOR "frag.spv" };
@@ -226,8 +268,8 @@ namespace al
         VkPipeline                  pipeline;
         SyncPrimitives              syncPrimitives;
 
-        VkDeviceMemory              vertexBufferMemory;
-        VkBuffer                    vertexBuffer;
+        MemoryBuffer                _vertexBuffer;
+        MemoryBuffer                _stagingBuffer;
 
         // ArrayView<RenderStage>      renderStages;
 
@@ -235,219 +277,42 @@ namespace al
         PlatformWindow*             window;
     };
 
-    template<> void renderer_backend_construct      <VulkanBackend> (VulkanBackend* backend, RendererBackendInitData* initData);
-    template<> void renderer_backend_render         <VulkanBackend> (VulkanBackend* backend);
-    template<> void renderer_backend_destruct       <VulkanBackend> (VulkanBackend* backend);
-    template<> void renderer_backend_handle_resize  <VulkanBackend> (VulkanBackend* backend);
-
     VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT, const VkDebugUtilsMessengerCallbackDataEXT*, void*);
 
-    Tuple<CommandQueues, VkPhysicalDevice>  pick_physical_device(VulkanBackend* backend);
+    Tuple<CommandQueues, VkPhysicalDevice>  pick_physical_device(RendererBackend* backend);
 
-    void create_instance                    (VulkanBackend* backend, RendererBackendInitData* initData);
-    void create_surface                     (VulkanBackend* backend);
-    void pick_gpu_and_init_command_queues   (VulkanBackend* backend);
-    void create_swap_chain                  (VulkanBackend* backend);
-    void create_depth_stencil               (VulkanBackend* backend);
-    void create_framebuffers                (VulkanBackend* backend);
-    void create_render_passes               (VulkanBackend* backend);
-    void create_render_pipelines            (VulkanBackend* backend);
-    void create_command_pools               (VulkanBackend* backend);
-    void create_command_buffers             (VulkanBackend* backend);
-    void create_sync_primitives             (VulkanBackend* backend);
-    void create_vertex_buffer               (VulkanBackend* backend);
+    void create_instance                    (RendererBackend* backend, RendererBackendInitData* initData);
+    void create_surface                     (RendererBackend* backend);
+    void pick_gpu_and_init_command_queues   (RendererBackend* backend);
+    void create_swap_chain                  (RendererBackend* backend);
+    void create_depth_stencil               (RendererBackend* backend);
+    void create_framebuffers                (RendererBackend* backend);
+    void create_render_passes               (RendererBackend* backend);
+    void create_render_pipelines            (RendererBackend* backend);
+    void create_command_pools               (RendererBackend* backend);
+    void create_command_buffers             (RendererBackend* backend);
+    void create_sync_primitives             (RendererBackend* backend);
 
-    void destroy_memory_manager             (VulkanBackend* backend);
-    void destroy_instance                   (VulkanBackend* backend);
-    void destroy_surface                    (VulkanBackend* backend);
-    void destroy_gpu                        (VulkanBackend* backend);
-    void destroy_swap_chain                 (VulkanBackend* backend);
-    void destroy_depth_stencil              (VulkanBackend* backend);
-    void destroy_framebuffers               (VulkanBackend* backend);
-    void destroy_render_passes              (VulkanBackend* backend);
-    void destroy_render_pipelines           (VulkanBackend* backend);
-    void destroy_command_pools              (VulkanBackend* backend);
-    void destroy_command_buffers            (VulkanBackend* backend);
-    void destroy_sync_primitives            (VulkanBackend* backend);
-    void destroy_vertex_buffer              (VulkanBackend* backend);
+    void destroy_memory_manager             (RendererBackend* backend);
+    void destroy_instance                   (RendererBackend* backend);
+    void destroy_surface                    (RendererBackend* backend);
+    void destroy_gpu                        (RendererBackend* backend);
+    void destroy_swap_chain                 (RendererBackend* backend);
+    void destroy_depth_stencil              (RendererBackend* backend);
+    void destroy_framebuffers               (RendererBackend* backend);
+    void destroy_render_passes              (RendererBackend* backend);
+    void destroy_render_pipelines           (RendererBackend* backend);
+    void destroy_command_pools              (RendererBackend* backend);
+    void destroy_command_buffers            (RendererBackend* backend);
+    void destroy_sync_primitives            (RendererBackend* backend);
+}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#if 0
-    struct RendererBackendVulkan
-    {
-        static constexpr const char* ALLOCATION_SCOPE_TO_STR[] = 
-        {
-            "VK_SYSTEM_ALLOCATION_SCOPE_COMMAND",
-            "VK_SYSTEM_ALLOCATION_SCOPE_OBJECT",
-            "VK_SYSTEM_ALLOCATION_SCOPE_CACHE",
-            "VK_SYSTEM_ALLOCATION_SCOPE_DEVICE",
-            "VK_SYSTEM_ALLOCATION_SCOPE_INSTANCE",
-        };
-        static constexpr const char* REQUIRED_VALIDATION_LAYERS[] = 
-        {
-            "VK_LAYER_KHRONOS_validation"
-        };
-        static constexpr const char* REQUIRED_EXTENSIONS[] = 
-        {   // @TODO :  make backend platform-agnostic and remove all platform-specific things to platform folder
-            "VK_KHR_surface",                   // To connect vulkan backend to window
-            "VK_KHR_win32_surface",             // Platform specific extension for interacting with window system
-            VK_EXT_DEBUG_UTILS_EXTENSION_NAME,  // To setup debug callback function
-        };
-        static constexpr const char* REQUIRED_DEVICE_EXTENSIONS[] = 
-        {
-            VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-        };
-        static constexpr uSize REQUIRED_VALIDATION_LAYERS_COUNT = sizeof(REQUIRED_VALIDATION_LAYERS) / sizeof(REQUIRED_VALIDATION_LAYERS[0]);
-        static constexpr uSize REQUIRED_EXTENSIONS_COUNT        = sizeof(REQUIRED_EXTENSIONS)        / sizeof(REQUIRED_EXTENSIONS[0]);
-        static constexpr uSize REQUIRED_DEVICE_EXTENSIONS_COUNT = sizeof(REQUIRED_DEVICE_EXTENSIONS) / sizeof(REQUIRED_DEVICE_EXTENSIONS[0]);
-
-        static constexpr PlatformFilePath VERTEX_SHADER_PATH    = { .memory = "assets" AL_PATH_SEPARATOR "shaders" AL_PATH_SEPARATOR "vert.spv" };
-        static constexpr PlatformFilePath FRAGMENT_SHADER_PATH  = { .memory = "assets" AL_PATH_SEPARATOR "shaders" AL_PATH_SEPARATOR "frag.spv" };
-
-        // @TODO :  unhardcode this value maybe ?
-        static constexpr uSize MAX_IMAGES_IN_FLIGHT = 2;
-
-        uSize currentFrameNumber;
-
-        VkAllocationCallbacks           vkAllocationCallbacks;
-        VkInstance                      vkInstance;
-        VkDebugUtilsMessengerEXT        vkDebugMessenger;
-        VkPhysicalDevice                vkPhysicalDevice;
-        VkDevice                        vkLogicalDevice;
-        VkQueue                         vkGraphicsQueue;
-        VkQueue                         vkPresentQueue;
-        VkSurfaceKHR                    vkSurface;
-
-        VkSwapchainKHR                  vkSwapChain;
-        ArrayView<VkImage>        vkSwapChainImages;
-        ArrayView<VkImageView>    vkSwapChainImageViews;
-        VkFormat                        vkSwapChainImageFormat;
-        VkExtent2D                      vkSwapChainExtent;
-
-        VkRenderPass                    vkRenderPass;
-        VkDescriptorSetLayout           vkDescriptorSetLayout;
-        VkPipelineLayout                vkPipelineLayout;
-        VkPipeline                      vkGraphicsPipeline;
-        ArrayView<VkFramebuffer>  vkFramebuffers;
-
-        VkCommandPool                       vkCommandPool;
-        ArrayView<VkCommandBuffer>    vkCommandBuffers;
-
-        // @NOTE :  next 3 arrays size is equal to MAX_IMAGES_IN_FLIGHT
-        ArrayView<VkSemaphore>    vkImageAvailableSemaphores;
-        ArrayView<VkSemaphore>    vkRenderFinishedSemaphores;
-        ArrayView<VkFence>        vkInFlightFences;
-
-        // @NOTE :  size is equal to the numbers of swap chain images.
-        //          Can contain VK_NULL_HANDLE. If it happends, that means that we don't need to wait for the image fence
-        ArrayView<VkFence>        vkImageInFlightFences;
-
-        AllocatorBindings               bindings;
-        PlatformWindow*                 window;
-    };
-
-    struct VulkanQueueFamiliesInfo
-    {
-        struct FamilyInfo
-        {
-            u32 index;
-            bool isPresent;
-        };
-        static constexpr uSize FAMILIES_NUM             = 2;
-        static constexpr uSize GRAPHICS_FAMILY          = 0;    // queue family that supports drawing commands
-        static constexpr uSize SURFACE_PRESENT_FAMILY   = 1;    // queue family capable of presenting images to surface
-        FamilyInfo familyInfos[FAMILIES_NUM];
-    };
-
-    struct RendererBackendVulkanSwapChainSupportDetails
-    {
-        VkSurfaceCapabilitiesKHR            capabilities;
-        ArrayView<VkSurfaceFormatKHR> formats;
-        ArrayView<VkPresentModeKHR>   presentModes;
-    };
-
-    VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT, const VkDebugUtilsMessengerCallbackDataEXT*, void*);
-
-    template<typename T> uSize                      vulkan_array_view_memory_size                           (ArrayView<T> view);
-    template<typename T> void                       construct                                               (ArrayView<T>* view, AllocatorBindings* bindings, uSize size);
-    template<typename T> void                       destruct                                                (ArrayView<T> view);
-
-    void                                            vulkan_set_allocation_callbacks                         (RendererBackendVulkan* backend);
-
-    VkDebugUtilsMessengerCreateInfoEXT              vulkan_get_debug_messenger_create_info                  ();
-    void                                            vulkan_setup_debug_messenger                            (RendererBackendVulkan* backend);
-    void                                            vulkan_destroy_debug_messenger                          (RendererBackendVulkan* backend);
-
-    ArrayView<VkLayerProperties>              vulkan_get_available_validation_layers                  (AllocatorBindings* bindings);
-    ArrayView<VkExtensionProperties>          vulkan_get_available_extensions                         (AllocatorBindings* bindings);
-    void                                            vulkan_create_vk_instance                               (RendererBackendVulkan* backend, RendererBackendInitData* initData);
-
-    void                                            vulkan_create_surface                                   (RendererBackendVulkan* backend);
-
-    ArrayView<VkQueueFamilyProperties>        vulkan_get_queue_family_properties                      (RendererBackendVulkan* backend, VkPhysicalDevice device);
-    bool                                            vulkan_is_queue_families_info_complete                  (VulkanQueueFamiliesInfo* info);
-    VulkanQueueFamiliesInfo                         vulkan_get_queue_families_info                          (RendererBackendVulkan* backend, VkPhysicalDevice device);
-    ArrayView<VkDeviceQueueCreateInfo>        vulkan_get_queue_create_infos                           (RendererBackendVulkan* backend, VulkanQueueFamiliesInfo* queueFamiliesInfo);
-
-    bool                                            vulkan_does_physical_device_supports_required_extensions(RendererBackendVulkan* backend, VkPhysicalDevice device);
-    bool                                            vulkan_is_physical_device_suitable                      (RendererBackendVulkan* backend, VkPhysicalDevice device);
-    ArrayView<VkPhysicalDevice>               vulkan_get_available_physical_devices                   (RendererBackendVulkan* backend);
-    void                                            vulkan_choose_physical_device                           (RendererBackendVulkan* backend);
-
-    void                                            vulkan_create_logical_device                            (RendererBackendVulkan* backend);
-
-    RendererBackendVulkanSwapChainSupportDetails    vulkan_get_swap_chain_support_details                   (RendererBackendVulkan* backend, VkPhysicalDevice device);
-    VkSurfaceFormatKHR                              vulkan_choose_surface_format                            (ArrayView<VkSurfaceFormatKHR> availableFormats);
-    VkPresentModeKHR                                vulkan_choose_presentation_mode                         (ArrayView<VkPresentModeKHR> availableModes);
-    VkExtent2D                                      vulkan_choose_swap_extent                               (RendererBackendVulkan* backend, VkSurfaceCapabilitiesKHR* surfaceCapabilities);
-    void                                            vulkan_create_swap_chain                                (RendererBackendVulkan* backend);
-    void                                            vulkan_destroy_swap_chain                               (RendererBackendVulkan* backend);
-    void                                            vulkan_create_swap_chain_image_views                    (RendererBackendVulkan* backend);
-    void                                            vulkan_destroy_swap_chain_image_views                   (RendererBackendVulkan* backend);
-
-    VkShaderModule                                  vulkan_create_shader_module                             (RendererBackendVulkan* backend, PlatformFile spirvBytecode);
-    void                                            vulkan_create_render_pass                               (RendererBackendVulkan* backend);
-    void                                            vulkan_create_discriptor_set_layout                     (RendererBackendVulkan* backend);
-    void                                            vulkan_create_render_pipeline                           (RendererBackendVulkan* backend);
-
-    void                                            vulkan_create_framebuffers                              (RendererBackendVulkan* backend);
-    void                                            vulkan_destroy_framebuffers                             (RendererBackendVulkan* backend);
-
-    void                                            vulkan_create_command_pool                              (RendererBackendVulkan* backend);
-    void                                            vulkan_destroy_command_pool                             (RendererBackendVulkan* backend);
-    void                                            vulkan_create_command_buffers                           (RendererBackendVulkan* backend);
-    void                                            vulkan_destroy_command_buffers                          (RendererBackendVulkan* backend);
-    
-    void                                            vulkan_create_semaphores                                (RendererBackendVulkan* backend);
-    void                                            vulkan_destroy_semaphores                               (RendererBackendVulkan* backend);
-    void                                            vulkan_create_fences                                    (RendererBackendVulkan* backend);
-    void                                            vulkan_destroy_fences                                   (RendererBackendVulkan* backend);
-
-
-    void                                            vulkan_cleanup_swap_chain                               (RendererBackendVulkan* backend);
-    void                                            vulkan_recreate_swap_chain                              (RendererBackendVulkan* backend);
-
-    template<> void renderer_backend_construct      <RendererBackendVulkan> (RendererBackendVulkan* backend, RendererBackendInitData* initData);
-    template<> void renderer_backend_render         <RendererBackendVulkan> (RendererBackendVulkan* backend);
-    template<> void renderer_backend_destruct       <RendererBackendVulkan> (RendererBackendVulkan* backend);
-    template<> void renderer_backend_handle_resize  <RendererBackendVulkan> (RendererBackendVulkan* backend);
-#endif
+namespace al
+{
+    template<> void renderer_backend_construct      <struct vulkan::RendererBackend> (vulkan::RendererBackend* backend, RendererBackendInitData* initData);
+    template<> void renderer_backend_render         <struct vulkan::RendererBackend> (vulkan::RendererBackend* backend);
+    template<> void renderer_backend_destruct       <struct vulkan::RendererBackend> (vulkan::RendererBackend* backend);
+    template<> void renderer_backend_handle_resize  <struct vulkan::RendererBackend> (vulkan::RendererBackend* backend);
 }
 
 #endif

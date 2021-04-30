@@ -20,8 +20,9 @@
 namespace al
 {
     template<>
-    void renderer_backend_construct<VulkanBackend>(VulkanBackend* backend, RendererBackendInitData* initData)
+    void renderer_backend_construct<vulkan::RendererBackend>(vulkan::RendererBackend* backend, RendererBackendInitData* initData)
     {
+        using namespace vulkan;
         backend->window = initData->window;
         construct                       (&backend->memoryManager, initData->bindings);
         create_instance                 (backend, initData);
@@ -35,12 +36,18 @@ namespace al
         create_command_pools            (backend);
         create_command_buffers          (backend);
         create_sync_primitives          (backend);
-        create_vertex_buffer            (backend);
+
+        // Filling triangle buffer
+        backend->_vertexBuffer = create_vertex_buffer(backend, sizeof(triangle));
+        backend->_stagingBuffer = create_staging_buffer(backend, sizeof(triangle));
+        copy_cpu_memory_to_buffer(backend, &backend->_stagingBuffer, triangle, sizeof(triangle));
+        copy_buffer_to_buffer(backend, &backend->_stagingBuffer, &backend->_vertexBuffer, sizeof(triangle));
     }
 
     template<>
-    void renderer_backend_render<VulkanBackend>(VulkanBackend* backend)
+    void renderer_backend_render<vulkan::RendererBackend>(vulkan::RendererBackend* backend)
     {
+        using namespace vulkan;
         backend->currentRenderFrame = vk::advance_render_frame(backend->currentRenderFrame);
         // @NOTE :  wait for current render frame processing to be finished
         vkWaitForFences(backend->gpu.logicalHandle, 1, &backend->syncPrimitives.inFlightFences[backend->currentRenderFrame], VK_TRUE, UINT64_MAX);
@@ -100,7 +107,7 @@ namespace al
                 };
                 vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
                 vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, backend->pipeline);
-                VkBuffer vertexBuffers[] = { backend->vertexBuffer };
+                VkBuffer vertexBuffers[] = { backend->_vertexBuffer.handle };
                 VkDeviceSize offsets[] = { 0 };
                 vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
                 vkCmdDraw(commandBuffer, static_cast<uint32_t>(array_size(triangle)), 1, 0, 0);
@@ -161,10 +168,14 @@ namespace al
     }
 
     template<>
-    void renderer_backend_destruct<VulkanBackend>(VulkanBackend* backend)
+    void renderer_backend_destruct<vulkan::RendererBackend>(vulkan::RendererBackend* backend)
     {
+        using namespace vulkan;
         vkDeviceWaitIdle(backend->gpu.logicalHandle);
-        destroy_vertex_buffer       (backend);
+
+        destroy_buffer(backend, &backend->_vertexBuffer);
+        destroy_buffer(backend, &backend->_stagingBuffer);
+
         destroy_sync_primitives     (backend);
         destroy_command_buffers     (backend);
         destroy_command_pools       (backend);
@@ -173,15 +184,16 @@ namespace al
         destroy_render_passes       (backend);
         destroy_depth_stencil       (backend);
         destroy_swap_chain          (backend);
+        destruct                    (&backend->memoryManager, backend->gpu.logicalHandle);
         destroy_gpu                 (backend);
         destroy_surface             (backend);
         destroy_instance            (backend);
-        destruct                    (&backend->memoryManager);
     }
 
     template<>
-    void renderer_backend_handle_resize<VulkanBackend>(VulkanBackend* backend)
+    void renderer_backend_handle_resize<vulkan::RendererBackend>(vulkan::RendererBackend* backend)
     {
+        using namespace vulkan;
         if (platform_window_is_minimized(backend->window))
         {
             return;
@@ -202,16 +214,19 @@ namespace al
             create_framebuffers     (backend);
         }
     }
+}
 
+namespace al::vulkan
+{
     // =================================================================================================================
     // CREATION
     // =================================================================================================================
 
-    void create_instance(VulkanBackend* backend, RendererBackendInitData* initData)
+    void create_instance(RendererBackend* backend, RendererBackendInitData* initData)
     {
 #ifdef AL_DEBUG
         {
-            ArrayView<VkLayerProperties> availableValidationLayers = vk::get_available_validation_layers(&backend->memoryManager.cpuAllocationBindings);
+            ArrayView<VkLayerProperties> availableValidationLayers = vk::get_available_validation_layers(&backend->memoryManager.cpu_allocationBindings);
             defer(av_destruct(availableValidationLayers));
             for (uSize requiredIt = 0; requiredIt < array_size(vk::VALIDATION_LAYERS); requiredIt++)
             {
@@ -235,7 +250,7 @@ namespace al
         }
 #endif
         {
-            ArrayView<VkExtensionProperties> availableInstanceExtensions = vk::get_available_instance_extensions(&backend->memoryManager.cpuAllocationBindings);
+            ArrayView<VkExtensionProperties> availableInstanceExtensions = vk::get_available_instance_extensions(&backend->memoryManager.cpu_allocationBindings);
             defer(av_destruct(availableInstanceExtensions));
             for (uSize requiredIt = 0; requiredIt < array_size(vk::INSTANCE_EXTENSIONS); requiredIt++)
             {
@@ -283,13 +298,13 @@ namespace al
         instanceCreateInfo.enabledLayerCount    = array_size(vk::VALIDATION_LAYERS);
         instanceCreateInfo.ppEnabledLayerNames  = vk::VALIDATION_LAYERS;
 #endif
-        al_vk_check(vkCreateInstance(&instanceCreateInfo, &backend->memoryManager.allocationCallbacks, &backend->instance));
+        al_vk_check(vkCreateInstance(&instanceCreateInfo, &backend->memoryManager.cpu_allocationCallbacks, &backend->instance));
 #ifdef AL_DEBUG
-        backend->debugMessenger = vk::create_debug_messenger(&debugCreateInfo, backend->instance, &backend->memoryManager.allocationCallbacks);
+        backend->debugMessenger = vk::create_debug_messenger(&debugCreateInfo, backend->instance, &backend->memoryManager.cpu_allocationCallbacks);
 #endif
     }
 
-    void create_surface(VulkanBackend* backend)
+    void create_surface(RendererBackend* backend)
     {
 #ifdef _WIN32
         {
@@ -301,16 +316,16 @@ namespace al
                 .hinstance  = ::GetModuleHandle(nullptr),
                 .hwnd       = backend->window->handle
             };
-            al_vk_check(vkCreateWin32SurfaceKHR(backend->instance, &surfaceCreateInfo, &backend->memoryManager.allocationCallbacks, &backend->surface));
+            al_vk_check(vkCreateWin32SurfaceKHR(backend->instance, &surfaceCreateInfo, &backend->memoryManager.cpu_allocationCallbacks, &backend->surface));
         }
 #else
 #   error Unsupported platform
 #endif
     }
 
-    void pick_gpu_and_init_command_queues(VulkanBackend* backend)
+    void pick_gpu_and_init_command_queues(RendererBackend* backend)
     {
-        auto getQueueCreateInfos = [](VulkanBackend* backend, CommandQueues* queues) -> ArrayView<VkDeviceQueueCreateInfo>
+        auto getQueueCreateInfos = [](RendererBackend* backend, CommandQueues* queues) -> ArrayView<VkDeviceQueueCreateInfo>
         {
             // @NOTE :  this is possible that queue family might support more than one of the required features,
             //          so we have to remove duplicates from queueFamiliesInfo and create VkDeviceQueueCreateInfos
@@ -344,7 +359,7 @@ namespace al
                 updateUniqueIndicesArray(&uniqueQueueIndices, queues->queues[it].deviceFamilyIndex);
             }
             ArrayView<VkDeviceQueueCreateInfo> result;
-            av_construct(&result, &backend->memoryManager.cpuAllocationBindings, uniqueQueueIndices.count);
+            av_construct(&result, &backend->memoryManager.cpu_allocationBindings, uniqueQueueIndices.count);
             for (uSize it = 0; it < result.count; it++)
             {
                 result[it] = 
@@ -380,7 +395,7 @@ namespace al
                 .ppEnabledExtensionNames    = vk::DEVICE_EXTENSIONS,
                 .pEnabledFeatures           = &deviceFeatures
             };
-            al_vk_check(vkCreateDevice(physicalDevice, &logicalDeviceCreateInfo, &backend->memoryManager.allocationCallbacks, &logicalDevice));
+            al_vk_check(vkCreateDevice(physicalDevice, &logicalDeviceCreateInfo, &backend->memoryManager.cpu_allocationCallbacks, &logicalDevice));
             for (uSize it = 0; it < CommandQueues::QUEUES_NUM; it++)
             {
                 vkGetDeviceQueue(logicalDevice, commandQueues.queues[it].deviceFamilyIndex, 0, &commandQueues.queues[it].handle);
@@ -393,7 +408,7 @@ namespace al
         std::memcpy(&backend->queues, &commandQueues, sizeof(CommandQueues));
     }
 
-    void create_swap_chain(VulkanBackend* backend)
+    void create_swap_chain(RendererBackend* backend)
     {
         auto chooseSurfaceFormat = [](ArrayView<VkSurfaceFormatKHR> formats) -> VkSurfaceFormatKHR
         {
@@ -418,7 +433,7 @@ namespace al
             }
             return VK_PRESENT_MODE_FIFO_KHR; // Guarateed to be available
         };
-        auto chooseSwapExtent = [](VulkanBackend* backend, VkSurfaceCapabilitiesKHR* capabilities) -> VkExtent2D
+        auto chooseSwapExtent = [](RendererBackend* backend, VkSurfaceCapabilitiesKHR* capabilities) -> VkExtent2D
         {
             if (capabilities->currentExtent.width != UINT32_MAX)
             {
@@ -435,7 +450,7 @@ namespace al
             }
         };
         {
-            SwapChainSupportDetails supportDetails = get_swap_chain_support_details(backend->surface, backend->gpu.physicalHandle, backend->memoryManager.cpuAllocationBindings);
+            SwapChainSupportDetails supportDetails = get_swap_chain_support_details(backend->surface, backend->gpu.physicalHandle, backend->memoryManager.cpu_allocationBindings);
             defer(av_destruct(supportDetails.formats));
             defer(av_destruct(supportDetails.presentModes));
             VkSurfaceFormatKHR  surfaceFormat   = chooseSurfaceFormat   (supportDetails.formats);
@@ -503,15 +518,15 @@ namespace al
                 .oldSwapchain           = VK_NULL_HANDLE,
             };
             u32 swapChainImageCount;
-            al_vk_check(vkCreateSwapchainKHR(backend->gpu.logicalHandle, &createInfo, &backend->memoryManager.allocationCallbacks, &backend->swapChain.handle));
+            al_vk_check(vkCreateSwapchainKHR(backend->gpu.logicalHandle, &createInfo, &backend->memoryManager.cpu_allocationCallbacks, &backend->swapChain.handle));
             al_vk_check(vkGetSwapchainImagesKHR(backend->gpu.logicalHandle, backend->swapChain.handle, &swapChainImageCount, nullptr));
-            av_construct(&backend->swapChain.images, &backend->memoryManager.cpuAllocationBindings, swapChainImageCount);
+            av_construct(&backend->swapChain.images, &backend->memoryManager.cpu_allocationBindings, swapChainImageCount);
             al_vk_check(vkGetSwapchainImagesKHR(backend->gpu.logicalHandle, backend->swapChain.handle, &swapChainImageCount, backend->swapChain.images.memory));
             backend->swapChain.format = surfaceFormat.format;
             backend->swapChain.extent = extent;
         }
         {
-            av_construct(&backend->swapChain.imageViews, &backend->memoryManager.cpuAllocationBindings, backend->swapChain.images.count);
+            av_construct(&backend->swapChain.imageViews, &backend->memoryManager.cpu_allocationBindings, backend->swapChain.images.count);
             for (uSize it = 0; it < backend->swapChain.imageViews.count; it++)
             {
                 VkImageViewCreateInfo createInfo
@@ -538,12 +553,12 @@ namespace al
                         .layerCount     = 1
                     }
                 };
-                al_vk_check(vkCreateImageView(backend->gpu.logicalHandle, &createInfo, &backend->memoryManager.allocationCallbacks, &backend->swapChain.imageViews[it]));
+                al_vk_check(vkCreateImageView(backend->gpu.logicalHandle, &createInfo, &backend->memoryManager.cpu_allocationCallbacks, &backend->swapChain.imageViews[it]));
             }
         }
     }
 
-    void create_depth_stencil(VulkanBackend* backend)
+    void create_depth_stencil(RendererBackend* backend)
     {
         VkImageCreateInfo imageCreateInfo = { };
         imageCreateInfo.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -556,7 +571,7 @@ namespace al
         imageCreateInfo.tiling        = VK_IMAGE_TILING_OPTIMAL;
         imageCreateInfo.usage         = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
         imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        al_vk_check(vkCreateImage(backend->gpu.logicalHandle, &imageCreateInfo, &backend->memoryManager.allocationCallbacks, &backend->depthStencil.image));
+        al_vk_check(vkCreateImage(backend->gpu.logicalHandle, &imageCreateInfo, &backend->memoryManager.cpu_allocationCallbacks, &backend->depthStencil.image));
 
         VkMemoryRequirements memoryRequirements;
         vkGetImageMemoryRequirements(backend->gpu.logicalHandle, backend->depthStencil.image, &memoryRequirements);
@@ -566,7 +581,7 @@ namespace al
         memoryAllocateInfo.allocationSize = memoryRequirements.size;
         bool result = vk::get_memory_type_index(&backend->gpu.memoryProperties, memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &memoryAllocateInfo.memoryTypeIndex);
         al_vk_assert(result);
-        al_vk_check(vkAllocateMemory(backend->gpu.logicalHandle, &memoryAllocateInfo, &backend->memoryManager.allocationCallbacks, &backend->depthStencil.memory));
+        al_vk_check(vkAllocateMemory(backend->gpu.logicalHandle, &memoryAllocateInfo, &backend->memoryManager.cpu_allocationCallbacks, &backend->depthStencil.memory));
         al_vk_check(vkBindImageMemory(backend->gpu.logicalHandle, backend->depthStencil.image, backend->depthStencil.memory, 0));
 
         VkImageViewCreateInfo imageViewCreateInfo = { };
@@ -580,12 +595,12 @@ namespace al
         imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
         imageViewCreateInfo.subresourceRange.layerCount     = 1;
         imageViewCreateInfo.image                           = backend->depthStencil.image;
-        al_vk_check(vkCreateImageView(backend->gpu.logicalHandle, &imageViewCreateInfo, &backend->memoryManager.allocationCallbacks, &backend->depthStencil.view));
+        al_vk_check(vkCreateImageView(backend->gpu.logicalHandle, &imageViewCreateInfo, &backend->memoryManager.cpu_allocationCallbacks, &backend->depthStencil.view));
     }
 
-    void create_framebuffers(VulkanBackend* backend)
+    void create_framebuffers(RendererBackend* backend)
     {
-        av_construct(&backend->swapChain.framebuffers, &backend->memoryManager.cpuAllocationBindings, backend->swapChain.images.count);
+        av_construct(&backend->swapChain.framebuffers, &backend->memoryManager.cpu_allocationBindings, backend->swapChain.images.count);
         for (uSize it = 0; it < backend->swapChain.images.count; it++)
         {
             VkImageView attachments[] =
@@ -605,11 +620,11 @@ namespace al
                 .height             = backend->swapChain.extent.height,
                 .layers             = 1,
             };
-            al_vk_check(vkCreateFramebuffer(backend->gpu.logicalHandle, &framebufferInfo, &backend->memoryManager.allocationCallbacks, &backend->swapChain.framebuffers[it]));
+            al_vk_check(vkCreateFramebuffer(backend->gpu.logicalHandle, &framebufferInfo, &backend->memoryManager.cpu_allocationCallbacks, &backend->swapChain.framebuffers[it]));
         }
     }
 
-    void create_render_passes(VulkanBackend* backend)
+    void create_render_passes(RendererBackend* backend)
     {
         // Descriptors for the attachments used by this renderpass
         VkAttachmentDescription attachments[2] = { };
@@ -694,19 +709,19 @@ namespace al
         renderPassInfo.dependencyCount  = array_size(dependencies);                 // Number of subpass dependencies
         renderPassInfo.pDependencies    = dependencies;                             // Subpass dependencies used by the render pass
 
-        al_vk_check(vkCreateRenderPass(backend->gpu.logicalHandle, &renderPassInfo, &backend->memoryManager.allocationCallbacks, &backend->simpleRenderPass));
+        al_vk_check(vkCreateRenderPass(backend->gpu.logicalHandle, &renderPassInfo, &backend->memoryManager.cpu_allocationCallbacks, &backend->simpleRenderPass));
     }
 
-    void create_render_pipelines(VulkanBackend* backend)
+    void create_render_pipelines(RendererBackend* backend)
     {
-        PlatformFile vertShader = platform_file_load(backend->memoryManager.cpuAllocationBindings, VulkanBackend::VERTEX_SHADER_PATH, PlatformFileLoadMode::READ);
-        PlatformFile fragShader = platform_file_load(backend->memoryManager.cpuAllocationBindings, VulkanBackend::FRAGMENT_SHADER_PATH, PlatformFileLoadMode::READ);
-        defer(platform_file_unload(backend->memoryManager.cpuAllocationBindings, vertShader));
-        defer(platform_file_unload(backend->memoryManager.cpuAllocationBindings, fragShader));
-        VkShaderModule vertShaderModule = vk::create_shader_module(backend->gpu.logicalHandle, { static_cast<u32*>(vertShader.memory), vertShader.sizeBytes }, &backend->memoryManager.allocationCallbacks);
-        VkShaderModule fragShaderModule = vk::create_shader_module(backend->gpu.logicalHandle, { static_cast<u32*>(fragShader.memory), fragShader.sizeBytes }, &backend->memoryManager.allocationCallbacks);
-        defer(vk::destroy_shader_module(backend->gpu.logicalHandle, vertShaderModule, &backend->memoryManager.allocationCallbacks));
-        defer(vk::destroy_shader_module(backend->gpu.logicalHandle, fragShaderModule, &backend->memoryManager.allocationCallbacks));
+        PlatformFile vertShader = platform_file_load(backend->memoryManager.cpu_allocationBindings, RendererBackend::VERTEX_SHADER_PATH, PlatformFileLoadMode::READ);
+        PlatformFile fragShader = platform_file_load(backend->memoryManager.cpu_allocationBindings, RendererBackend::FRAGMENT_SHADER_PATH, PlatformFileLoadMode::READ);
+        defer(platform_file_unload(backend->memoryManager.cpu_allocationBindings, vertShader));
+        defer(platform_file_unload(backend->memoryManager.cpu_allocationBindings, fragShader));
+        VkShaderModule vertShaderModule = vk::create_shader_module(backend->gpu.logicalHandle, { static_cast<u32*>(vertShader.memory), vertShader.sizeBytes }, &backend->memoryManager.cpu_allocationCallbacks);
+        VkShaderModule fragShaderModule = vk::create_shader_module(backend->gpu.logicalHandle, { static_cast<u32*>(fragShader.memory), fragShader.sizeBytes }, &backend->memoryManager.cpu_allocationCallbacks);
+        defer(vk::destroy_shader_module(backend->gpu.logicalHandle, vertShaderModule, &backend->memoryManager.cpu_allocationCallbacks));
+        defer(vk::destroy_shader_module(backend->gpu.logicalHandle, fragShaderModule, &backend->memoryManager.cpu_allocationCallbacks));
         VkPipelineShaderStageCreateInfo shaderStages[] =
         {
             {
@@ -920,7 +935,7 @@ namespace al
             .pushConstantRangeCount = 0,
             .pPushConstantRanges    = nullptr,
         };
-        al_vk_check(vkCreatePipelineLayout(backend->gpu.logicalHandle, &pipelineLayoutInfo, &backend->memoryManager.allocationCallbacks, &backend->pipelineLayout));
+        al_vk_check(vkCreatePipelineLayout(backend->gpu.logicalHandle, &pipelineLayoutInfo, &backend->memoryManager.cpu_allocationCallbacks, &backend->pipelineLayout));
         VkGraphicsPipelineCreateInfo pipelineInfo
         {
             .sType                  = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
@@ -943,12 +958,12 @@ namespace al
             .basePipelineHandle     = VK_NULL_HANDLE,
             .basePipelineIndex      = -1,
         };
-        al_vk_check(vkCreateGraphicsPipelines(backend->gpu.logicalHandle, VK_NULL_HANDLE, 1, &pipelineInfo, &backend->memoryManager.allocationCallbacks, &backend->pipeline));
+        al_vk_check(vkCreateGraphicsPipelines(backend->gpu.logicalHandle, VK_NULL_HANDLE, 1, &pipelineInfo, &backend->memoryManager.cpu_allocationCallbacks, &backend->pipeline));
     }
 
-    void create_command_pools(VulkanBackend* backend)
+    void create_command_pools(RendererBackend* backend)
     {
-        auto createPool = [](VulkanBackend* backend, u32 queueFamiliIndex) -> VkCommandPool
+        auto createPool = [](RendererBackend* backend, u32 queueFamiliIndex) -> VkCommandPool
         {
             VkCommandPool pool;
             VkCommandPoolCreateInfo poolInfo
@@ -958,7 +973,7 @@ namespace al
                 .flags              = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
                 .queueFamilyIndex   = queueFamiliIndex,
             };
-            al_vk_check(vkCreateCommandPool(backend->gpu.logicalHandle, &poolInfo, &backend->memoryManager.allocationCallbacks, &pool));
+            al_vk_check(vkCreateCommandPool(backend->gpu.logicalHandle, &poolInfo, &backend->memoryManager.cpu_allocationCallbacks, &pool));
             return pool;
         };
         backend->commandPools.graphics =
@@ -972,10 +987,10 @@ namespace al
         };
     }
 
-    void create_command_buffers(VulkanBackend* backend)
+    void create_command_buffers(RendererBackend* backend)
     {
-        av_construct(&backend->commandBuffers.primaryBuffers, &backend->memoryManager.cpuAllocationBindings, backend->swapChain.images.count);
-        av_construct(&backend->commandBuffers.secondaryBuffers, &backend->memoryManager.cpuAllocationBindings, backend->swapChain.images.count);
+        av_construct(&backend->commandBuffers.primaryBuffers, &backend->memoryManager.cpu_allocationBindings, backend->swapChain.images.count);
+        av_construct(&backend->commandBuffers.secondaryBuffers, &backend->memoryManager.cpu_allocationBindings, backend->swapChain.images.count);
         for (uSize it = 0; it < backend->swapChain.images.count; it++)
         {
             // @TODO :  create command buffers for each possible thread
@@ -985,11 +1000,11 @@ namespace al
         backend->commandBuffers.transferBuffer = vk::create_command_buffer(backend->gpu.logicalHandle, backend->commandPools.transfer.handle, VK_COMMAND_BUFFER_LEVEL_PRIMARY);
     }
 
-    void create_sync_primitives(VulkanBackend* backend)
+    void create_sync_primitives(RendererBackend* backend)
     {
         // Semaphores
-        av_construct(&backend->syncPrimitives.imageAvailableSemaphores, &backend->memoryManager.cpuAllocationBindings, vk::MAX_IMAGES_IN_FLIGHT);
-        av_construct(&backend->syncPrimitives.renderFinishedSemaphores, &backend->memoryManager.cpuAllocationBindings, vk::MAX_IMAGES_IN_FLIGHT);
+        av_construct(&backend->syncPrimitives.imageAvailableSemaphores, &backend->memoryManager.cpu_allocationBindings, vk::MAX_IMAGES_IN_FLIGHT);
+        av_construct(&backend->syncPrimitives.renderFinishedSemaphores, &backend->memoryManager.cpu_allocationBindings, vk::MAX_IMAGES_IN_FLIGHT);
         for (uSize it = 0; it < vk::MAX_IMAGES_IN_FLIGHT; it++)
         {
             VkSemaphoreCreateInfo semaphoreInfo
@@ -998,11 +1013,11 @@ namespace al
                 .pNext = nullptr,
                 .flags = { },
             };
-            al_vk_check(vkCreateSemaphore(backend->gpu.logicalHandle, &semaphoreInfo, &backend->memoryManager.allocationCallbacks, &backend->syncPrimitives.imageAvailableSemaphores[it]));
-            al_vk_check(vkCreateSemaphore(backend->gpu.logicalHandle, &semaphoreInfo, &backend->memoryManager.allocationCallbacks, &backend->syncPrimitives.renderFinishedSemaphores[it]));
+            al_vk_check(vkCreateSemaphore(backend->gpu.logicalHandle, &semaphoreInfo, &backend->memoryManager.cpu_allocationCallbacks, &backend->syncPrimitives.imageAvailableSemaphores[it]));
+            al_vk_check(vkCreateSemaphore(backend->gpu.logicalHandle, &semaphoreInfo, &backend->memoryManager.cpu_allocationCallbacks, &backend->syncPrimitives.renderFinishedSemaphores[it]));
         }
         // Fences
-        av_construct(&backend->syncPrimitives.inFlightFences, &backend->memoryManager.cpuAllocationBindings, vk::MAX_IMAGES_IN_FLIGHT);
+        av_construct(&backend->syncPrimitives.inFlightFences, &backend->memoryManager.cpu_allocationBindings, vk::MAX_IMAGES_IN_FLIGHT);
         for (uSize it = 0; it < vk::MAX_IMAGES_IN_FLIGHT; it++)
         {
             VkFenceCreateInfo fenceInfo
@@ -1011,111 +1026,12 @@ namespace al
                 .pNext = nullptr,
                 .flags = VK_FENCE_CREATE_SIGNALED_BIT,
             };
-            al_vk_check(vkCreateFence(backend->gpu.logicalHandle, &fenceInfo, &backend->memoryManager.allocationCallbacks, &backend->syncPrimitives.inFlightFences[it]));
+            al_vk_check(vkCreateFence(backend->gpu.logicalHandle, &fenceInfo, &backend->memoryManager.cpu_allocationCallbacks, &backend->syncPrimitives.inFlightFences[it]));
         }
-        av_construct(&backend->syncPrimitives.imageInFlightFencesRef, &backend->memoryManager.cpuAllocationBindings, backend->swapChain.images.count);
+        av_construct(&backend->syncPrimitives.imageInFlightFencesRef, &backend->memoryManager.cpu_allocationBindings, backend->swapChain.images.count);
         for (uSize it = 0; it < backend->syncPrimitives.imageInFlightFencesRef.count; it++)
         {
             backend->syncPrimitives.imageInFlightFencesRef[it] = VK_NULL_HANDLE;
-        }
-    }
-
-    void create_vertex_buffer(VulkanBackend* backend)
-    {
-        VkBufferCreateInfo bufferInfo
-        {
-            .sType                  = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-            .pNext                  = nullptr,
-            .flags                  = 0,
-            .size                   = sizeof(triangle),
-            .usage                  = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-            .sharingMode            = VK_SHARING_MODE_EXCLUSIVE,
-            .queueFamilyIndexCount  = 0,        // ignored if sharingMode is not VK_SHARING_MODE_CONCURRENT
-            .pQueueFamilyIndices    = nullptr,  // ignored if sharingMode is not VK_SHARING_MODE_CONCURRENT
-        };
-        u32 queueFamilyIndices[] =
-        {
-            backend->queues.transfer.deviceFamilyIndex,
-            backend->queues.graphics.deviceFamilyIndex
-        };
-        if (backend->queues.transfer.deviceFamilyIndex != backend->queues.graphics.deviceFamilyIndex)
-        {
-            bufferInfo.sharingMode = VK_SHARING_MODE_CONCURRENT;
-            bufferInfo.queueFamilyIndexCount = 2;
-            bufferInfo.pQueueFamilyIndices = queueFamilyIndices;
-        }
-        al_vk_check(vkCreateBuffer(backend->gpu.logicalHandle, &bufferInfo, &backend->memoryManager.allocationCallbacks, &backend->vertexBuffer));
-        VkMemoryRequirements memoryRequirements;
-        vkGetBufferMemoryRequirements(backend->gpu.logicalHandle, backend->vertexBuffer, &memoryRequirements);
-        VkMemoryAllocateInfo memoryAllocateInfo = { };
-        memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        memoryAllocateInfo.allocationSize = memoryRequirements.size;
-        bool result = vk::get_memory_type_index(&backend->gpu.memoryProperties, memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &memoryAllocateInfo.memoryTypeIndex);
-        al_vk_assert(result);
-        al_vk_check(vkAllocateMemory(backend->gpu.logicalHandle, &memoryAllocateInfo, &backend->memoryManager.allocationCallbacks, &backend->vertexBufferMemory));
-        al_vk_check(vkBindBufferMemory(backend->gpu.logicalHandle, backend->vertexBuffer, backend->vertexBufferMemory, 0));
-        {
-            VkBuffer stagingBuffer;
-            VkDeviceMemory stagingMemory;
-            VkBufferCreateInfo stagingBufferInfo
-            {
-                .sType                  = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-                .pNext                  = nullptr,
-                .flags                  = 0,
-                .size                   = sizeof(triangle),
-                .usage                  = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                .sharingMode            = VK_SHARING_MODE_EXCLUSIVE,
-                .queueFamilyIndexCount  = 0,        // ignored if sharingMode is not VK_SHARING_MODE_CONCURRENT
-                .pQueueFamilyIndices    = nullptr,  // ignored if sharingMode is not VK_SHARING_MODE_CONCURRENT
-            };
-            al_vk_check(vkCreateBuffer(backend->gpu.logicalHandle, &stagingBufferInfo, &backend->memoryManager.allocationCallbacks, &stagingBuffer));
-            VkMemoryRequirements memoryRequirements;
-            vkGetBufferMemoryRequirements(backend->gpu.logicalHandle, stagingBuffer, &memoryRequirements);
-            VkMemoryAllocateInfo memoryAllocateInfo = { };
-            memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-            memoryAllocateInfo.allocationSize = memoryRequirements.size;
-            bool result = vk::get_memory_type_index(&backend->gpu.memoryProperties, memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &memoryAllocateInfo.memoryTypeIndex);
-            al_vk_assert(result);
-            al_vk_check(vkAllocateMemory(backend->gpu.logicalHandle, &memoryAllocateInfo, &backend->memoryManager.allocationCallbacks, &stagingMemory));
-            al_vk_check(vkBindBufferMemory(backend->gpu.logicalHandle, stagingBuffer, stagingMemory, 0));
-            {
-                void* data;
-                vkMapMemory(backend->gpu.logicalHandle, stagingMemory, 0, stagingBufferInfo.size, 0, &data);
-                std::memcpy(data, triangle, static_cast<uSize>(stagingBufferInfo.size));
-                vkUnmapMemory(backend->gpu.logicalHandle, stagingMemory);
-            }
-            {   // copy buffer
-                VkCommandBufferAllocateInfo allocInfo{ };
-                allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-                allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-                allocInfo.commandPool = backend->commandPools.transfer.handle;
-                allocInfo.commandBufferCount = 1;
-
-                VkCommandBuffer commandBuffer;
-                vkAllocateCommandBuffers(backend->gpu.logicalHandle, &allocInfo, &commandBuffer);
-
-                VkCommandBufferBeginInfo beginInfo{ };
-                beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-                beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-                vkBeginCommandBuffer(commandBuffer, &beginInfo);
-                VkBufferCopy copyRegion{};
-                copyRegion.size = stagingBufferInfo.size;
-                vkCmdCopyBuffer(commandBuffer, stagingBuffer, backend->vertexBuffer, 1, &copyRegion);
-                vkEndCommandBuffer(commandBuffer);
-
-                VkSubmitInfo submitInfo{};
-                submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-                submitInfo.commandBufferCount = 1;
-                submitInfo.pCommandBuffers = &commandBuffer;
-
-                vkQueueSubmit(backend->queues.transfer.handle, 1, &submitInfo, VK_NULL_HANDLE);
-                vkQueueWaitIdle(backend->queues.transfer.handle);
-
-                vkFreeCommandBuffers(backend->gpu.logicalHandle, backend->commandPools.transfer.handle, 1, &commandBuffer);
-            }
-            vkDestroyBuffer(backend->gpu.logicalHandle, stagingBuffer, &backend->memoryManager.allocationCallbacks);
-            vkFreeMemory(backend->gpu.logicalHandle, stagingMemory, &backend->memoryManager.allocationCallbacks);
         }
     }
 
@@ -1123,7 +1039,7 @@ namespace al
     // DESTRUCTION
     // =================================================================================================================
 
-    void destroy_instance(VulkanBackend* backend)
+    void destroy_instance(RendererBackend* backend)
     {
         auto DestroyDebugUtilsMessengerEXT = [](VkInstance instance, VkDebugUtilsMessengerEXT messenger, const VkAllocationCallbacks* pAllocator)
         {
@@ -1133,95 +1049,88 @@ namespace al
                 func(instance, messenger, pAllocator);
             }
         };
-        DestroyDebugUtilsMessengerEXT(backend->instance, backend->debugMessenger, &backend->memoryManager.allocationCallbacks);
-        vkDestroyInstance(backend->instance, &backend->memoryManager.allocationCallbacks);
+        DestroyDebugUtilsMessengerEXT(backend->instance, backend->debugMessenger, &backend->memoryManager.cpu_allocationCallbacks);
+        vkDestroyInstance(backend->instance, &backend->memoryManager.cpu_allocationCallbacks);
     }
 
-    void destroy_surface(VulkanBackend* backend)
+    void destroy_surface(RendererBackend* backend)
     {
-        vkDestroySurfaceKHR(backend->instance, backend->surface, &backend->memoryManager.allocationCallbacks);
+        vkDestroySurfaceKHR(backend->instance, backend->surface, &backend->memoryManager.cpu_allocationCallbacks);
     }
 
-    void destroy_gpu(VulkanBackend* backend)
+    void destroy_gpu(RendererBackend* backend)
     {
-        vkDestroyDevice(backend->gpu.logicalHandle, &backend->memoryManager.allocationCallbacks);
+        vkDestroyDevice(backend->gpu.logicalHandle, &backend->memoryManager.cpu_allocationCallbacks);
     }
 
-    void destroy_swap_chain(VulkanBackend* backend)
+    void destroy_swap_chain(RendererBackend* backend)
     {
         for (uSize it = 0; it < backend->swapChain.imageViews.count; it++)
         {
-            vkDestroyImageView(backend->gpu.logicalHandle, backend->swapChain.imageViews[it], &backend->memoryManager.allocationCallbacks);
+            vkDestroyImageView(backend->gpu.logicalHandle, backend->swapChain.imageViews[it], &backend->memoryManager.cpu_allocationCallbacks);
         }
-        vkDestroySwapchainKHR(backend->gpu.logicalHandle, backend->swapChain.handle, &backend->memoryManager.allocationCallbacks);
+        vkDestroySwapchainKHR(backend->gpu.logicalHandle, backend->swapChain.handle, &backend->memoryManager.cpu_allocationCallbacks);
         av_destruct(backend->swapChain.imageViews);
         av_destruct(backend->swapChain.images);
     }
 
-    void destroy_depth_stencil(VulkanBackend* backend)
+    void destroy_depth_stencil(RendererBackend* backend)
     {
-        vkDestroyImageView(backend->gpu.logicalHandle, backend->depthStencil.view, &backend->memoryManager.allocationCallbacks);
-        vkDestroyImage(backend->gpu.logicalHandle, backend->depthStencil.image, &backend->memoryManager.allocationCallbacks);
-        vkFreeMemory(backend->gpu.logicalHandle, backend->depthStencil.memory, &backend->memoryManager.allocationCallbacks);
+        vkDestroyImageView(backend->gpu.logicalHandle, backend->depthStencil.view, &backend->memoryManager.cpu_allocationCallbacks);
+        vkDestroyImage(backend->gpu.logicalHandle, backend->depthStencil.image, &backend->memoryManager.cpu_allocationCallbacks);
+        vkFreeMemory(backend->gpu.logicalHandle, backend->depthStencil.memory, &backend->memoryManager.cpu_allocationCallbacks);
     }
 
-    void destroy_framebuffers(VulkanBackend* backend)
+    void destroy_framebuffers(RendererBackend* backend)
     {
         for (uSize it = 0; it < backend->swapChain.framebuffers.count; it++)
         {
-            vkDestroyFramebuffer(backend->gpu.logicalHandle, backend->swapChain.framebuffers[it], &backend->memoryManager.allocationCallbacks);
+            vkDestroyFramebuffer(backend->gpu.logicalHandle, backend->swapChain.framebuffers[it], &backend->memoryManager.cpu_allocationCallbacks);
         }
         av_destruct(backend->swapChain.framebuffers);
     }
 
-    void destroy_render_passes(VulkanBackend* backend)
+    void destroy_render_passes(RendererBackend* backend)
     {
-        vkDestroyRenderPass(backend->gpu.logicalHandle, backend->simpleRenderPass, &backend->memoryManager.allocationCallbacks);
+        vkDestroyRenderPass(backend->gpu.logicalHandle, backend->simpleRenderPass, &backend->memoryManager.cpu_allocationCallbacks);
     }
 
-    void destroy_render_pipelines(VulkanBackend* backend)
+    void destroy_render_pipelines(RendererBackend* backend)
     {
-        vkDestroyPipeline(backend->gpu.logicalHandle, backend->pipeline, &backend->memoryManager.allocationCallbacks);
-        vkDestroyPipelineLayout(backend->gpu.logicalHandle, backend->pipelineLayout, &backend->memoryManager.allocationCallbacks);
+        vkDestroyPipeline(backend->gpu.logicalHandle, backend->pipeline, &backend->memoryManager.cpu_allocationCallbacks);
+        vkDestroyPipelineLayout(backend->gpu.logicalHandle, backend->pipelineLayout, &backend->memoryManager.cpu_allocationCallbacks);
     }
 
-    void destroy_command_pools(VulkanBackend* backend)
+    void destroy_command_pools(RendererBackend* backend)
     {
-        vkDestroyCommandPool(backend->gpu.logicalHandle, backend->commandPools.graphics.handle, &backend->memoryManager.allocationCallbacks);
-        vkDestroyCommandPool(backend->gpu.logicalHandle, backend->commandPools.transfer.handle, &backend->memoryManager.allocationCallbacks);
+        vkDestroyCommandPool(backend->gpu.logicalHandle, backend->commandPools.graphics.handle, &backend->memoryManager.cpu_allocationCallbacks);
+        vkDestroyCommandPool(backend->gpu.logicalHandle, backend->commandPools.transfer.handle, &backend->memoryManager.cpu_allocationCallbacks);
     }
 
-    void destroy_command_buffers(VulkanBackend* backend)
+    void destroy_command_buffers(RendererBackend* backend)
     {
         av_destruct(backend->commandBuffers.primaryBuffers);
         av_destruct(backend->commandBuffers.secondaryBuffers);
     }
 
-    void destroy_sync_primitives(VulkanBackend* backend)
+    void destroy_sync_primitives(RendererBackend* backend)
     {
         // Semaphores
         for (uSize it = 0; it < vk::MAX_IMAGES_IN_FLIGHT; it++)
         {
-            vkDestroySemaphore(backend->gpu.logicalHandle, backend->syncPrimitives.imageAvailableSemaphores[it], &backend->memoryManager.allocationCallbacks);
-            vkDestroySemaphore(backend->gpu.logicalHandle, backend->syncPrimitives.renderFinishedSemaphores[it], &backend->memoryManager.allocationCallbacks);
+            vkDestroySemaphore(backend->gpu.logicalHandle, backend->syncPrimitives.imageAvailableSemaphores[it], &backend->memoryManager.cpu_allocationCallbacks);
+            vkDestroySemaphore(backend->gpu.logicalHandle, backend->syncPrimitives.renderFinishedSemaphores[it], &backend->memoryManager.cpu_allocationCallbacks);
         }
         av_destruct(backend->syncPrimitives.imageAvailableSemaphores);
         av_destruct(backend->syncPrimitives.renderFinishedSemaphores);
         // Fences
         for (uSize it = 0; it < vk::MAX_IMAGES_IN_FLIGHT; it++)
         {
-            vkDestroyFence(backend->gpu.logicalHandle, backend->syncPrimitives.inFlightFences[it], &backend->memoryManager.allocationCallbacks);
+            vkDestroyFence(backend->gpu.logicalHandle, backend->syncPrimitives.inFlightFences[it], &backend->memoryManager.cpu_allocationCallbacks);
         }
         av_destruct(backend->syncPrimitives.inFlightFences);
         av_destruct(backend->syncPrimitives.imageInFlightFencesRef);
     }
-
-    void destroy_vertex_buffer(VulkanBackend* backend)
-    {
-        vkDestroyBuffer(backend->gpu.logicalHandle, backend->vertexBuffer, &backend->memoryManager.allocationCallbacks);
-        vkFreeMemory(backend->gpu.logicalHandle, backend->vertexBufferMemory, &backend->memoryManager.allocationCallbacks);
-    }
-
 
 
 
@@ -1267,17 +1176,17 @@ namespace al
     void construct(VulkanMemoryManager* memoryManager, AllocatorBindings bindings)
     {
         std::memset(memoryManager, 0, sizeof(VulkanMemoryManager));
-        memoryManager->cpuAllocationBindings = bindings;
-        memoryManager->allocationCallbacks =
+        memoryManager->cpu_allocationBindings = bindings;
+        memoryManager->cpu_allocationCallbacks =
         {
             .pUserData = memoryManager,
             .pfnAllocation = 
                 [](void* pUserData, uSize size, uSize alignment, VkSystemAllocationScope allocationScope)
                 {
                     VulkanMemoryManager* manager = static_cast<VulkanMemoryManager*>(pUserData);
-                    void* result = allocate(&manager->cpuAllocationBindings, size);
-                    al_vk_assert(manager->currentNumberOfCpuAllocations < VulkanMemoryManager::MAX_CPU_ALLOCATIONS);
-                    manager->allocations[manager->currentNumberOfCpuAllocations++] =
+                    void* result = allocate(&manager->cpu_allocationBindings, size);
+                    al_vk_assert(manager->cpu_currentNumberOfAllocations < VulkanMemoryManager::MAX_CPU_ALLOCATIONS);
+                    manager->cpu_allocations[manager->cpu_currentNumberOfAllocations++] =
                     {
                         .ptr = result,
                         .size = size,
@@ -1289,13 +1198,13 @@ namespace al
                 {
                     VulkanMemoryManager* manager = static_cast<VulkanMemoryManager*>(pUserData);
                     void* result = nullptr;
-                    for (uSize it = 0; it < manager->currentNumberOfCpuAllocations; it++)
+                    for (uSize it = 0; it < manager->cpu_currentNumberOfAllocations; it++)
                     {
-                        if (manager->allocations[it].ptr == pOriginal)
+                        if (manager->cpu_allocations[it].ptr == pOriginal)
                         {
-                            deallocate(&manager->cpuAllocationBindings, manager->allocations[it].ptr, manager->allocations[it].size);
-                            result = allocate(&manager->cpuAllocationBindings, size);
-                            manager->allocations[it] =
+                            deallocate(&manager->cpu_allocationBindings, manager->cpu_allocations[it].ptr, manager->cpu_allocations[it].size);
+                            result = allocate(&manager->cpu_allocationBindings, size);
+                            manager->cpu_allocations[it] =
                             {
                                 .ptr = result,
                                 .size = size,
@@ -1309,13 +1218,13 @@ namespace al
                 [](void* pUserData, void* pMemory)
                 {
                     VulkanMemoryManager* manager = static_cast<VulkanMemoryManager*>(pUserData);
-                    for (uSize it = 0; it < manager->currentNumberOfCpuAllocations; it++)
+                    for (uSize it = 0; it < manager->cpu_currentNumberOfAllocations; it++)
                     {
-                        if (manager->allocations[it].ptr == pMemory)
+                        if (manager->cpu_allocations[it].ptr == pMemory)
                         {
-                            deallocate(&manager->cpuAllocationBindings, manager->allocations[it].ptr, manager->allocations[it].size);
-                            manager->allocations[it] = manager->allocations[manager->currentNumberOfCpuAllocations - 1];
-                            manager->currentNumberOfCpuAllocations -= 1;
+                            deallocate(&manager->cpu_allocationBindings, manager->cpu_allocations[it].ptr, manager->cpu_allocations[it].size);
+                            manager->cpu_allocations[it] = manager->cpu_allocations[manager->cpu_currentNumberOfAllocations - 1];
+                            manager->cpu_currentNumberOfAllocations -= 1;
                             break;
                         }
                     }
@@ -1323,22 +1232,290 @@ namespace al
             .pfnInternalAllocation  = nullptr,
             .pfnInternalFree        = nullptr
         };
+        av_construct(&memoryManager->gpu_chunks, &bindings, VulkanMemoryManager::GPU_MAX_CHUNKS);
+        av_construct(&memoryManager->gpu_ledgers, &bindings, VulkanMemoryManager::GPU_LEDGER_SIZE_BYTES * VulkanMemoryManager::GPU_MAX_CHUNKS);
+        for (uSize it = 0; it < VulkanMemoryManager::GPU_MAX_CHUNKS; it++)
+        {
+            VulkanMemoryManager::GpuMemoryChunk* chunk = &memoryManager->gpu_chunks[it];
+            chunk->ledger = &memoryManager->gpu_ledgers[it * VulkanMemoryManager::GPU_LEDGER_SIZE_BYTES];
+        }
     }
 
-    void destruct(VulkanMemoryManager* memoryManager)
+    void destruct(VulkanMemoryManager* memoryManager, VkDevice device)
     {
-        // @TODO : check if everything is deallocated
+        for (uSize it = 0; it < VulkanMemoryManager::GPU_MAX_CHUNKS; it++)
+        {
+            VulkanMemoryManager::GpuMemoryChunk* chunk = &memoryManager->gpu_chunks[it];
+            if (chunk->memory)
+            {
+                vkFreeMemory(device, chunk->memory, &memoryManager->cpu_allocationCallbacks);
+            }
+        }
+        av_destruct(memoryManager->gpu_chunks);
+        av_destruct(memoryManager->gpu_ledgers);
     }
 
+    GpuMemory gpu_allocate(VulkanMemoryManager* memoryManager, VkDevice device, VulkanMemoryManager::GpuAllocationRequest request)
+    {
+        auto findFreeSpace = [](VulkanMemoryManager::GpuMemoryChunk* chunk, uSize numBlocks) -> uSize
+        {
+            uSize freeCount = 0;
+            uSize startBlock = 0;
+            uSize currentBlock = 0;
+            for (uSize ledgerIt = 0; ledgerIt < VulkanMemoryManager::GPU_LEDGER_SIZE_BYTES; ledgerIt++)
+            {
+                u8 byte = chunk->ledger[ledgerIt];
+                if (byte == 255)
+                {
+                    freeCount = 0;
+                    currentBlock += 8;
+                    continue;
+                }
+                for (uSize byteIt = 0; byteIt < 8; byteIt++)
+                {
+                    if (byte & (1 << byteIt))
+                    {
+                        freeCount = 0;
+                    }
+                    else
+                    {
+                        if (freeCount == 0)
+                        {
+                            startBlock = currentBlock;
+                        }
+                        freeCount += 1;
+                    }
+                    currentBlock += 1;
+                    if (freeCount == numBlocks)
+                    {
+                        goto block_found;
+                    }
+                }
+            }
+            startBlock = VulkanMemoryManager::GPU_LEDGER_SIZE_BYTES;
+            block_found:
+            return startBlock;
+        };
+        auto setInUse = [](VulkanMemoryManager::GpuMemoryChunk* chunk, uSize numBlocks, uSize startBlock)
+        {
+            for (uSize it = 0; it < numBlocks; it++)
+            {
+                uSize currentByte = (startBlock + it) / 8;
+                uSize currentBit = (startBlock + it) % 8;
+                u8* byte = &chunk->ledger[currentByte];
+                *byte |= (1 << currentBit);
+            }
+            chunk->usedMemoryBytes += numBlocks * VulkanMemoryManager::GPU_MEMORY_BLOCK_SIZE_BYTES;
+            al_vk_assert(chunk->usedMemoryBytes <= VulkanMemoryManager::GPU_CHUNK_SIZE_BYTES);
+        };
+        al_vk_assert(request.sizeBytes < VulkanMemoryManager::GPU_CHUNK_SIZE_BYTES);
+        GpuMemory result{ };
+        uSize requiredNumberOfBlocks = 1 + ((request.sizeBytes - 1) / VulkanMemoryManager::GPU_MEMORY_BLOCK_SIZE_BYTES);
+        // 1. Try to find memory in available chunks
+        for (uSize it = 0; it < VulkanMemoryManager::GPU_MAX_CHUNKS; it++)
+        {
+            VulkanMemoryManager::GpuMemoryChunk* chunk = &memoryManager->gpu_chunks[it];
+            if (!chunk->memory)
+            {
+                // Chunk is not allocated
+                continue;
+            }
+            if (chunk->memoryTypeIndex != request.memoryTypeIndex)
+            {
+                // Chunk has wrong memory type
+                continue;
+            }
+            if ((VulkanMemoryManager::GPU_CHUNK_SIZE_BYTES - chunk->usedMemoryBytes) < request.sizeBytes)
+            {
+                // Chunk does not have enough memory
+                continue;
+            }
+            uSize inChunkOffset = findFreeSpace(chunk, requiredNumberOfBlocks);
+            assert(inChunkOffset != VulkanMemoryManager::GPU_LEDGER_SIZE_BYTES);
+            setInUse(chunk, requiredNumberOfBlocks, inChunkOffset);
+            result.memory = chunk->memory;
+            result.offsetBytes = inChunkOffset * VulkanMemoryManager::GPU_MEMORY_BLOCK_SIZE_BYTES;
+            result.sizeBytes = requiredNumberOfBlocks * VulkanMemoryManager::GPU_MEMORY_BLOCK_SIZE_BYTES;
+            break;
+        }
+        if (result.memory)
+        {
+            // Found free space in already allocated chunk
+            return result;
+        }
+        // 2. Try to allocate new chunk
+        for (uSize it = 0; it < VulkanMemoryManager::GPU_MAX_CHUNKS; it++)
+        {
+            VulkanMemoryManager::GpuMemoryChunk* chunk = &memoryManager->gpu_chunks[it];
+            if (chunk->memory)
+            {
+                continue;
+            }
+            // Allocating new chunk
+            VkMemoryAllocateInfo memoryAllocateInfo = { };
+            memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+            memoryAllocateInfo.allocationSize = VulkanMemoryManager::GPU_CHUNK_SIZE_BYTES;
+            memoryAllocateInfo.memoryTypeIndex = request.memoryTypeIndex;
+            al_vk_check(vkAllocateMemory(device, &memoryAllocateInfo, &memoryManager->cpu_allocationCallbacks, &chunk->memory));
+            chunk->memoryTypeIndex = request.memoryTypeIndex;
+            std::memset(chunk->ledger, 0, VulkanMemoryManager::GPU_LEDGER_SIZE_BYTES);
+            // Allocating memory in new chunk
+            uSize inChunkOffset = findFreeSpace(chunk, requiredNumberOfBlocks);
+            al_vk_assert(inChunkOffset != VulkanMemoryManager::GPU_LEDGER_SIZE_BYTES);
+            setInUse(chunk, requiredNumberOfBlocks, inChunkOffset);
+            result.memory = chunk->memory;
+            result.offsetBytes = inChunkOffset * VulkanMemoryManager::GPU_MEMORY_BLOCK_SIZE_BYTES;
+            result.sizeBytes = requiredNumberOfBlocks * VulkanMemoryManager::GPU_MEMORY_BLOCK_SIZE_BYTES;
+            break;
+        }
+        al_vk_assert(result.memory); // Out of memory
+        return result;
+    }
 
+    void gpu_deallocate(VulkanMemoryManager* memoryManager, VkDevice device, GpuMemory allocation)
+    {
+        auto setFree = [](VulkanMemoryManager::GpuMemoryChunk* chunk, uSize numBlocks, uSize startBlock)
+        {
+            for (uSize it = 0; it < numBlocks; it++)
+            {
+                uSize currentByte = (startBlock + it) / 8;
+                uSize currentBit = (startBlock + it) % 8;
+                u8* byte = &chunk->ledger[currentByte];
+                *byte &= ~(1 << currentBit);
+            }
+            chunk->usedMemoryBytes -= numBlocks * VulkanMemoryManager::GPU_MEMORY_BLOCK_SIZE_BYTES;
+            al_vk_assert(chunk->usedMemoryBytes <= VulkanMemoryManager::GPU_CHUNK_SIZE_BYTES);
+        };
+        for (uSize it = 0; it < VulkanMemoryManager::GPU_MAX_CHUNKS; it++)
+        {
+            VulkanMemoryManager::GpuMemoryChunk* chunk = &memoryManager->gpu_chunks[it];
+            if (chunk->memory != allocation.memory)
+            {
+                continue;
+            }
+            uSize startBlock = allocation.offsetBytes / VulkanMemoryManager::GPU_MEMORY_BLOCK_SIZE_BYTES;
+            uSize numBlocks = allocation.sizeBytes / VulkanMemoryManager::GPU_MEMORY_BLOCK_SIZE_BYTES;
+            setFree(chunk, numBlocks, startBlock);
+            if (chunk->usedMemoryBytes == 0)
+            {
+                // Chunk is empty, so we free it
+                vkFreeMemory(device, chunk->memory, &memoryManager->cpu_allocationCallbacks);
+                chunk->memory = VK_NULL_HANDLE;
+            }
+            break;
+        }
+    }
 
+    MemoryBuffer create_buffer(RendererBackend* backend, VkBufferCreateInfo* createInfo, VkMemoryPropertyFlags memoryProperty)
+    {
+        MemoryBuffer buffer{ };
+        al_vk_check(vkCreateBuffer(backend->gpu.logicalHandle, createInfo, &backend->memoryManager.cpu_allocationCallbacks, &buffer.handle));
+        VkMemoryRequirements memoryRequirements;
+        vkGetBufferMemoryRequirements(backend->gpu.logicalHandle, buffer.handle, &memoryRequirements);
+        u32 memoryTypeIndex;
+        vk::get_memory_type_index(&backend->gpu.memoryProperties, memoryRequirements.memoryTypeBits, memoryProperty, &memoryTypeIndex);
+        buffer.gpuMemory = gpu_allocate(&backend->memoryManager, backend->gpu.logicalHandle, { .sizeBytes = memoryRequirements.size, .memoryTypeIndex = memoryTypeIndex });
+        al_vk_check(vkBindBufferMemory(backend->gpu.logicalHandle, buffer.handle, buffer.gpuMemory.memory, buffer.gpuMemory.offsetBytes));
+        return buffer;
+    }
 
+    MemoryBuffer create_vertex_buffer(RendererBackend* backend, uSize sizeSytes)
+    {
+        VkBufferCreateInfo bufferInfo
+        {
+            .sType                  = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+            .pNext                  = nullptr,
+            .flags                  = 0,
+            .size                   = sizeSytes,
+            .usage                  = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            .sharingMode            = VK_SHARING_MODE_EXCLUSIVE,
+            .queueFamilyIndexCount  = 0,        // ignored if sharingMode is not VK_SHARING_MODE_CONCURRENT
+            .pQueueFamilyIndices    = nullptr,  // ignored if sharingMode is not VK_SHARING_MODE_CONCURRENT
+        };
+        u32 queueFamilyIndices[] =
+        {
+            backend->queues.transfer.deviceFamilyIndex,
+            backend->queues.graphics.deviceFamilyIndex
+        };
+        if (backend->queues.transfer.deviceFamilyIndex != backend->queues.graphics.deviceFamilyIndex)
+        {
+            bufferInfo.sharingMode = VK_SHARING_MODE_CONCURRENT;
+            bufferInfo.queueFamilyIndexCount = 2;
+            bufferInfo.pQueueFamilyIndices = queueFamilyIndices;
+        }
+        return create_buffer(backend, &bufferInfo, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    }
 
+    MemoryBuffer create_staging_buffer(RendererBackend* backend, uSize sizeSytes)
+    {
+        VkBufferCreateInfo bufferInfo
+        {
+            .sType                  = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+            .pNext                  = nullptr,
+            .flags                  = 0,
+            .size                   = sizeSytes,
+            .usage                  = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            .sharingMode            = VK_SHARING_MODE_EXCLUSIVE,
+            .queueFamilyIndexCount  = 0,        // ignored if sharingMode is not VK_SHARING_MODE_CONCURRENT
+            .pQueueFamilyIndices    = nullptr,  // ignored if sharingMode is not VK_SHARING_MODE_CONCURRENT
+        };
+        return create_buffer(backend, &bufferInfo, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    }
+
+    void destroy_buffer(RendererBackend* backend, MemoryBuffer* buffer)
+    {
+        gpu_deallocate(&backend->memoryManager, backend->gpu.logicalHandle, buffer->gpuMemory);
+        vkDestroyBuffer(backend->gpu.logicalHandle, buffer->handle, &backend->memoryManager.cpu_allocationCallbacks);
+        std::memset(&buffer, 0, sizeof(MemoryBuffer));
+    }
+
+    void copy_cpu_memory_to_buffer(RendererBackend* backend, MemoryBuffer* buffer, void* data, uSize dataSizeBytes)
+    {
+        void* mappedMemory;
+        vkMapMemory(backend->gpu.logicalHandle, buffer->gpuMemory.memory, buffer->gpuMemory.offsetBytes, dataSizeBytes, 0, &mappedMemory);
+        std::memcpy(mappedMemory, data, dataSizeBytes);
+        vkUnmapMemory(backend->gpu.logicalHandle, buffer->gpuMemory.memory);
+    }
+
+    void copy_buffer_to_buffer(RendererBackend* backend, MemoryBuffer* src, MemoryBuffer* dst, uSize sizeBytes)
+    {
+        VkCommandBufferBeginInfo beginInfo
+        {
+            .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+            .pNext              = nullptr,
+            .flags              = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+            .pInheritanceInfo   = nullptr,
+        };
+        vkBeginCommandBuffer(backend->commandBuffers.transferBuffer, &beginInfo);
+        VkBufferCopy copyRegion
+        {
+            .srcOffset  = 0,
+            .dstOffset  = 0,
+            .size       = sizeBytes,
+        };
+        vkCmdCopyBuffer(backend->commandBuffers.transferBuffer, src->handle, dst->handle, 1, &copyRegion);
+        vkEndCommandBuffer(backend->commandBuffers.transferBuffer);
+        VkSubmitInfo submitInfo
+        {
+            .sType                  = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            .pNext                  = nullptr,
+            .waitSemaphoreCount     = 0,
+            .pWaitSemaphores        = nullptr,
+            .pWaitDstStageMask      = 0,
+            .commandBufferCount     = 1,
+            .pCommandBuffers        = &backend->commandBuffers.transferBuffer,
+            .signalSemaphoreCount   = 0,
+            .pSignalSemaphores      = nullptr,
+        };
+        vkQueueSubmit(backend->queues.transfer.handle, 1, &submitInfo, VK_NULL_HANDLE);
+        vkQueueWaitIdle(backend->queues.transfer.handle);
+        // vkFreeCommandBuffers(backend->gpu.logicalHandle, backend->commandPools.transfer.handle, 1, &commandBuffer);
+    }
 
     // @NOTE :  this method return CommandQueues with valid deviceFamilyIndex values
-    Tuple<CommandQueues, VkPhysicalDevice> pick_physical_device(VulkanBackend* backend)
+    Tuple<CommandQueues, VkPhysicalDevice> pick_physical_device(RendererBackend* backend)
     {
-        auto isDeviceSuitable = [](VulkanBackend* backend, VkPhysicalDevice device) -> Tuple<CommandQueues, bool>
+        auto isDeviceSuitable = [](RendererBackend* backend, VkPhysicalDevice device) -> Tuple<CommandQueues, bool>
         {
             auto isCommandQueueInfoComplete = [](CommandQueues* queues)
             {
@@ -1351,12 +1528,12 @@ namespace al
                 }
                 return true;
             };
-            auto doesPhysicalDeviceSupportsRequiredExtensions = [](VulkanBackend* backend, VkPhysicalDevice device, ArrayView<const char* const> extensions) -> bool
+            auto doesPhysicalDeviceSupportsRequiredExtensions = [](RendererBackend* backend, VkPhysicalDevice device, ArrayView<const char* const> extensions) -> bool
             {
                 u32 count;
                 vkEnumerateDeviceExtensionProperties(device, nullptr, &count, nullptr);
                 ArrayView<VkExtensionProperties> availableExtensions;
-                av_construct(&availableExtensions, &backend->memoryManager.cpuAllocationBindings, count);
+                av_construct(&availableExtensions, &backend->memoryManager.cpu_allocationBindings, count);
                 defer(av_destruct(availableExtensions));
                 vkEnumerateDeviceExtensionProperties(device, nullptr, &count, availableExtensions.memory);
                 bool isRequiredExtensionAvailable;
@@ -1385,7 +1562,7 @@ namespace al
             u32 count;
             ArrayView<VkQueueFamilyProperties> familyProperties;
             vkGetPhysicalDeviceQueueFamilyProperties(device, &count, nullptr);
-            av_construct(&familyProperties, &backend->memoryManager.cpuAllocationBindings, count);
+            av_construct(&familyProperties, &backend->memoryManager.cpu_allocationBindings, count);
             defer(av_destruct(familyProperties));
             vkGetPhysicalDeviceQueueFamilyProperties(device, &count, familyProperties.memory);
             // @NOTE :  checking if all required queue families are supported by device
@@ -1423,7 +1600,7 @@ namespace al
             bool isSwapChainSuppoted = false;
             if (isRequiredExtensionsSupported)
             {
-                SwapChainSupportDetails supportDetails = get_swap_chain_support_details(backend->surface, device, backend->memoryManager.cpuAllocationBindings);
+                SwapChainSupportDetails supportDetails = get_swap_chain_support_details(backend->surface, device, backend->memoryManager.cpu_allocationBindings);
                 isSwapChainSuppoted = supportDetails.formats.count && supportDetails.presentModes.count;
                 av_destruct(supportDetails.formats);
                 av_destruct(supportDetails.presentModes);
@@ -1434,7 +1611,7 @@ namespace al
                 isQueueFamiliesInfoComplete && isRequiredExtensionsSupported && isSwapChainSuppoted
             };
         };
-        ArrayView<VkPhysicalDevice> available = vk::get_available_physical_devices(backend->instance, backend->memoryManager.cpuAllocationBindings);
+        ArrayView<VkPhysicalDevice> available = vk::get_available_physical_devices(backend->instance, backend->memoryManager.cpu_allocationBindings);
         defer(av_destruct(available));
         for (uSize it = 0; it < available.count; it++)
         {
@@ -1467,1441 +1644,4 @@ namespace al
         al_vk_log_msg("Debug callback : %s\n", pCallbackData->pMessage);
         return VK_FALSE;
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#if 0
-
-    
-
-    template<typename T>
-    T& ArrayView<T>::operator [] (uSize index)
-    {
-        return memory[index];
-    }
-
-    template<typename T>
-    uSize vulkan_array_view_memory_size(ArrayView<T> view)
-    {
-        return view.count * sizeof(T);
-    }
-
-    template<typename T>
-    void construct(ArrayView<T>* view, AllocatorBindings* bindings, uSize size)
-    {
-        view->bindings = *bindings;
-        view->count = size;
-        view->memory = static_cast<T*>(allocate(bindings, size * sizeof(T)));
-        std::memset(view->memory, 0, size * sizeof(T));
-    }
-
-    template<typename T>
-    void destruct(ArrayView<T> view)
-    {
-        deallocate(&view.bindings, view.memory, view.count * sizeof(T));
-    }
-
-    // =================================================================================================================================================
-    // =================================================================================================================================================
-    // Allocation
-    // =================================================================================================================================================
-    // =================================================================================================================================================
-
-    void vulkan_set_allocation_callbacks(RendererBackendVulkan* backend)
-    {
-        // @TODO :  support reallocation in engine/memory allocators, so they can be used as allocation callbacks for vulkan
-        backend->vkAllocationCallbacks =
-        {
-            .pUserData = nullptr,
-            .pfnAllocation = 
-                [](void* pUserData, uSize size, uSize alignment, VkSystemAllocationScope allocationScope)
-                {
-                    // log_msg("Allocating %d bytes of memory with alignment of %d bytes. Allocation scope is %s\n", (int)size, (int)alignment, RendererBackendVulkan::ALLOCATION_SCOPE_TO_STR[allocationScope]);
-                    void* mem = std::malloc(size); std::memset(mem, 0, size); return mem;
-                },
-            .pfnReallocation =
-                [](void* pUserData, void* pOriginal, uSize size, uSize alignment, VkSystemAllocationScope allocationScope)
-                {
-                    // log_msg("Reallocating %d bytes of memory with alignment of %d bytes. Allocation scope is %s\n", (int)size, (int)alignment, RendererBackendVulkan::ALLOCATION_SCOPE_TO_STR[allocationScope]);
-                    return std::realloc(pOriginal, size);
-                },
-            .pfnFree =
-                [](void* pUserData, void* pMemory)
-                {
-                    // log_msg("Freeing memory from %p\n", pMemory);
-                    std::free(pMemory);
-                },
-            .pfnInternalAllocation  = nullptr,
-            .pfnInternalFree        = nullptr
-        };
-    }
-
-    // =================================================================================================================================================
-    // =================================================================================================================================================
-    // Debug
-    // =================================================================================================================================================
-    // =================================================================================================================================================
-
-    VkDebugUtilsMessengerCreateInfoEXT vulkan_get_debug_messenger_create_info()
-    {
-        return
-        {
-            .sType              = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
-            .pNext              = nullptr,
-            .flags              = 0,
-            .messageSeverity    = /*VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |*/ VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
-            .messageType        = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
-            .pfnUserCallback    = vulkan_debug_callback,
-            .pUserData          = nullptr,
-        };
-    }
-
-    void vulkan_setup_debug_messenger(RendererBackendVulkan* backend)
-    {
-        // @NOTE :  adresses of extension functions must be found manually via vkGetInstanceProcAddr
-        auto CreateDebugUtilsMessengerEXT = [](VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger) -> VkResult
-        {
-            PFN_vkCreateDebugUtilsMessengerEXT func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
-            if (func)
-            {
-                return func(instance, pCreateInfo, pAllocator, pDebugMessenger);
-            }
-            else
-            {
-                return VK_ERROR_EXTENSION_NOT_PRESENT;
-            }
-        };
-        VkDebugUtilsMessengerCreateInfoEXT createInfo = vulkan_get_debug_messenger_create_info();
-        al_vk_check(CreateDebugUtilsMessengerEXT(backend->vkInstance, &createInfo, &backend->vkAllocationCallbacks, &backend->vkDebugMessenger));
-    }
-
-    void vulkan_destroy_debug_messenger(RendererBackendVulkan* backend)
-    {
-        // @NOTE :  adresses of extension functions must be found manually via vkGetInstanceProcAddr
-        auto DestroyDebugUtilsMessengerEXT = [](VkInstance instance, VkDebugUtilsMessengerEXT messenger, const VkAllocationCallbacks* pAllocator)
-        {
-            PFN_vkDestroyDebugUtilsMessengerEXT func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
-            if (func)
-            {
-                func(instance, messenger, pAllocator);
-            }
-        };
-        DestroyDebugUtilsMessengerEXT(backend->vkInstance, backend->vkDebugMessenger, &backend->vkAllocationCallbacks);
-    }
-
-    // =================================================================================================================================================
-    // =================================================================================================================================================
-    // VkInstance creation
-    // =================================================================================================================================================
-    // =================================================================================================================================================
-
-    ArrayView<VkLayerProperties> vulkan_get_available_validation_layers(AllocatorBindings* bindings)
-    {
-        u32 count;
-        vkEnumerateInstanceLayerProperties(&count, nullptr);
-        ArrayView<VkLayerProperties> result;
-        construct(&result, bindings, count);
-        vkEnumerateInstanceLayerProperties(&count, result.memory);
-        return result;
-    }
-
-    ArrayView<VkExtensionProperties> vulkan_get_available_extensions(AllocatorBindings* bindings)
-    {
-        u32 count;
-        vkEnumerateInstanceExtensionProperties(nullptr, &count, nullptr);
-        ArrayView<VkExtensionProperties> result;
-        construct(&result, bindings, count);
-        vkEnumerateInstanceExtensionProperties(nullptr, &count, result.memory);
-        return result;
-    }
-
-    void vulkan_create_vk_instance(RendererBackendVulkan* backend, RendererBackendInitData* initData)
-    {
-        if (initData->isDebug)
-        {
-            ArrayView<VkLayerProperties> availablevalidationLayers = vulkan_get_available_validation_layers(&backend->bindings);
-            defer(destruct(availablevalidationLayers));
-            for (uSize requiredIt = 0; requiredIt < RendererBackendVulkan::REQUIRED_VALIDATION_LAYERS_COUNT; requiredIt++)
-            {
-                const char* requiredLayerName = RendererBackendVulkan::REQUIRED_VALIDATION_LAYERS[requiredIt];
-                bool isFound = false;
-                for (uSize availableIt = 0; availableIt < availablevalidationLayers.count; availableIt++)
-                {
-                    const char* availableLayerName = availablevalidationLayers[availableIt].layerName;
-                    // @TODO :  replace default strcmp
-                    if (std::strcmp(availableLayerName, requiredLayerName) == 0)
-                    {
-                        isFound = true;
-                        break;
-                    }
-                }
-                // @TODO :  replace default assert
-                assert(isFound);
-            }
-        }
-        {
-            ArrayView<VkExtensionProperties> availableExtensions = vulkan_get_available_extensions(&backend->bindings);
-            defer(destruct(availableExtensions));
-            for (uSize requiredIt = 0; requiredIt < RendererBackendVulkan::REQUIRED_EXTENSIONS_COUNT; requiredIt++)
-            {
-                const char* requiredExtensionName = RendererBackendVulkan::REQUIRED_EXTENSIONS[requiredIt];
-                bool isFound = false;
-                for (uSize availableIt = 0; availableIt < availableExtensions.count; availableIt++)
-                {
-                    const char* availableExtensionName = availableExtensions[availableIt].extensionName;
-                    // @TODO :  replace default strcmp
-                    if (std::strcmp(availableExtensionName, requiredExtensionName) == 0)
-                    {
-                        isFound = true;
-                        break;
-                    }
-                }
-                // @TODO :  replace default assert
-                assert(isFound);
-            }
-        }
-        VkApplicationInfo applicationInfo
-        {
-            .sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-            .pNext              = nullptr,
-            .pApplicationName   = initData->applicationName,
-            .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
-            .pEngineName        = EngineConfig::ENGINE_NAME,
-            .engineVersion      = VK_MAKE_VERSION(1, 0, 0),
-            .apiVersion         = VK_API_VERSION_1_0
-        };
-        // @NOTE :  although we setuping debug messenger via __setup_debug_messenger call,
-        //          created debug messenger will not be able to recieve information about
-        //          vkCreateInstance and vkDestroyInstance calls. So we have to pass additional
-        //          VkDebugUtilsMessengerCreateInfoEXT struct pointer to VkInstanceCreateInfo::pNext
-        //          to enable debug of these functions
-        VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo = vulkan_get_debug_messenger_create_info();
-        VkInstanceCreateInfo instanceCreateInfo
-        {
-            .sType                      = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-            .pNext                      = &debugCreateInfo,
-            .flags                      = 0,
-            .pApplicationInfo           = &applicationInfo,
-            .enabledLayerCount          = 0,
-            .ppEnabledLayerNames        = nullptr,
-            .enabledExtensionCount      = RendererBackendVulkan::REQUIRED_EXTENSIONS_COUNT,
-            .ppEnabledExtensionNames    = RendererBackendVulkan::REQUIRED_EXTENSIONS,
-        };
-        if (initData->isDebug)
-        {
-            instanceCreateInfo.enabledLayerCount    = RendererBackendVulkan::REQUIRED_VALIDATION_LAYERS_COUNT;
-            instanceCreateInfo.ppEnabledLayerNames  = RendererBackendVulkan::REQUIRED_VALIDATION_LAYERS;
-        }
-        al_vk_check(vkCreateInstance(&instanceCreateInfo, &backend->vkAllocationCallbacks, &backend->vkInstance));
-    }
-
-    // =================================================================================================================================================
-    // =================================================================================================================================================
-    // Surface
-    // =================================================================================================================================================
-    // =================================================================================================================================================
-
-    void vulkan_create_surface(RendererBackendVulkan* backend)
-    {
-        // @TODO :  move surface creation to platform layer
-        // @TODO :  move surface creation to platform layer
-        // @TODO :  move surface creation to platform layer
-        // @TODO :  move surface creation to platform layer
-        // @TODO :  move surface creation to platform layer
-        // @TODO :  move surface creation to platform layer
-        // @TODO :  move surface creation to platform layer
-        // @TODO :  move surface creation to platform layer
-        // @TODO :  move surface creation to platform layer
-        // @TODO :  move surface creation to platform layer
-
-        VkWin32SurfaceCreateInfoKHR surfaceCreateInfo
-        {
-            .sType      = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
-            .pNext      = nullptr,
-            .flags      = 0,
-            .hinstance  = ::GetModuleHandle(nullptr),
-            .hwnd       = backend->window->handle
-        };
-        al_vk_check(vkCreateWin32SurfaceKHR(backend->vkInstance, &surfaceCreateInfo, &backend->vkAllocationCallbacks, &backend->vkSurface));
-    }
-
-    // =================================================================================================================================================
-    // =================================================================================================================================================
-    // Physical device queue families info
-    // =================================================================================================================================================
-    // =================================================================================================================================================
-
-    ArrayView<VkQueueFamilyProperties> vulkan_get_queue_family_properties(RendererBackendVulkan* backend, VkPhysicalDevice device)
-    {
-        ArrayView<VkQueueFamilyProperties> result;
-        vkGetPhysicalDeviceQueueFamilyProperties(device, &result.count, nullptr);
-        construct(&result, &backend->bindings, result.count);
-        vkGetPhysicalDeviceQueueFamilyProperties(device, &result.count, result.memory);
-        return result;
-    }
-
-    bool vulkan_is_queue_families_info_complete(VulkanQueueFamiliesInfo* info)
-    {
-        return  info->familyInfos[VulkanQueueFamiliesInfo::GRAPHICS_FAMILY].isPresent &&
-                info->familyInfos[VulkanQueueFamiliesInfo::SURFACE_PRESENT_FAMILY].isPresent;
-    }
-
-    VulkanQueueFamiliesInfo vulkan_get_queue_families_info(RendererBackendVulkan* backend, VkPhysicalDevice device)
-    {
-        VkBool32 isSupported;
-        VulkanQueueFamiliesInfo info{ };
-        ArrayView<VkQueueFamilyProperties> familyProperties = vulkan_get_queue_family_properties(backend, device);
-        defer(destruct(familyProperties));
-        for (uSize it = 0; it < familyProperties.count; it++)
-        {
-            if (familyProperties[it].queueFlags & VK_QUEUE_GRAPHICS_BIT)
-            {
-                info.familyInfos[VulkanQueueFamiliesInfo::GRAPHICS_FAMILY].index = it;
-                info.familyInfos[VulkanQueueFamiliesInfo::GRAPHICS_FAMILY].isPresent = true;
-            }
-            if (isSupported = false, vkGetPhysicalDeviceSurfaceSupportKHR(device, it, backend->vkSurface, &isSupported), isSupported)
-            {
-                info.familyInfos[VulkanQueueFamiliesInfo::SURFACE_PRESENT_FAMILY].index = it;
-                info.familyInfos[VulkanQueueFamiliesInfo::SURFACE_PRESENT_FAMILY].isPresent = true;
-            }
-            if (vulkan_is_queue_families_info_complete(&info))
-            {
-                break;
-            }
-        }
-        return info;
-    }
-
-    ArrayView<VkDeviceQueueCreateInfo> vulkan_get_queue_create_infos(RendererBackendVulkan* backend, VulkanQueueFamiliesInfo* queueFamiliesInfo)
-    {
-        // @NOTE :  this is possible that queue family might support more than one of the required features,
-        //          so we have to remove duplicates from queueFamiliesInfo and create VkDeviceQueueCreateInfos
-        //          only for unique indexes
-        const f32 QUEUE_DEFAULT_PRIORITY = 1.0f;
-        bool isFound = false;
-        u32 indicesArray[VulkanQueueFamiliesInfo::FAMILIES_NUM];
-        ArrayView<u32> uniqueQueueIndices
-        {
-            .memory = indicesArray,
-            .count = 0
-        };
-        for (uSize it = 0; it < VulkanQueueFamiliesInfo::FAMILIES_NUM; it++)
-        {
-            isFound = false;
-            for (uSize uniqueIt = 0; uniqueIt < uniqueQueueIndices.count; uniqueIt++)
-            {
-                if (uniqueQueueIndices[uniqueIt] == queueFamiliesInfo->familyInfos[it].index)
-                {
-                    isFound = true;
-                    break;
-                }
-            }
-            if (isFound)
-            {
-                continue;
-            }
-            uniqueQueueIndices.count += 1;
-            uniqueQueueIndices[uniqueQueueIndices.count - 1] = queueFamiliesInfo->familyInfos[it].index;
-        }
-        ArrayView<VkDeviceQueueCreateInfo> result;
-        construct(&result, &backend->bindings, uniqueQueueIndices.count);
-        for (uSize it = 0; it < result.count; it++)
-        {
-            result[it] = 
-            {
-                .sType              = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-                .pNext              = nullptr,
-                .flags              = 0,
-                .queueFamilyIndex   = uniqueQueueIndices[it],
-                .queueCount         = 1,
-                .pQueuePriorities   = &QUEUE_DEFAULT_PRIORITY,
-            };
-        }
-        return result;
-    }
-
-    // =================================================================================================================================================
-    // =================================================================================================================================================
-    // Physical device
-    // =================================================================================================================================================
-    // =================================================================================================================================================
-
-    bool vulkan_does_physical_device_supports_required_extensions(RendererBackendVulkan* backend, VkPhysicalDevice device)
-    {
-        // log_msg("Checking required device extensions (not the same as extensions that was before).\n");
-        u32 count;
-        vkEnumerateDeviceExtensionProperties(device, nullptr, &count, nullptr);
-        ArrayView<VkExtensionProperties> availableExtensions
-        {
-            .memory = static_cast<VkExtensionProperties*>(allocate(&backend->bindings, count * sizeof(VkExtensionProperties))),
-            .count = count
-        };
-        vkEnumerateDeviceExtensionProperties(device, nullptr, &availableExtensions.count, availableExtensions.memory);
-        bool isRequiredExtensionAvailable;
-        bool result = true;
-        for (uSize requiredIt = 0; requiredIt < RendererBackendVulkan::REQUIRED_DEVICE_EXTENSIONS_COUNT; requiredIt++)
-        {
-            isRequiredExtensionAvailable = false;
-            for (uSize availableIt = 0; availableIt < availableExtensions.count; availableIt++)
-            {
-                if (std::strcmp(availableExtensions[availableIt].extensionName, RendererBackendVulkan::REQUIRED_DEVICE_EXTENSIONS[requiredIt]) == 0)
-                {
-                    isRequiredExtensionAvailable = true;
-                    break;
-                }
-            }
-            if (!isRequiredExtensionAvailable)
-            {
-                result = false;
-                break;
-            }
-        }
-        deallocate(&backend->bindings, availableExtensions.memory, vulkan_array_view_memory_size(availableExtensions));
-        return result;
-    }
-
-    bool vulkan_is_physical_device_suitable(RendererBackendVulkan* backend, VkPhysicalDevice device)
-    {
-        VulkanQueueFamiliesInfo queueFamiliesInfo = vulkan_get_queue_families_info(backend, device);
-        bool isQueueFamiliesInfoComplete = vulkan_is_queue_families_info_complete(&queueFamiliesInfo);
-        bool isRequiredExtensionsSupported = vulkan_does_physical_device_supports_required_extensions(backend, device);
-        bool isSwapChainSuppoted = false;
-        if (isRequiredExtensionsSupported)
-        {
-            RendererBackendVulkanSwapChainSupportDetails supportDetails = vulkan_get_swap_chain_support_details(backend->surface, device, backend->memoryManager.cpuAllocationBindings);
-            isSwapChainSuppoted = supportDetails.formats.count && supportDetails.presentModes.count;
-            deallocate(&backend->bindings, supportDetails.formats.memory, vulkan_array_view_memory_size(supportDetails.formats));
-            deallocate(&backend->bindings, supportDetails.presentModes.memory, vulkan_array_view_memory_size(supportDetails.presentModes));
-        }
-        return isQueueFamiliesInfoComplete && isRequiredExtensionsSupported && isSwapChainSuppoted;
-    }
-
-    ArrayView<VkPhysicalDevice> vulkan_get_available_physical_devices(RendererBackendVulkan* backend)
-    {
-        ArrayView<VkPhysicalDevice> result;
-        vkEnumeratePhysicalDevices(backend->vkInstance, &result.count, nullptr);
-        construct(&result, &backend->bindings, result.count);
-        vkEnumeratePhysicalDevices(backend->vkInstance, &result.count, result.memory);
-        return result;
-    }
-
-    void vulkan_choose_physical_device(RendererBackendVulkan* backend)
-    {
-        ArrayView<VkPhysicalDevice> available = vulkan_get_available_physical_devices(backend);
-        defer(destruct(available));
-        for (uSize it = 0; it < available.count; it++)
-        {
-            VkPhysicalDeviceProperties deviceProperties;
-            vkGetPhysicalDeviceProperties(available[it], &deviceProperties);
-            if (vulkan_is_physical_device_suitable(backend, available[it]))
-            {
-                backend->vkPhysicalDevice = available[it];
-                break;
-            }
-        }
-        // @TODO :  replace default assert
-        assert(backend->vkPhysicalDevice); // unable to find suitable physical device
-    }
-
-    // =================================================================================================================================================
-    // =================================================================================================================================================
-    // Logical device
-    // =================================================================================================================================================
-    // =================================================================================================================================================
-
-    void vulkan_create_logical_device(RendererBackendVulkan* backend)
-    {
-        VulkanQueueFamiliesInfo queueFamiliesInfo = vulkan_get_queue_families_info(backend, backend->vkPhysicalDevice);
-        ArrayView<VkDeviceQueueCreateInfo> queueCreateInfos = vulkan_get_queue_create_infos(backend, &queueFamiliesInfo);
-        defer(destruct(queueCreateInfos));
-        VkPhysicalDeviceFeatures deviceFeatures
-        {
-        };
-        VkDeviceCreateInfo logicalDeviceCreateInfo
-        {
-            .sType                      = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-            .pNext                      = nullptr,
-            .flags                      = 0,
-            .queueCreateInfoCount       = queueCreateInfos.count,
-            .pQueueCreateInfos          = queueCreateInfos.memory,
-            // @NOTE : Validation layers info is not used by recent vulkan implemetations, but still can be set for compatibility reasons
-            .enabledLayerCount          = RendererBackendVulkan::REQUIRED_VALIDATION_LAYERS_COUNT,
-            .ppEnabledLayerNames        = RendererBackendVulkan::REQUIRED_VALIDATION_LAYERS,
-            .enabledExtensionCount      = RendererBackendVulkan::REQUIRED_DEVICE_EXTENSIONS_COUNT,
-            .ppEnabledExtensionNames    = RendererBackendVulkan::REQUIRED_DEVICE_EXTENSIONS,
-            .pEnabledFeatures           = &deviceFeatures
-        };
-        al_vk_check(vkCreateDevice(backend->vkPhysicalDevice, &logicalDeviceCreateInfo, &backend->vkAllocationCallbacks, &backend->vkLogicalDevice));
-        vkGetDeviceQueue(backend->vkLogicalDevice, queueFamiliesInfo.familyInfos[VulkanQueueFamiliesInfo::GRAPHICS_FAMILY].index, 0, &backend->vkGraphicsQueue);
-        vkGetDeviceQueue(backend->vkLogicalDevice, queueFamiliesInfo.familyInfos[VulkanQueueFamiliesInfo::SURFACE_PRESENT_FAMILY].index, 0, &backend->vkPresentQueue);
-    }
-
-    // =================================================================================================================================================
-    // =================================================================================================================================================
-    // Swap chain
-    // =================================================================================================================================================
-    // =================================================================================================================================================
-
-    RendererBackendVulkanSwapChainSupportDetails vulkan_get_swap_chain_support_details(RendererBackendVulkan* backend, VkPhysicalDevice device)
-    {
-        RendererBackendVulkanSwapChainSupportDetails result{ };
-        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, backend->vkSurface, &result.capabilities);
-        u32 formatCount;
-        vkGetPhysicalDeviceSurfaceFormatsKHR(device, backend->vkSurface, &formatCount, nullptr);
-        if (formatCount != 0)
-        {
-            construct(&result.formats, &backend->bindings, formatCount);
-            vkGetPhysicalDeviceSurfaceFormatsKHR(device, backend->vkSurface, &formatCount, result.formats.memory);
-        }
-        u32 presentModeCount;
-        vkGetPhysicalDeviceSurfacePresentModesKHR(device, backend->vkSurface, &presentModeCount, nullptr);
-        if (presentModeCount != 0)
-        {
-            construct(&result.presentModes, &backend->bindings, presentModeCount);
-            vkGetPhysicalDeviceSurfacePresentModesKHR(device, backend->vkSurface, &presentModeCount, result.presentModes.memory);
-        }
-        return result;
-    }
-
-    VkSurfaceFormatKHR vulkan_choose_surface_format(ArrayView<VkSurfaceFormatKHR> availableFormats)
-    {
-        for (uSize it = 0; it < availableFormats.count; it++)
-        {
-            if (availableFormats[it].format == VK_FORMAT_B8G8R8A8_SRGB && availableFormats[it].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
-            {
-                return availableFormats[it];
-            }
-        }
-        return availableFormats[0];
-    }
-
-    VkPresentModeKHR vulkan_choose_presentation_mode(ArrayView<VkPresentModeKHR> availableModes)
-    {
-        for (uSize it = 0; it < availableModes.count; it++)
-        {
-            // VK_PRESENT_MODE_MAILBOX_KHR will allow us to implemet triple buffering
-            if (availableModes[it] == VK_PRESENT_MODE_MAILBOX_KHR) //VK_PRESENT_MODE_IMMEDIATE_KHR
-            {
-                return availableModes[it];
-            }
-        }
-        return VK_PRESENT_MODE_FIFO_KHR; // Guarateed to be available
-    }
-
-    VkExtent2D vulkan_choose_swap_extent(RendererBackendVulkan* backend, VkSurfaceCapabilitiesKHR* surfaceCapabilities)
-    {
-        if (surfaceCapabilities->currentExtent.width != UINT32_MAX)
-        {
-            return surfaceCapabilities->currentExtent;
-        }
-        else
-        {
-            auto clamp = [](u32 min, u32 max, u32 value) -> u32
-            {
-                return value < min ? min : (value > max ? max : value);
-            };
-            return
-            {
-                clamp(surfaceCapabilities->minImageExtent.width , surfaceCapabilities->maxImageExtent.width , platform_window_get_current_width (backend->window)),
-                clamp(surfaceCapabilities->minImageExtent.height, surfaceCapabilities->maxImageExtent.height, platform_window_get_current_height(backend->window))
-            };
-        }
-    }
-
-    void vulkan_create_swap_chain(RendererBackendVulkan* backend)
-    {
-        RendererBackendVulkanSwapChainSupportDetails supportDetails = vulkan_get_swap_chain_support_details(backend, backend->vkPhysicalDevice);
-        defer(destruct(supportDetails.formats));
-        defer(destruct(supportDetails.presentModes));
-        VkSurfaceFormatKHR  surfaceFormat   = vulkan_choose_surface_format     (supportDetails.formats);
-        VkPresentModeKHR    presentMode     = vulkan_choose_presentation_mode  (supportDetails.presentModes);
-        VkExtent2D          extent          = vulkan_choose_swap_extent        (backend, &supportDetails.capabilities);
-        // @NOTE :  supportDetails.capabilities.maxImageCount == 0 means unlimited amount of images in swapchain
-        u32 imageCount = supportDetails.capabilities.minImageCount + 1;
-        if (supportDetails.capabilities.maxImageCount != 0 && imageCount > supportDetails.capabilities.maxImageCount)
-        {
-            imageCount = supportDetails.capabilities.maxImageCount;
-        }
-        // @NOTE :  imageSharingMode, queueFamilyIndexCount and pQueueFamilyIndices may vary depending on queue families indices.
-        //          If the same queue family supports both graphics operations and presentation operations, we use exclusive sharing mode
-        //          (which is more performance-friendly), but if there is two different queue families for these operations, we use
-        //          concurrent sharing mode and pass indices array info to queueFamilyIndexCount and pQueueFamilyIndices
-        VkSharingMode   imageSharingMode        = VK_SHARING_MODE_EXCLUSIVE;
-        u32             queueFamilyIndexCount   = 0;
-        const u32*      pQueueFamilyIndices     = nullptr;
-        VulkanQueueFamiliesInfo queueFamiliesInfo = vulkan_get_queue_families_info(backend, backend->vkPhysicalDevice);
-        u32 queueFamiliesIndices[] =
-        {
-            queueFamiliesInfo.familyInfos[VulkanQueueFamiliesInfo::GRAPHICS_FAMILY].index,
-            queueFamiliesInfo.familyInfos[VulkanQueueFamiliesInfo::SURFACE_PRESENT_FAMILY].index
-        };
-        if (queueFamiliesIndices[0] != queueFamiliesIndices[1])
-        {
-            // @NOTE :  if VK_SHARING_MODE_EXCLUSIVE was used here, we would have to explicitly transfer ownership of swap chain images
-            //          from one queue to another
-            imageSharingMode        = VK_SHARING_MODE_CONCURRENT;
-            queueFamilyIndexCount   = 2;
-            pQueueFamilyIndices     = queueFamiliesIndices;
-        }
-        VkSwapchainCreateInfoKHR createInfo
-        {
-            .sType                  = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-            .pNext                  = nullptr,
-            .flags                  = 0,
-            .surface                = backend->vkSurface,
-            .minImageCount          = imageCount,
-            .format            = surfaceFormat.format,
-            .imageColorSpace        = surfaceFormat.colorSpace,
-            .imageExtent            = extent,
-            .imageArrayLayers       = 1, // "This is always 1 unless you are developing a stereoscopic 3D application"
-            .imageUsage             = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-            .imageSharingMode       = imageSharingMode,
-            .queueFamilyIndexCount  = queueFamilyIndexCount,
-            .pQueueFamilyIndices    = pQueueFamilyIndices,
-            .preTransform           = supportDetails.capabilities.currentTransform, // Allows to apply transform to images (rotate etc)
-            .compositeAlpha         = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-            .presentMode            = presentMode,
-            .clipped                = VK_TRUE,
-            .oldSwapchain           = VK_NULL_HANDLE,
-        };
-        al_vk_check(vkCreateSwapchainKHR(backend->vkLogicalDevice, &createInfo, &backend->vkAllocationCallbacks, &backend->vkSwapChain));
-        vkGetSwapchainImagesKHR(backend->vkLogicalDevice, backend->vkSwapChain, &backend->vkSwapChainImages.count, nullptr);
-        construct(&backend->vkSwapChainImages, &backend->bindings, backend->vkSwapChainImages.count);
-        vkGetSwapchainImagesKHR(backend->vkLogicalDevice, backend->vkSwapChain, &backend->vkSwapChainImages.count, backend->vkSwapChainImages.memory);
-        backend->vkSwapChainImageFormat = surfaceFormat.format;
-        backend->vkSwapChainExtent = extent;
-    }
-
-    void vulkan_destroy_swap_chain(RendererBackendVulkan* backend)
-    {
-        vkDestroySwapchainKHR(backend->vkLogicalDevice, backend->vkSwapChain, &backend->vkAllocationCallbacks);
-        destruct(backend->vkSwapChainImages);
-    }
-
-    void vulkan_create_swap_chain_image_views(RendererBackendVulkan* backend)
-    {
-        construct(&backend->vkSwapChainImageViews, &backend->bindings, backend->vkSwapChainImages.count);
-        for (uSize it = 0; it < backend->vkSwapChainImageViews.count; it++)
-        {
-            VkImageViewCreateInfo createInfo
-            {
-                .sType              = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                .pNext              = nullptr,
-                .flags              = 0,
-                .image              = backend->vkSwapChainImages[it],
-                .viewType           = VK_IMAGE_VIEW_TYPE_2D,
-                .format             = backend->vkSwapChainImageFormat,
-                .components         = 
-                {
-                    .r = VK_COMPONENT_SWIZZLE_IDENTITY,
-                    .g = VK_COMPONENT_SWIZZLE_IDENTITY,
-                    .b = VK_COMPONENT_SWIZZLE_IDENTITY,
-                    .a = VK_COMPONENT_SWIZZLE_IDENTITY
-                },
-                .subresourceRange   = 
-                {
-                    .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-                    .baseMipLevel   = 0,
-                    .levelCount     = 1,
-                    .baseArrayLayer = 0,
-                    .layerCount     = 1
-                }
-            };
-            al_vk_check(vkCreateImageView(backend->vkLogicalDevice, &createInfo, &backend->vkAllocationCallbacks, &backend->vkSwapChainImageViews[it]));
-        }
-    }
-
-    void vulkan_destroy_swap_chain_image_views(RendererBackendVulkan* backend)
-    {
-        for (uSize it = 0; it < backend->vkSwapChainImageViews.count; it++)
-        {
-            vkDestroyImageView(backend->vkLogicalDevice, backend->vkSwapChainImageViews[it], &backend->vkAllocationCallbacks);
-        }
-        destruct(backend->vkSwapChainImageViews);
-    }
-
-    // =================================================================================================================================================
-    // =================================================================================================================================================
-    // Render pass
-    // =================================================================================================================================================
-    // =================================================================================================================================================
-
-    VkShaderModule vulkan_create_shader_module(RendererBackendVulkan* backend, PlatformFile spirvBytecode)
-    {
-        VkShaderModuleCreateInfo createInfo
-        {
-            .sType      = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-            .pNext      = nullptr,
-            .flags      = 0,
-            .codeSize   = spirvBytecode.sizeBytes,
-            .pCode      = static_cast<u32*>(spirvBytecode.memory),
-        };
-        VkShaderModule shaderModule{ };
-        al_vk_check(vkCreateShaderModule(backend->vkLogicalDevice, &createInfo, &backend->vkAllocationCallbacks, &shaderModule));
-        return shaderModule;
-    }
-
-    void vulkan_create_render_pass(RendererBackendVulkan* backend)
-    {
-        VkAttachmentDescription attachments[] = 
-        {
-            {   // Color attachment
-                .flags          = 0,
-                .format         = backend->vkSwapChainImageFormat,
-                .samples        = VK_SAMPLE_COUNT_1_BIT,
-                .loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                .storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
-                .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-                .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-                .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
-                .finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-            }
-        };
-        VkAttachmentReference attachemntRefs[] =
-        {
-            {
-                .attachment = 0, // This is the index into the VkAttachmentDescription array
-                .layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            }
-        };
-        VkSubpassDescription subpasses[] = 
-        {
-            {
-                .flags                      = { },
-                .pipelineBindPoint          = VK_PIPELINE_BIND_POINT_GRAPHICS,
-                .inputAttachmentCount       = 0,
-                .pInputAttachments          = nullptr,
-                .colorAttachmentCount       = sizeof(attachemntRefs) / sizeof(attachemntRefs[0]),
-                .pColorAttachments          = attachemntRefs,
-                .pResolveAttachments        = nullptr,
-                .pDepthStencilAttachment    = nullptr,
-                .preserveAttachmentCount    = 0,
-                .pPreserveAttachments       = nullptr,
-            }
-        };
-        VkSubpassDependency dependencies[] = 
-        {
-            {
-                .srcSubpass         = VK_SUBPASS_EXTERNAL,
-                .dstSubpass         = 0,
-                .srcStageMask       = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                .dstStageMask       = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                .srcAccessMask      = 0,
-                .dstAccessMask      = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                .dependencyFlags    = 0,
-            }
-        };
-        VkRenderPassCreateInfo renderPassInfo
-        {
-            .sType              = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-            .pNext              = nullptr,
-            .flags              = 0,
-            .attachmentCount    = sizeof(attachments) / sizeof(attachments[0]),
-            .pAttachments       = attachments,
-            .subpassCount       = sizeof(subpasses) / sizeof(subpasses[0]),
-            .pSubpasses         = subpasses,
-            .dependencyCount    = sizeof(dependencies) / sizeof(dependencies[0]),
-            .pDependencies      = dependencies,
-        };
-        al_vk_check(vkCreateRenderPass(backend->vkLogicalDevice, &renderPassInfo, &backend->vkAllocationCallbacks, &backend->vkRenderPass));
-    }
-
-    // =================================================================================================================================================
-    // =================================================================================================================================================
-    // Descriptor sets
-    // =================================================================================================================================================
-    // =================================================================================================================================================
-
-    void vulkan_create_discriptor_set_layout (RendererBackendVulkan* backend)
-    {
-        VkDescriptorSetLayoutBinding vertexBufferLayoutBinding
-        {
-            .binding            = 0, // Corresponds to binding in the shader (layout(binding = 0))
-            .descriptorType     = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, // Is this correct ? 
-            .descriptorCount    = 1,
-            .stageFlags         = VK_SHADER_STAGE_VERTEX_BIT,
-            .pImmutableSamplers = nullptr,
-        };
-        VkDescriptorSetLayoutCreateInfo layoutInfo
-        {
-            .sType          = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-            .pNext          = nullptr,
-            .flags          = 0,
-            .bindingCount   = 1,
-            .pBindings      = &vertexBufferLayoutBinding,
-        };
-        al_vk_check(vkCreateDescriptorSetLayout(backend->vkLogicalDevice, &layoutInfo, &backend->vkAllocationCallbacks, &backend->vkDescriptorSetLayout));
-    }
-
-    // =================================================================================================================================================
-    // =================================================================================================================================================
-    // Render pipeline
-    // =================================================================================================================================================
-    // =================================================================================================================================================
-
-    void vulkan_create_render_pipeline(RendererBackendVulkan* backend)
-    {
-        PlatformFile vertShader = platform_file_load(backend->bindings, RendererBackendVulkan::VERTEX_SHADER_PATH, PlatformFileLoadMode::READ);
-        PlatformFile fragShader = platform_file_load(backend->bindings, RendererBackendVulkan::FRAGMENT_SHADER_PATH, PlatformFileLoadMode::READ);
-        defer(platform_file_unload(backend->bindings, vertShader));
-        defer(platform_file_unload(backend->bindings, fragShader));
-        VkShaderModule vertShaderModule = vulkan_create_shader_module(backend, vertShader);
-        VkShaderModule fragShaderModule = vulkan_create_shader_module(backend, fragShader);
-        defer(vkDestroyShaderModule(backend->vkLogicalDevice, vertShaderModule, &backend->vkAllocationCallbacks));
-        defer(vkDestroyShaderModule(backend->vkLogicalDevice, fragShaderModule, &backend->vkAllocationCallbacks));
-        VkPipelineShaderStageCreateInfo shaderStages[] =
-        {
-            {
-                .sType                  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-                .pNext                  = nullptr,
-                .flags                  = 0,
-                .stage                  = VK_SHADER_STAGE_VERTEX_BIT,
-                .module                 = vertShaderModule,
-                .pName                  = "main",   // program entrypoint
-                .pSpecializationInfo    = nullptr   // values for shader constants
-            },
-            {
-                .sType                  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-                .pNext                  = nullptr,
-                .flags                  = 0,
-                .stage                  = VK_SHADER_STAGE_FRAGMENT_BIT,
-                .module                 = fragShaderModule,
-                .pName                  = "main",   // program entrypoint
-                .pSpecializationInfo    = nullptr   // values for shader constants
-            }
-        };
-        VkPipelineVertexInputStateCreateInfo vertexInputInfo
-        {
-            .sType                              = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-            .pNext                              = nullptr,
-            .flags                              = 0,
-            .vertexBindingDescriptionCount      = 0,
-            .pVertexBindingDescriptions         = nullptr,
-            .vertexAttributeDescriptionCount    = 0,
-            .pVertexAttributeDescriptions       = nullptr,
-        };
-        VkPipelineInputAssemblyStateCreateInfo inputAssembly
-        {
-            .sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-            .pNext                  = nullptr,
-            .flags                  = 0,
-            .topology               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-            .primitiveRestartEnable = VK_FALSE,
-        };
-        VkViewport viewport
-        {
-            .x          = 0.0f,
-            .y          = 0.0f,
-            .width      = static_cast<float>(backend->vkSwapChainExtent.width),
-            .height     = static_cast<float>(backend->vkSwapChainExtent.height),
-            .minDepth   = 0.0f,
-            .maxDepth   = 1.0f,
-        };
-        VkRect2D scissor
-        {
-            .offset = { 0, 0 },
-            .extent = backend->vkSwapChainExtent,
-        };
-        VkPipelineViewportStateCreateInfo viewportState
-        {
-            .sType          = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-            .pNext          = nullptr,
-            .flags          = 0,
-            .viewportCount  = 1,
-            .pViewports     = &viewport,
-            .scissorCount   = 1,
-            .pScissors      = &scissor,
-        };
-        VkPipelineRasterizationStateCreateInfo rasterizer
-        {
-            .sType                      = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-            .pNext                      = nullptr,
-            .flags                      = 0,
-            .depthClampEnable           = VK_FALSE,
-            .rasterizerDiscardEnable    = VK_FALSE,
-            .polygonMode                = VK_POLYGON_MODE_FILL,
-            .cullMode                   = VK_CULL_MODE_BACK_BIT,
-            .frontFace                  = VK_FRONT_FACE_CLOCKWISE,
-            .depthBiasEnable            = VK_FALSE,
-            .depthBiasConstantFactor    = 0.0f,
-            .depthBiasClamp             = 0.0f,
-            .depthBiasSlopeFactor       = 0.0f,
-            .lineWidth                  = 1.0f,
-        };
-        VkPipelineMultisampleStateCreateInfo multisampling
-        {
-            .sType                  = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-            .pNext                  = nullptr,
-            .flags                  = 0,
-            .rasterizationSamples   = VK_SAMPLE_COUNT_1_BIT,
-            .sampleShadingEnable    = VK_FALSE,
-            .minSampleShading       = 1.0f,
-            .pSampleMask            = nullptr,
-            .alphaToCoverageEnable  = VK_FALSE,
-            .alphaToOneEnable       = VK_FALSE,
-        };
-        // VkPipelineDepthStencilStateCreateInfo{ };
-        VkPipelineColorBlendAttachmentState colorBlendAttachment
-        {
-            .blendEnable            = VK_FALSE,
-            .srcColorBlendFactor    = VK_BLEND_FACTOR_ONE,  // optional if blendEnable == VK_FALSE
-            .dstColorBlendFactor    = VK_BLEND_FACTOR_ZERO, // optional if blendEnable == VK_FALSE
-            .colorBlendOp           = VK_BLEND_OP_ADD,      // optional if blendEnable == VK_FALSE
-            .srcAlphaBlendFactor    = VK_BLEND_FACTOR_ONE,  // optional if blendEnable == VK_FALSE
-            .dstAlphaBlendFactor    = VK_BLEND_FACTOR_ZERO, // optional if blendEnable == VK_FALSE
-            .alphaBlendOp           = VK_BLEND_OP_ADD,      // optional if blendEnable == VK_FALSE
-            .colorWriteMask         = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-        };
-        VkPipelineColorBlendStateCreateInfo colorBlending
-        {
-            .sType              = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-            .pNext              = nullptr,
-            .flags              = 0,
-            .logicOpEnable      = VK_FALSE,
-            .logicOp            = VK_LOGIC_OP_COPY, // optional if logicOpEnable == VK_FALSE
-            .attachmentCount    = 1,
-            .pAttachments       = &colorBlendAttachment,
-            .blendConstants     = { 0.0f, 0.0f, 0.0f, 0.0f }, // optional (???)
-        };
-#ifdef USE_DYNAMIC_STATE
-        // @NOTE :  Example of dynamic state settings (this parameters of pipeline
-        //          will be able to be changed at runtime without recreating the pipeline)
-        VkDynamicState dynamicStates[] =
-        {
-            VK_DYNAMIC_STATE_VIEWPORT,
-            VK_DYNAMIC_STATE_SCISSOR
-        };
-        VkPipelineDynamicStateCreateInfo dynamicState
-        {
-            .sType              = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-            .pNext              = nullptr,
-            .flags              = 0,
-            .dynamicStateCount  = sizeof(dynamicStates) / sizeof(dynamicStates[0]),
-            .pDynamicStates     = dynamicStates,
-        };
-#endif
-        VkPipelineLayoutCreateInfo pipelineLayoutInfo
-        {
-            .sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-            .pNext                  = nullptr,
-            .flags                  = 0,
-            .setLayoutCount         = 1,
-            .pSetLayouts            = &backend->vkDescriptorSetLayout,
-            .pushConstantRangeCount = 0,
-            .pPushConstantRanges    = nullptr,
-        };
-        al_vk_check(vkCreatePipelineLayout(backend->vkLogicalDevice, &pipelineLayoutInfo, &backend->vkAllocationCallbacks, &backend->vkPipelineLayout));
-        VkGraphicsPipelineCreateInfo pipelineInfo
-        {
-            .sType                  = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-            .pNext                  = nullptr,
-            .flags                  = 0,
-            .stageCount             = 2,
-            .pStages                = shaderStages,
-            .pVertexInputState      = &vertexInputInfo,
-            .pInputAssemblyState    = &inputAssembly,
-            .pTessellationState     = nullptr,
-            .pViewportState         = &viewportState,
-            .pRasterizationState    = &rasterizer,
-            .pMultisampleState      = &multisampling,
-            .pDepthStencilState     = nullptr,
-            .pColorBlendState       = &colorBlending,
-#ifdef USE_DYNAMIC_STATE
-            .pDynamicState          = &dynamicState,
-#else
-            .pDynamicState          = nullptr,
-#endif
-            .layout                 = backend->vkPipelineLayout,
-            .renderPass             = backend->vkRenderPass,
-            .subpass                = 0,
-            .basePipelineHandle     = VK_NULL_HANDLE,
-            .basePipelineIndex      = -1,
-        };
-        al_vk_check(vkCreateGraphicsPipelines(backend->vkLogicalDevice, VK_NULL_HANDLE, 1, &pipelineInfo, &backend->vkAllocationCallbacks, &backend->vkGraphicsPipeline));
-    }
-
-    // =================================================================================================================================================
-    // =================================================================================================================================================
-    // Framebuffers
-    // =================================================================================================================================================
-    // =================================================================================================================================================
-
-    void vulkan_create_framebuffers(RendererBackendVulkan* backend)
-    {
-        construct(&backend->vkFramebuffers, &backend->bindings, backend->vkSwapChainImageViews.count);
-        for (uSize it = 0; it < backend->vkSwapChainImageViews.count; it++)
-        {
-            VkImageView attachments[] =
-            {
-                backend->vkSwapChainImageViews[it]
-            };
-            VkFramebufferCreateInfo framebufferInfo
-            {
-                .sType              = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-                .pNext              = nullptr,
-                .flags              = 0,
-                .renderPass         = backend->vkRenderPass,
-                .attachmentCount    = sizeof(attachments) / sizeof(attachments[0]),
-                .pAttachments       = attachments,
-                .width              = backend->vkSwapChainExtent.width,
-                .height             = backend->vkSwapChainExtent.height,
-                .layers             = 1,
-            };
-            al_vk_check(vkCreateFramebuffer(backend->vkLogicalDevice, &framebufferInfo, &backend->vkAllocationCallbacks, &backend->vkFramebuffers[it]));
-        }
-    }
-
-    void vulkan_destroy_framebuffers(RendererBackendVulkan* backend)
-    {
-        for (uSize it = 0; it < backend->vkFramebuffers.count; it++)
-        {
-            vkDestroyFramebuffer(backend->vkLogicalDevice, backend->vkFramebuffers[it], &backend->vkAllocationCallbacks);
-        }
-        destruct(backend->vkFramebuffers);
-    }
-
-    // =================================================================================================================================================
-    // =================================================================================================================================================
-    // Command pools and command buffers
-    // =================================================================================================================================================
-    // =================================================================================================================================================
-
-    void vulkan_create_command_pool(RendererBackendVulkan* backend)
-    {
-        VulkanQueueFamiliesInfo queueFamiliesInfo = vulkan_get_queue_families_info(backend, backend->vkPhysicalDevice);
-        VkCommandPoolCreateInfo poolInfo
-        {
-            .sType              = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-            .pNext              = nullptr,
-#ifdef USE_DYNAMIC_STATE
-            .flags              = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-#else
-            .flags              = 0,
-#endif
-            .queueFamilyIndex   = queueFamiliesInfo.familyInfos[VulkanQueueFamiliesInfo::GRAPHICS_FAMILY].index
-        };
-        al_vk_check(vkCreateCommandPool(backend->vkLogicalDevice, &poolInfo, &backend->vkAllocationCallbacks, &backend->vkCommandPool));
-
-    }
-
-    void vulkan_destroy_command_pool(RendererBackendVulkan* backend)
-    {
-        vkDestroyCommandPool(backend->vkLogicalDevice, backend->vkCommandPool, &backend->vkAllocationCallbacks);
-    }
-
-    void vulkan_create_command_buffers(RendererBackendVulkan* backend)
-    {
-#ifdef USE_DYNAMIC_STATE
-        construct(&backend->vkCommandBuffers, &backend->bindings, 1);
-        VkCommandBufferAllocateInfo allocInfo
-        {
-            .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-            .pNext              = nullptr,
-            .commandPool        = backend->vkCommandPool,
-            .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-            // @TODO :  safe-cast from size_t to u32
-            .commandBufferCount = static_cast<u32>(backend->vkCommandBuffers.count),
-        };
-        al_vk_check(vkAllocateCommandBuffers(backend->vkLogicalDevice, &allocInfo, backend->vkCommandBuffers.memory));
-#else
-        // @NOTE :  creating command buffers for each possible swap chain image
-        construct(&backend->vkCommandBuffers, &backend->bindings, backend->vkSwapChainImageViews.count);
-        VkCommandBufferAllocateInfo allocInfo
-        {
-            .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-            .pNext              = nullptr,
-            .commandPool        = backend->vkCommandPool,
-            .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-            // @TODO :  safe-cast from size_t to u32
-            .commandBufferCount = static_cast<u32>(backend->vkCommandBuffers.count),
-        };
-        al_vk_check(vkAllocateCommandBuffers(backend->vkLogicalDevice, &allocInfo, backend->vkCommandBuffers.memory));
-        // @NOTE :  pre-recording command buffer for drawing a triangle
-        for (uSize it = 0; it < backend->vkCommandBuffers.count; it++) {
-            VkCommandBuffer commandBuffer = backend->vkCommandBuffers[it];
-            VkCommandBufferBeginInfo beginInfo
-            {
-                .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-                .pNext              = nullptr,
-                .flags              = { },
-                .pInheritanceInfo   = nullptr,  // relevant only for secondary command buffers
-            };
-            al_vk_check(vkBeginCommandBuffer(commandBuffer, &beginInfo));
-            VkClearValue clearValue
-            {
-                .color = { 0.1f, 0.1f, 0.1f, 1.0f }
-            };
-            VkRenderPassBeginInfo renderPassInfo
-            {
-                .sType              = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-                .pNext              = nullptr,
-                .renderPass         = backend->vkRenderPass,
-                .framebuffer        = backend->vkFramebuffers[it],
-                .renderArea         = { .offset = { 0, 0 }, .extent = backend->vkSwapChainExtent },
-                .clearValueCount    = 1,
-                .pClearValues       = &clearValue,
-            };
-            vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, backend->vkGraphicsPipeline);
-            vkCmdDraw(commandBuffer, 3, 1, 0, 0);
-            vkCmdEndRenderPass(commandBuffer);
-            al_vk_check(vkEndCommandBuffer(commandBuffer));
-        }
-#endif
-    }
-
-    void vulkan_destroy_command_buffers(RendererBackendVulkan* backend)
-    {
-        destruct(backend->vkCommandBuffers);
-    }
-
-    // =================================================================================================================================================
-    // =================================================================================================================================================
-    // Synchronization primitives
-    // =================================================================================================================================================
-    // =================================================================================================================================================
-
-    void vulkan_create_semaphores(RendererBackendVulkan* backend)
-    {
-        construct(&backend->vkImageAvailableSemaphores, &backend->bindings, RendererBackendVulkan::MAX_IMAGES_IN_FLIGHT);
-        construct(&backend->vkRenderFinishedSemaphores, &backend->bindings, RendererBackendVulkan::MAX_IMAGES_IN_FLIGHT);
-        for (uSize it = 0; it < RendererBackendVulkan::MAX_IMAGES_IN_FLIGHT; it++)
-        {
-            VkSemaphoreCreateInfo semaphoreInfo
-            {
-                .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-                .pNext = nullptr,
-                .flags = { },
-            };
-            al_vk_check(vkCreateSemaphore(backend->vkLogicalDevice, &semaphoreInfo, &backend->vkAllocationCallbacks, &backend->vkImageAvailableSemaphores[it]));
-            al_vk_check(vkCreateSemaphore(backend->vkLogicalDevice, &semaphoreInfo, &backend->vkAllocationCallbacks, &backend->vkRenderFinishedSemaphores[it]));
-        }
-    }
-
-    void vulkan_destroy_semaphores(RendererBackendVulkan* backend)
-    {
-        for (uSize it = 0; it < RendererBackendVulkan::MAX_IMAGES_IN_FLIGHT; it++)
-        {
-            vkDestroySemaphore(backend->vkLogicalDevice, backend->vkImageAvailableSemaphores[it], &backend->vkAllocationCallbacks);
-            vkDestroySemaphore(backend->vkLogicalDevice, backend->vkRenderFinishedSemaphores[it], &backend->vkAllocationCallbacks);
-        }
-        destruct(backend->vkImageAvailableSemaphores);
-        destruct(backend->vkRenderFinishedSemaphores);
-    }
-
-    void vulkan_create_fences(RendererBackendVulkan* backend)
-    {
-        construct(&backend->vkInFlightFences, &backend->bindings, RendererBackendVulkan::MAX_IMAGES_IN_FLIGHT);
-        for (uSize it = 0; it < RendererBackendVulkan::MAX_IMAGES_IN_FLIGHT; it++)
-        {
-            VkFenceCreateInfo fenceInfo
-            {
-                .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-                .pNext = nullptr,
-                .flags = VK_FENCE_CREATE_SIGNALED_BIT,
-            };
-            al_vk_check(vkCreateFence(backend->vkLogicalDevice, &fenceInfo, &backend->vkAllocationCallbacks, &backend->vkInFlightFences[it]));
-        }
-        construct(&backend->vkImageInFlightFences, &backend->bindings, backend->vkSwapChainImages.count);
-        for (uSize it = 0; it < backend->vkImageInFlightFences.count; it++)
-        {
-            backend->vkImageInFlightFences[it] = VK_NULL_HANDLE;
-        }
-    }
-
-    void vulkan_destroy_fences(RendererBackendVulkan* backend)
-    {
-        for (uSize it = 0; it < RendererBackendVulkan::MAX_IMAGES_IN_FLIGHT; it++)
-        {
-            // @NOTE :  fences from vkImageInFlightFences doesn't need to be destroyed because they reference already destroyed fences from vkInFlightFences
-            vkDestroyFence(backend->vkLogicalDevice, backend->vkInFlightFences[it], &backend->vkAllocationCallbacks);
-        }
-        destruct(backend->vkInFlightFences);
-        destruct(backend->vkImageInFlightFences);
-    }
-
-    // =================================================================================================================================================
-    // =================================================================================================================================================
-    // Swap chain recreation logic
-    // =================================================================================================================================================
-    // =================================================================================================================================================
-
-    void vulkan_cleanup_swap_chain(RendererBackendVulkan* backend)
-    {
-        for (uSize it = 0; it < backend->vkFramebuffers.count; it++)
-        {
-            vkDestroyFramebuffer(backend->vkLogicalDevice, backend->vkFramebuffers[it], &backend->vkAllocationCallbacks);
-        }
-        // @TODO :  safe cast
-        vkFreeCommandBuffers    (backend->vkLogicalDevice, backend->vkCommandPool, static_cast<u32>(backend->vkCommandBuffers.count), backend->vkCommandBuffers.memory);
-#ifndef USE_DYNAMIC_STATE
-        vkDestroyPipeline       (backend->vkLogicalDevice, backend->vkGraphicsPipeline, &backend->vkAllocationCallbacks);
-        vkDestroyPipelineLayout (backend->vkLogicalDevice, backend->vkPipelineLayout, &backend->vkAllocationCallbacks);
-#endif
-        vkDestroyRenderPass     (backend->vkLogicalDevice, backend->vkRenderPass, &backend->vkAllocationCallbacks);
-        for (uSize it = 0; it < backend->vkSwapChainImageViews.count; it++)
-        {
-            vkDestroyImageView(backend->vkLogicalDevice, backend->vkSwapChainImageViews[it], &backend->vkAllocationCallbacks);
-        }
-        vkDestroySwapchainKHR(backend->vkLogicalDevice, backend->vkSwapChain, &backend->vkAllocationCallbacks);
-    }
-
-    void vulkan_recreate_swap_chain(RendererBackendVulkan* backend)
-    {
-        vkDeviceWaitIdle(backend->vkLogicalDevice);
-        vulkan_cleanup_swap_chain           (backend);
-        vulkan_create_swap_chain            (backend);
-        vulkan_create_swap_chain_image_views(backend);
-        vulkan_create_render_pass           (backend);
-#ifndef USE_DYNAMIC_STATE
-        vulkan_create_render_pipeline       (backend);
-#endif
-        vulkan_create_framebuffers          (backend);
-        vulkan_create_command_buffers       (backend);
-    }
-
-    // =================================================================================================================================================
-    // =================================================================================================================================================
-    // Renderer backend interface
-    // =================================================================================================================================================
-    // =================================================================================================================================================
-
-    template<>
-    void renderer_backend_construct<RendererBackendVulkan>(RendererBackendVulkan* backend, RendererBackendInitData* initData)
-    {
-        // Shitty test vulkan implementation
-
-        log_msg("Constructing vulkan backend\n");
-
-        backend->bindings = initData->bindings;
-        backend->window = initData->window;
-        vulkan_set_allocation_callbacks         (backend);
-        vulkan_create_vk_instance               (backend, initData);
-        vulkan_setup_debug_messenger            (backend);
-        vulkan_create_surface                   (backend);
-        vulkan_choose_physical_device           (backend);
-        vulkan_create_logical_device            (backend);
-        vulkan_create_swap_chain                (backend);
-        vulkan_create_swap_chain_image_views    (backend);
-        vulkan_create_render_pass               (backend);
-        vulkan_create_discriptor_set_layout     (backend);
-        vulkan_create_render_pipeline           (backend);
-        vulkan_create_framebuffers              (backend);
-        vulkan_create_command_pool              (backend);
-        vulkan_create_command_buffers           (backend);
-        vulkan_create_semaphores                (backend);
-        vulkan_create_fences                    (backend);
-    }
-
-    template<>
-    void renderer_backend_render<RendererBackendVulkan>(RendererBackendVulkan* backend)
-    {
-        uSize currentFrame = backend->currentFrameNumber % RendererBackendVulkan::MAX_IMAGES_IN_FLIGHT;
-        backend->currentFrameNumber = currentFrame;
-
-        // @NOTE :  wait for fence of current frame
-        vkWaitForFences(backend->vkLogicalDevice, 1, &backend->vkInFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
-
-        u32 imageIndex;
-        // @NOTE :  timeout value is in nanoseconds. Using UINT64_MAX disables timeout
-        VkResult acquireResult = vkAcquireNextImageKHR(backend->vkLogicalDevice, backend->vkSwapChain, UINT64_MAX, backend->vkImageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
-        if (acquireResult != VK_SUCCESS)
-        {
-            // @TODO :  handle function result (https://khronos.org/registry/vulkan/specs/1.2-extensions/man/html/vkAcquireNextImageKHR.html)
-            assert(false);
-        }
-
-        // @NOTE :  must check for current swap chain image fence (commands for this image might still be executing at this point -
-        //          this can happen only if RendererBackendVulkan::MAX_IMAGES_IN_FLIGHT is bigger than number of swap chain images)
-        if (backend->vkImageInFlightFences[imageIndex] != VK_NULL_HANDLE)
-        {
-            vkWaitForFences(backend->vkLogicalDevice, 1, &backend->vkImageInFlightFences[imageIndex], VK_TRUE, UINT64_MAX);
-        }
-        // @NOTE :  this marks this image as occupied by this frame
-        backend->vkImageInFlightFences[imageIndex] = backend->vkInFlightFences[currentFrame];
-
-        VkSemaphore waitSemaphores[] =
-        {
-            backend->vkImageAvailableSemaphores[currentFrame]
-        };
-        VkPipelineStageFlags waitStages[] =
-        {
-            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-        };
-        VkSemaphore signalSemaphores[] =
-        {
-            backend->vkRenderFinishedSemaphores[currentFrame]
-        };
-#ifdef USE_DYNAMIC_STATE
-        VkCommandBuffer commandBuffer = backend->vkCommandBuffers[0];
-        VkCommandBufferBeginInfo beginInfo
-        {
-            .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-            .pNext              = nullptr,
-            .flags              = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-            .pInheritanceInfo   = nullptr,  // relevant only for secondary command buffers
-        };
-        al_vk_check(vkBeginCommandBuffer(commandBuffer, &beginInfo));
-        VkClearValue clearValue
-        {
-            .color = { 0.1f, 0.1f, 0.1f, 1.0f }
-        };
-        VkRenderPassBeginInfo renderPassInfo
-        {
-            .sType              = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-            .pNext              = nullptr,
-            .renderPass         = backend->vkRenderPass,
-            .framebuffer        = backend->vkFramebuffers[imageIndex],
-            .renderArea         = { .offset = { 0, 0 }, .extent = backend->vkSwapChainExtent },
-            .clearValueCount    = 1,
-            .pClearValues       = &clearValue,
-        };
-        VkViewport viewport
-        {
-            .x          = 0.0f,
-            .y          = 0.0f,
-            .width      = static_cast<float>(backend->vkSwapChainExtent.width),
-            .height     = static_cast<float>(backend->vkSwapChainExtent.height),
-            .minDepth   = 0.0f,
-            .maxDepth   = 1.0f,
-        };
-        VkRect2D scissor
-        {
-            .offset = { 0, 0 },
-            .extent = backend->vkSwapChainExtent,
-        };
-        vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-        vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-        vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, backend->vkGraphicsPipeline);
-        vkCmdDraw(commandBuffer, 3, 1, 0, 0);
-        vkCmdEndRenderPass(commandBuffer);
-        al_vk_check(vkEndCommandBuffer(commandBuffer));
-        VkSubmitInfo submitInfo
-        {
-            .sType                  = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-            .pNext                  = nullptr,
-            .waitSemaphoreCount     = sizeof(waitSemaphores) / sizeof(waitSemaphores[0]),
-            .pWaitSemaphores        = waitSemaphores,
-            .pWaitDstStageMask      = waitStages,
-            .commandBufferCount     = 1,
-            .pCommandBuffers        = &commandBuffer,
-            .signalSemaphoreCount   = sizeof(signalSemaphores) / sizeof(signalSemaphores[0]),
-            .pSignalSemaphores      = signalSemaphores,
-        };
-        vkResetFences(backend->vkLogicalDevice, 1, &backend->vkInFlightFences[currentFrame]);
-        vkQueueSubmit(backend->vkGraphicsQueue, 1, &submitInfo, backend->vkInFlightFences[currentFrame]);
-#else
-        VkSubmitInfo submitInfo
-        {
-            .sType                  = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-            .pNext                  = nullptr,
-            .waitSemaphoreCount     = sizeof(waitSemaphores) / sizeof(waitSemaphores[0]),
-            .pWaitSemaphores        = waitSemaphores,
-            .pWaitDstStageMask      = waitStages,
-            .commandBufferCount     = 1,
-            .pCommandBuffers        = &backend->vkCommandBuffers[imageIndex],
-            .signalSemaphoreCount   = sizeof(signalSemaphores) / sizeof(signalSemaphores[0]),
-            .pSignalSemaphores      = signalSemaphores,
-        };
-        vkResetFences(backend->vkLogicalDevice, 1, &backend->vkInFlightFences[currentFrame]);
-        vkQueueSubmit(backend->vkGraphicsQueue, 1, &submitInfo, backend->vkInFlightFences[currentFrame]);
-#endif
-        VkSwapchainKHR swapChains[] =
-        {
-            backend->vkSwapChain
-        };
-        VkPresentInfoKHR presentInfo
-        {
-            .sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-            .pNext              = nullptr,
-            .waitSemaphoreCount = sizeof(signalSemaphores) / sizeof(signalSemaphores[0]),
-            .pWaitSemaphores    = signalSemaphores,
-            .swapchainCount     = sizeof(swapChains) / sizeof(swapChains[0]),
-            .pSwapchains        = swapChains,
-            .pImageIndices      = &imageIndex,
-            .pResults           = nullptr,
-        };
-        al_vk_check(vkQueuePresentKHR(backend->vkPresentQueue, &presentInfo));
-#ifdef USE_DYNAMIC_STATE
-        // @TODO :  if VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT flag in VkCommandPoolCreateInfo is true,
-        //          command buffer gets implicitly reset when calling vkBeginCommandBuffer
-        //          https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkCommandPoolCreateFlagBits.html
-        // vkQueueWaitIdle(backend->vkPresentQueue);
-        // al_vk_check(vkResetCommandBuffer(commandBuffer, 0));
-#endif
-    }
-
-    template<>
-    void renderer_backend_destruct<RendererBackendVulkan>(RendererBackendVulkan* backend)
-    {
-        log_msg("Destructing vulkan backend\n");
-
-        // @NOTE :  wait for all commands to finish execution
-        vkDeviceWaitIdle(backend->vkLogicalDevice);
-
-#ifdef USE_DYNAMIC_STATE
-        vkDestroyPipeline       (backend->vkLogicalDevice, backend->vkGraphicsPipeline, &backend->vkAllocationCallbacks);
-        vkDestroyPipelineLayout (backend->vkLogicalDevice, backend->vkPipelineLayout, &backend->vkAllocationCallbacks);
-#endif
-        vkDestroyDescriptorSetLayout(backend->vkLogicalDevice, backend->vkDescriptorSetLayout, &backend->vkAllocationCallbacks);
-
-        vulkan_cleanup_swap_chain               (backend);
-        vulkan_destroy_fences                   (backend);
-        vulkan_destroy_semaphores               (backend);
-        vulkan_destroy_command_pool             (backend);
-        vkDestroyDevice                         (backend->vkLogicalDevice, &backend->vkAllocationCallbacks);
-        vkDestroySurfaceKHR                     (backend->vkInstance, backend->vkSurface, &backend->vkAllocationCallbacks);
-        vulkan_destroy_debug_messenger          (backend);
-        vkDestroyInstance                       (backend->vkInstance, &backend->vkAllocationCallbacks);
-    }
-
-    template<>
-    void renderer_backend_handle_resize<RendererBackendVulkan>(RendererBackendVulkan* backend)
-    {
-        if (platform_window_is_minimized(backend->window))
-        {
-            return;
-        }
-        vulkan_recreate_swap_chain(backend);
-    }
-
-#endif
 }
