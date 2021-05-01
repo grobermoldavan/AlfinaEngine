@@ -11,6 +11,8 @@
 
 #include <cassert>
 
-#define al_vk_check(cmd) do { VkResult result = cmd; assert(result == VK_SUCCESS); } while(0)
+#define al_vk_check(cmd)            do { VkResult result = cmd; assert(result == VK_SUCCESS); } while(0)
+#define al_vk_assert(cmd)           assert(cmd)
+#define al_vk_strcmp(str1, str2)    (::std::strcmp(str1, str2) == 0)
 
 #endif

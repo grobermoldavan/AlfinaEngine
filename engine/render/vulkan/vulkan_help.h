@@ -37,6 +37,8 @@ namespace al::vk
 
     bool pick_depth_format(VkPhysicalDevice physicalDevice, VkFormat* result);
     ArrayView<VkPhysicalDevice> get_available_physical_devices(VkInstance instance, AllocatorBindings bindings);
+    ArrayView<VkQueueFamilyProperties> get_physical_device_queue_family_properties(VkPhysicalDevice physicalDevice, AllocatorBindings bindings);
+    bool does_physical_device_supports_required_extensions(VkPhysicalDevice device, ArrayView<const char* const> extensions, AllocatorBindings bindings);
 
     VkCommandBuffer create_command_buffer(VkDevice device, VkCommandPool pool, VkCommandBufferLevel level);
 

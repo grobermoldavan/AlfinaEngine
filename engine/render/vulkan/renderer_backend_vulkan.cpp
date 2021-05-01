@@ -11,10 +11,6 @@
 #define al_vk_log_msg(format, ...)      std::fprintf(stdout, format, __VA_ARGS__);
 #define al_vk_log_error(format, ...)    std::fprintf(stderr, format, __VA_ARGS__);
 
-#define al_vk_assert(cmd)                   assert(cmd)
-#define al_vk_strcmp(str1, str2)            (::std::strcmp(str1, str2) == 0)
-#define al_vk_safe_cast_uSize_u32(value)    static_cast<u32>(value) /*@TODO : implement actual safe cast*/
-
 #define USE_DYNAMIC_STATE
 
 namespace al
@@ -33,15 +29,24 @@ namespace al
         create_render_passes            (backend);
         create_render_pipelines         (backend);
         create_framebuffers             (backend);
-        create_command_pools            (backend);
-        create_command_buffers          (backend);
         create_sync_primitives          (backend);
+
+        // @NOTE :  Do we really need a thread-local storage for command pools and command buffers? need to think about this
+        // @TODO :  create command pools and buffers for each thread in advance, so we won't have to do it in the middle of running (in get_command_pools/buffers functions)
+        // tls_construct(&backend->_commandPools, initData->bindings);
+        // tls_construct(&backend->_commandBuffers, initData->bindings);
+        create_command_pools(backend, &backend->_commandPools);
+        create_command_buffers(backend, &backend->_commandBuffers);
 
         // Filling triangle buffer
         backend->_vertexBuffer = create_vertex_buffer(backend, sizeof(triangle));
-        backend->_stagingBuffer = create_staging_buffer(backend, sizeof(triangle));
-        copy_cpu_memory_to_buffer(backend, &backend->_stagingBuffer, triangle, sizeof(triangle));
+        backend->_indexBuffer = create_index_buffer(backend, sizeof(triangleIndices));
+        // Staging buffer occupies the whole memory chunk
+        backend->_stagingBuffer = create_staging_buffer(backend, VulkanMemoryManager::GPU_CHUNK_SIZE_BYTES);
+        copy_cpu_memory_to_buffer(backend, triangle, &backend->_stagingBuffer, sizeof(triangle));
         copy_buffer_to_buffer(backend, &backend->_stagingBuffer, &backend->_vertexBuffer, sizeof(triangle));
+        copy_cpu_memory_to_buffer(backend, triangleIndices, &backend->_stagingBuffer, sizeof(triangleIndices));
+        copy_buffer_to_buffer(backend, &backend->_stagingBuffer, &backend->_indexBuffer, sizeof(triangleIndices));
     }
 
     template<>
@@ -61,7 +66,7 @@ namespace al
         }
         // @NOTE :  mark this image as used by this render frame
         backend->syncPrimitives.imageInFlightFencesRef[swapChainImageIndex] = backend->syncPrimitives.inFlightFences[backend->currentRenderFrame];
-        VkCommandBuffer commandBuffer = backend->commandBuffers.primaryBuffers[swapChainImageIndex];
+        VkCommandBuffer commandBuffer = get_command_buffers(backend)->primaryBuffers[swapChainImageIndex];
         VkCommandBufferBeginInfo beginInfo
         {
             .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -109,8 +114,9 @@ namespace al
                 vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, backend->pipeline);
                 VkBuffer vertexBuffers[] = { backend->_vertexBuffer.handle };
                 VkDeviceSize offsets[] = { 0 };
-                vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-                vkCmdDraw(commandBuffer, static_cast<uint32_t>(array_size(triangle)), 1, 0, 0);
+                vkCmdBindVertexBuffers(commandBuffer, 0, array_size(vertexBuffers), vertexBuffers, offsets);
+                vkCmdBindIndexBuffer(commandBuffer, backend->_indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
+                vkCmdDrawIndexed(commandBuffer, array_size(triangleIndices), 1, 0, 0, 0);
                 vkCmdEndRenderPass(commandBuffer);
             }
         }
@@ -173,12 +179,24 @@ namespace al
         using namespace vulkan;
         vkDeviceWaitIdle(backend->gpu.logicalHandle);
 
+        destroy_buffer(backend, &backend->_indexBuffer);
         destroy_buffer(backend, &backend->_vertexBuffer);
         destroy_buffer(backend, &backend->_stagingBuffer);
 
+        // for (uSize it = 0; it < backend->_commandBuffers.size; it++)
+        // {
+        //     destroy_command_buffers(backend, &backend->_commandBuffers.memory[it]);
+        // }
+        // tls_destruct(&backend->_commandBuffers);
+        // for (uSize it = 0; it < backend->_commandPools.size; it++)
+        // {
+        //     destroy_command_pools(backend, &backend->_commandPools.memory[it]);
+        // }
+        // tls_destruct(&backend->_commandPools);
+        destroy_command_buffers(backend, &backend->_commandBuffers);
+        destroy_command_pools(backend, &backend->_commandPools);
+
         destroy_sync_primitives     (backend);
-        destroy_command_buffers     (backend);
-        destroy_command_pools       (backend);
         destroy_framebuffers        (backend);
         destroy_render_pipelines    (backend);
         destroy_render_passes       (backend);
@@ -375,33 +393,31 @@ namespace al::vulkan
             return result;
         };
         auto[commandQueues, physicalDevice] = pick_physical_device(backend);
+        al_vk_assert(physicalDevice != VK_NULL_HANDLE);
         VkDevice logicalDevice = VK_NULL_HANDLE;
-        if (physicalDevice != VK_NULL_HANDLE)
+        ArrayView<VkDeviceQueueCreateInfo> queueCreateInfos = getQueueCreateInfos(backend, &commandQueues);
+        defer(av_destruct(queueCreateInfos));
+        VkPhysicalDeviceFeatures deviceFeatures{ };
+        VkDeviceCreateInfo logicalDeviceCreateInfo
         {
-            ArrayView<VkDeviceQueueCreateInfo> queueCreateInfos = getQueueCreateInfos(backend, &commandQueues);
-            defer(av_destruct(queueCreateInfos));
-            VkPhysicalDeviceFeatures deviceFeatures{ };
-            VkDeviceCreateInfo logicalDeviceCreateInfo
-            {
-                .sType                      = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-                .pNext                      = nullptr,
-                .flags                      = 0,
-                .queueCreateInfoCount       = static_cast<u32>(queueCreateInfos.count),
-                .pQueueCreateInfos          = queueCreateInfos.memory,
-                // @NOTE : Validation layers info is not used by recent vulkan implemetations, but still can be set for compatibility reasons
-                .enabledLayerCount          = array_size(vk::VALIDATION_LAYERS),
-                .ppEnabledLayerNames        = vk::VALIDATION_LAYERS,
-                .enabledExtensionCount      = array_size(vk::DEVICE_EXTENSIONS),
-                .ppEnabledExtensionNames    = vk::DEVICE_EXTENSIONS,
-                .pEnabledFeatures           = &deviceFeatures
-            };
-            al_vk_check(vkCreateDevice(physicalDevice, &logicalDeviceCreateInfo, &backend->memoryManager.cpu_allocationCallbacks, &logicalDevice));
-            for (uSize it = 0; it < CommandQueues::QUEUES_NUM; it++)
-            {
-                vkGetDeviceQueue(logicalDevice, commandQueues.queues[it].deviceFamilyIndex, 0, &commandQueues.queues[it].handle);
-            }
-            vk::pick_depth_format(physicalDevice, &backend->depthStencil.format);
+            .sType                      = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+            .pNext                      = nullptr,
+            .flags                      = 0,
+            .queueCreateInfoCount       = static_cast<u32>(queueCreateInfos.count),
+            .pQueueCreateInfos          = queueCreateInfos.memory,
+            // @NOTE : Validation layers info is not used by recent vulkan implemetations, but still can be set for compatibility reasons
+            .enabledLayerCount          = array_size(vk::VALIDATION_LAYERS),
+            .ppEnabledLayerNames        = vk::VALIDATION_LAYERS,
+            .enabledExtensionCount      = array_size(vk::DEVICE_EXTENSIONS),
+            .ppEnabledExtensionNames    = vk::DEVICE_EXTENSIONS,
+            .pEnabledFeatures           = &deviceFeatures
+        };
+        al_vk_check(vkCreateDevice(physicalDevice, &logicalDeviceCreateInfo, &backend->memoryManager.cpu_allocationCallbacks, &logicalDevice));
+        for (uSize it = 0; it < CommandQueues::QUEUES_NUM; it++)
+        {
+            vkGetDeviceQueue(logicalDevice, commandQueues.queues[it].deviceFamilyIndex, 0, &commandQueues.queues[it].handle);
         }
+        vk::pick_depth_format(physicalDevice, &backend->depthStencil.format);
         vkGetPhysicalDeviceMemoryProperties(physicalDevice, &backend->gpu.memoryProperties);
         backend->gpu.physicalHandle = physicalDevice;
         backend->gpu.logicalHandle = logicalDevice;
@@ -477,9 +493,9 @@ namespace al::vulkan
             bool isConcurrentSharingNeeded = false;
             for (uSize it = 1; it < CommandQueues::QUEUES_NUM; it++)
             {
-                if (!backend->queues.queues[it].readOnly.isUsedBySwapchain)
+                if (&backend->queues.queues[it] == &backend->queues.transfer)
                 {
-                    // @NOTE :  this basically ignores transfer queue
+                    // ignore transfer queue
                     continue;
                 }
                 if (queueFamiliesIndices[it] != queueFamiliesIndices[0])
@@ -961,45 +977,6 @@ namespace al::vulkan
         al_vk_check(vkCreateGraphicsPipelines(backend->gpu.logicalHandle, VK_NULL_HANDLE, 1, &pipelineInfo, &backend->memoryManager.cpu_allocationCallbacks, &backend->pipeline));
     }
 
-    void create_command_pools(RendererBackend* backend)
-    {
-        auto createPool = [](RendererBackend* backend, u32 queueFamiliIndex) -> VkCommandPool
-        {
-            VkCommandPool pool;
-            VkCommandPoolCreateInfo poolInfo
-            {
-                .sType              = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-                .pNext              = nullptr,
-                .flags              = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-                .queueFamilyIndex   = queueFamiliIndex,
-            };
-            al_vk_check(vkCreateCommandPool(backend->gpu.logicalHandle, &poolInfo, &backend->memoryManager.cpu_allocationCallbacks, &pool));
-            return pool;
-        };
-        backend->commandPools.graphics =
-        {
-            .handle = createPool(backend, backend->queues.graphics.deviceFamilyIndex),
-        };
-        // @TODO :  do we need to create separate pool if transfer and graphics queues are in the same family ?
-        backend->commandPools.transfer =
-        {
-            .handle = createPool(backend, backend->queues.transfer.deviceFamilyIndex),
-        };
-    }
-
-    void create_command_buffers(RendererBackend* backend)
-    {
-        av_construct(&backend->commandBuffers.primaryBuffers, &backend->memoryManager.cpu_allocationBindings, backend->swapChain.images.count);
-        av_construct(&backend->commandBuffers.secondaryBuffers, &backend->memoryManager.cpu_allocationBindings, backend->swapChain.images.count);
-        for (uSize it = 0; it < backend->swapChain.images.count; it++)
-        {
-            // @TODO :  create command buffers for each possible thread
-            backend->commandBuffers.primaryBuffers[it] = vk::create_command_buffer(backend->gpu.logicalHandle, backend->commandPools.graphics.handle, VK_COMMAND_BUFFER_LEVEL_PRIMARY);
-            backend->commandBuffers.secondaryBuffers[it] = vk::create_command_buffer(backend->gpu.logicalHandle, backend->commandPools.graphics.handle, VK_COMMAND_BUFFER_LEVEL_SECONDARY);
-        }
-        backend->commandBuffers.transferBuffer = vk::create_command_buffer(backend->gpu.logicalHandle, backend->commandPools.transfer.handle, VK_COMMAND_BUFFER_LEVEL_PRIMARY);
-    }
-
     void create_sync_primitives(RendererBackend* backend)
     {
         // Semaphores
@@ -1099,18 +1076,6 @@ namespace al::vulkan
     {
         vkDestroyPipeline(backend->gpu.logicalHandle, backend->pipeline, &backend->memoryManager.cpu_allocationCallbacks);
         vkDestroyPipelineLayout(backend->gpu.logicalHandle, backend->pipelineLayout, &backend->memoryManager.cpu_allocationCallbacks);
-    }
-
-    void destroy_command_pools(RendererBackend* backend)
-    {
-        vkDestroyCommandPool(backend->gpu.logicalHandle, backend->commandPools.graphics.handle, &backend->memoryManager.cpu_allocationCallbacks);
-        vkDestroyCommandPool(backend->gpu.logicalHandle, backend->commandPools.transfer.handle, &backend->memoryManager.cpu_allocationCallbacks);
-    }
-
-    void destroy_command_buffers(RendererBackend* backend)
-    {
-        av_destruct(backend->commandBuffers.primaryBuffers);
-        av_destruct(backend->commandBuffers.secondaryBuffers);
     }
 
     void destroy_sync_primitives(RendererBackend* backend)
@@ -1308,7 +1273,7 @@ namespace al::vulkan
             chunk->usedMemoryBytes += numBlocks * VulkanMemoryManager::GPU_MEMORY_BLOCK_SIZE_BYTES;
             al_vk_assert(chunk->usedMemoryBytes <= VulkanMemoryManager::GPU_CHUNK_SIZE_BYTES);
         };
-        al_vk_assert(request.sizeBytes < VulkanMemoryManager::GPU_CHUNK_SIZE_BYTES);
+        al_vk_assert(request.sizeBytes <= VulkanMemoryManager::GPU_CHUNK_SIZE_BYTES);
         GpuMemory result{ };
         uSize requiredNumberOfBlocks = 1 + ((request.sizeBytes - 1) / VulkanMemoryManager::GPU_MEMORY_BLOCK_SIZE_BYTES);
         // 1. Try to find memory in available chunks
@@ -1446,6 +1411,33 @@ namespace al::vulkan
         return create_buffer(backend, &bufferInfo, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
     }
 
+    MemoryBuffer create_index_buffer(RendererBackend* backend, uSize sizeSytes)
+    {
+        VkBufferCreateInfo bufferInfo
+        {
+            .sType                  = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+            .pNext                  = nullptr,
+            .flags                  = 0,
+            .size                   = sizeSytes,
+            .usage                  = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            .sharingMode            = VK_SHARING_MODE_EXCLUSIVE,
+            .queueFamilyIndexCount  = 0,        // ignored if sharingMode is not VK_SHARING_MODE_CONCURRENT
+            .pQueueFamilyIndices    = nullptr,  // ignored if sharingMode is not VK_SHARING_MODE_CONCURRENT
+        };
+        u32 queueFamilyIndices[] =
+        {
+            backend->queues.transfer.deviceFamilyIndex,
+            backend->queues.graphics.deviceFamilyIndex
+        };
+        if (backend->queues.transfer.deviceFamilyIndex != backend->queues.graphics.deviceFamilyIndex)
+        {
+            bufferInfo.sharingMode = VK_SHARING_MODE_CONCURRENT;
+            bufferInfo.queueFamilyIndexCount = 2;
+            bufferInfo.pQueueFamilyIndices = queueFamilyIndices;
+        }
+        return create_buffer(backend, &bufferInfo, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    }
+
     MemoryBuffer create_staging_buffer(RendererBackend* backend, uSize sizeSytes)
     {
         VkBufferCreateInfo bufferInfo
@@ -1469,7 +1461,7 @@ namespace al::vulkan
         std::memset(&buffer, 0, sizeof(MemoryBuffer));
     }
 
-    void copy_cpu_memory_to_buffer(RendererBackend* backend, MemoryBuffer* buffer, void* data, uSize dataSizeBytes)
+    void copy_cpu_memory_to_buffer(RendererBackend* backend, void* data, MemoryBuffer* buffer, uSize dataSizeBytes)
     {
         void* mappedMemory;
         vkMapMemory(backend->gpu.logicalHandle, buffer->gpuMemory.memory, buffer->gpuMemory.offsetBytes, dataSizeBytes, 0, &mappedMemory);
@@ -1477,8 +1469,9 @@ namespace al::vulkan
         vkUnmapMemory(backend->gpu.logicalHandle, buffer->gpuMemory.memory);
     }
 
-    void copy_buffer_to_buffer(RendererBackend* backend, MemoryBuffer* src, MemoryBuffer* dst, uSize sizeBytes)
+    void copy_buffer_to_buffer(RendererBackend* backend, MemoryBuffer* src, MemoryBuffer* dst, uSize sizeBytes, uSize srcOffsetBytes, uSize dstOffsetBytes)
     {
+        CommandBuffers* buffers = get_command_buffers(backend);
         VkCommandBufferBeginInfo beginInfo
         {
             .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -1486,15 +1479,15 @@ namespace al::vulkan
             .flags              = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
             .pInheritanceInfo   = nullptr,
         };
-        vkBeginCommandBuffer(backend->commandBuffers.transferBuffer, &beginInfo);
+        vkBeginCommandBuffer(buffers->transferBuffer, &beginInfo);
         VkBufferCopy copyRegion
         {
-            .srcOffset  = 0,
-            .dstOffset  = 0,
+            .srcOffset  = srcOffsetBytes,
+            .dstOffset  = dstOffsetBytes,
             .size       = sizeBytes,
         };
-        vkCmdCopyBuffer(backend->commandBuffers.transferBuffer, src->handle, dst->handle, 1, &copyRegion);
-        vkEndCommandBuffer(backend->commandBuffers.transferBuffer);
+        vkCmdCopyBuffer(buffers->transferBuffer, src->handle, dst->handle, 1, &copyRegion);
+        vkEndCommandBuffer(buffers->transferBuffer);
         VkSubmitInfo submitInfo
         {
             .sType                  = VK_STRUCTURE_TYPE_SUBMIT_INFO,
@@ -1503,7 +1496,7 @@ namespace al::vulkan
             .pWaitSemaphores        = nullptr,
             .pWaitDstStageMask      = 0,
             .commandBufferCount     = 1,
-            .pCommandBuffers        = &backend->commandBuffers.transferBuffer,
+            .pCommandBuffers        = &buffers->transferBuffer,
             .signalSemaphoreCount   = 0,
             .pSignalSemaphores      = nullptr,
         };
@@ -1512,91 +1505,226 @@ namespace al::vulkan
         // vkFreeCommandBuffers(backend->gpu.logicalHandle, backend->commandPools.transfer.handle, 1, &commandBuffer);
     }
 
+    bool is_command_queues_complete(CommandQueues* queues)
+    {
+        for (uSize it = 0; it < CommandQueues::QUEUES_NUM; it++)
+        {
+            if (!queues->queues[it].isFamilyPresent)
+            {
+                return false;
+            }
+        }
+        return true;
+    };
+
+    void try_pick_graphics_queue(CommandQueues::Queue* queue, ArrayView<VkQueueFamilyProperties> familyProperties)
+    {
+        for (u32 it = 0; it < familyProperties.count; it++)
+        {
+            if (familyProperties[it].queueFlags & VK_QUEUE_GRAPHICS_BIT)
+            {
+                queue->deviceFamilyIndex = it;
+                queue->isFamilyPresent = true;
+                break;
+            }
+        }
+    }
+
+    void try_pick_present_queue(CommandQueues::Queue* queue, ArrayView<VkQueueFamilyProperties> familyProperties, VkPhysicalDevice device, VkSurfaceKHR surface)
+    {
+        for (u32 it = 0; it < familyProperties.count; it++)
+        {
+            VkBool32 isSupported;
+            vkGetPhysicalDeviceSurfaceSupportKHR(device, it, surface, &isSupported);
+            if (isSupported)
+            {
+                queue->deviceFamilyIndex = it;
+                queue->isFamilyPresent = true;
+                break;
+            }
+        }
+    }
+
+    void try_pick_transfer_queue(CommandQueues::Queue* queue, ArrayView<VkQueueFamilyProperties> familyProperties, u32 graphicsFamilyIndex)
+    {
+        // First try to pick queue that is different from the graphics queue
+        for (u32 it = 0; it < familyProperties.count; it++)
+        {
+            if (it == graphicsFamilyIndex)
+            {
+                continue;
+            }
+            if (familyProperties[it].queueFlags & VK_QUEUE_TRANSFER_BIT)
+            {
+                queue->deviceFamilyIndex = it;
+                queue->isFamilyPresent = true;
+                return;
+            }
+        }
+        // If there is no separate queue family, use graphics family (if possible (propbably this is possible almost always))
+        if (familyProperties[graphicsFamilyIndex].queueFlags & VK_QUEUE_TRANSFER_BIT)
+        {
+            queue->deviceFamilyIndex = graphicsFamilyIndex;
+            queue->isFamilyPresent = true;
+        }
+    }
+
+
+    template<typename T>
+    void tls_construct(ThreadLocalStorage<T>* storage, AllocatorBindings bindings)
+    {
+        storage->bindings = bindings;
+        storage->capacity = ThreadLocalStorage<T>::DEFAULT_CAPACITY;
+        storage->size = 0;
+        storage->memory = static_cast<T*>(allocate(&storage->bindings, storage->capacity * sizeof(T)));
+        std::memset(storage->memory, 0, storage->capacity * sizeof(T));
+        storage->threadIds = static_cast<PlatformThreadId*>(allocate(&storage->bindings, storage->capacity * sizeof(PlatformThreadId)));
+    }
+
+    template<typename T>
+    void tls_destruct(ThreadLocalStorage<T>* storage)
+    {
+        deallocate(&storage->bindings, storage->memory, storage->capacity * sizeof(T));
+    }
+
+    template<typename T>
+    T* tls_access(ThreadLocalStorage<T>* storage)
+    {
+        PlatformThreadId currentThreadId = platform_get_current_thread_id();
+        for (uSize it = 0; it < storage->size; it++)
+        {
+            if (storage->threadIds[it] == currentThreadId)
+            {
+                return &storage->memory[it];
+            }
+        }
+        if (storage->size == storage->capacity)
+        {
+            uSize newCapacity = storage->capacity * 2;
+            T* newMemory = static_cast<T*>(allocate(&storage->bindings, newCapacity * sizeof(T)));
+            PlatformThreadId* newThreadIds = static_cast<PlatformThreadId*>(allocate(&storage->bindings, newCapacity * sizeof(PlatformThreadId)));
+            std::memcpy(newThreadIds, storage->threadIds, storage->capacity * sizeof(PlatformThreadId));
+            std::memcpy(newMemory, storage->memory, storage->capacity * sizeof(T));
+            std::memset(newMemory + storage->capacity, 0, (newCapacity - storage->capacity) * sizeof(T));
+            deallocate(&storage->bindings, storage->memory, storage->capacity * sizeof(T));
+            deallocate(&storage->bindings, storage->threadIds, storage->capacity * sizeof(PlatformThreadId));
+            storage->capacity = newCapacity;
+            storage->memory = newMemory;
+            storage->threadIds = newThreadIds;
+        }
+        uSize newPosition = storage->size++;
+        storage->threadIds[newPosition] = currentThreadId;
+        return &storage->memory[newPosition];
+    }
+
+    void create_command_pools(RendererBackend* backend, CommandPools* pools)
+    {
+        auto createPool = [](RendererBackend* backend, u32 queueFamiliIndex) -> VkCommandPool
+        {
+            VkCommandPool pool;
+            VkCommandPoolCreateInfo poolInfo
+            {
+                .sType              = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+                .pNext              = nullptr,
+                .flags              = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+                .queueFamilyIndex   = queueFamiliIndex,
+            };
+            al_vk_check(vkCreateCommandPool(backend->gpu.logicalHandle, &poolInfo, &backend->memoryManager.cpu_allocationCallbacks, &pool));
+            return pool;
+        };
+        pools->graphics =
+        {
+            .handle = createPool(backend, backend->queues.graphics.deviceFamilyIndex),
+        };
+        // @TODO :  do we need to create separate pool if transfer and graphics queues are in the same family ?
+        pools->transfer =
+        {
+            .handle = createPool(backend, backend->queues.transfer.deviceFamilyIndex),
+        };
+    }
+
+    void destroy_command_pools(RendererBackend* backend, CommandPools* pools)
+    {
+        vkDestroyCommandPool(backend->gpu.logicalHandle, pools->graphics.handle, &backend->memoryManager.cpu_allocationCallbacks);
+        vkDestroyCommandPool(backend->gpu.logicalHandle, pools->transfer.handle, &backend->memoryManager.cpu_allocationCallbacks);
+    }
+
+    CommandPools* get_command_pools(RendererBackend* backend)
+    {
+        // CommandPools* pools = tls_access(&backend->_commandPools);
+        // if (!pools->graphics.handle)
+        // {
+        //     create_command_pools(backend, pools);
+        // }
+        // return pools;
+        return &backend->_commandPools;
+    }
+
+    void create_command_buffers(RendererBackend* backend, CommandBuffers* buffers)
+    {
+        av_construct(&buffers->primaryBuffers, &backend->memoryManager.cpu_allocationBindings, backend->swapChain.images.count);
+        av_construct(&buffers->secondaryBuffers, &backend->memoryManager.cpu_allocationBindings, backend->swapChain.images.count);
+        CommandPools* pools = get_command_pools(backend);
+        for (uSize it = 0; it < backend->swapChain.images.count; it++)
+        {
+            // @TODO :  create command buffers for each possible thread
+            buffers->primaryBuffers[it] = vk::create_command_buffer(backend->gpu.logicalHandle, pools->graphics.handle, VK_COMMAND_BUFFER_LEVEL_PRIMARY);
+            buffers->secondaryBuffers[it] = vk::create_command_buffer(backend->gpu.logicalHandle, pools->graphics.handle, VK_COMMAND_BUFFER_LEVEL_SECONDARY);
+        }
+        buffers->transferBuffer = vk::create_command_buffer(backend->gpu.logicalHandle, pools->transfer.handle, VK_COMMAND_BUFFER_LEVEL_PRIMARY);
+    }
+
+    void destroy_command_buffers(RendererBackend* backend, CommandBuffers* buffers)
+    {
+        av_destruct(buffers->primaryBuffers);
+        av_destruct(buffers->secondaryBuffers);
+    }
+
+    CommandBuffers* get_command_buffers(RendererBackend* backend)
+    {
+        // CommandBuffers* buffers = tls_access(&backend->_commandBuffers);
+        // if (!buffers->transferBuffer)
+        // {
+        //     create_command_buffers(backend, buffers);
+        // }
+        // return buffers;
+        return &backend->_commandBuffers;
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
     // @NOTE :  this method return CommandQueues with valid deviceFamilyIndex values
     Tuple<CommandQueues, VkPhysicalDevice> pick_physical_device(RendererBackend* backend)
     {
         auto isDeviceSuitable = [](RendererBackend* backend, VkPhysicalDevice device) -> Tuple<CommandQueues, bool>
         {
-            auto isCommandQueueInfoComplete = [](CommandQueues* queues)
-            {
-                for (uSize it = 0; it < CommandQueues::QUEUES_NUM; it++)
-                {
-                    if (!queues->queues[it].isFamilyPresent)
-                    {
-                        return false;
-                    }
-                }
-                return true;
-            };
-            auto doesPhysicalDeviceSupportsRequiredExtensions = [](RendererBackend* backend, VkPhysicalDevice device, ArrayView<const char* const> extensions) -> bool
-            {
-                u32 count;
-                vkEnumerateDeviceExtensionProperties(device, nullptr, &count, nullptr);
-                ArrayView<VkExtensionProperties> availableExtensions;
-                av_construct(&availableExtensions, &backend->memoryManager.cpu_allocationBindings, count);
-                defer(av_destruct(availableExtensions));
-                vkEnumerateDeviceExtensionProperties(device, nullptr, &count, availableExtensions.memory);
-                bool isRequiredExtensionAvailable;
-                bool result = true;
-                for (uSize requiredIt = 0; requiredIt < extensions.count; requiredIt++)
-                {
-                    isRequiredExtensionAvailable = false;
-                    for (uSize availableIt = 0; availableIt < availableExtensions.count; availableIt++)
-                    {
-                        if (al_vk_strcmp(availableExtensions[availableIt].extensionName, extensions[requiredIt]))
-                        {
-                            isRequiredExtensionAvailable = true;
-                            break;
-                        }
-                    }
-                    if (!isRequiredExtensionAvailable)
-                    {
-                        result = false;
-                        break;
-                    }
-                }
-                return result;
-            };
-            CommandQueues physicalDeviceCommandQueues;
-            // @NOTE :  getting information about all available queue families in device
-            u32 count;
-            ArrayView<VkQueueFamilyProperties> familyProperties;
-            vkGetPhysicalDeviceQueueFamilyProperties(device, &count, nullptr);
-            av_construct(&familyProperties, &backend->memoryManager.cpu_allocationBindings, count);
+            ArrayView<VkQueueFamilyProperties> familyProperties = vk::get_physical_device_queue_family_properties(device, backend->memoryManager.cpu_allocationBindings);
             defer(av_destruct(familyProperties));
-            vkGetPhysicalDeviceQueueFamilyProperties(device, &count, familyProperties.memory);
             // @NOTE :  checking if all required queue families are supported by device
-            VkBool32 isSupported;
-            for (uSize it = 0; it < familyProperties.count; it++)
+            CommandQueues physicalDeviceCommandQueues{ };
+            try_pick_graphics_queue(&physicalDeviceCommandQueues.graphics, familyProperties);
+            try_pick_present_queue(&physicalDeviceCommandQueues.present, familyProperties, device, backend->surface);
+            if (physicalDeviceCommandQueues.graphics.isFamilyPresent)
             {
-                CommandQueues::SupportQuery query
-                {
-                    .props       = &familyProperties[it],
-                    .surface     = backend->surface,
-                    .device      = device,
-                    .familyIndex = static_cast<u32>(it)
-                };
-                for (uSize queueIt = 0; queueIt < CommandQueues::QUEUES_NUM; queueIt++)
-                {
-                    if (physicalDeviceCommandQueues.queues[queueIt].readOnly.isSupported(&query))
-                    {
-                        physicalDeviceCommandQueues.queues[queueIt].deviceFamilyIndex = it;
-                        physicalDeviceCommandQueues.queues[queueIt].isFamilyPresent = true;
-                    }
-                }
-                if (isCommandQueueInfoComplete(&physicalDeviceCommandQueues))
-                {
-                    break;
-                }
+                try_pick_transfer_queue(&physicalDeviceCommandQueues.transfer, familyProperties, physicalDeviceCommandQueues.graphics.deviceFamilyIndex);
             }
-            bool isQueueFamiliesInfoComplete = isCommandQueueInfoComplete(&physicalDeviceCommandQueues);
             ArrayView<const char* const> deviceExtensions
             {
                 .bindings   = { },
                 .memory     = vk::DEVICE_EXTENSIONS,
                 .count      = array_size(vk::DEVICE_EXTENSIONS),
             };
-            bool isRequiredExtensionsSupported = doesPhysicalDeviceSupportsRequiredExtensions(backend, device, deviceExtensions);
+            bool isRequiredExtensionsSupported = vk::does_physical_device_supports_required_extensions(device, deviceExtensions, backend->memoryManager.cpu_allocationBindings);
             bool isSwapChainSuppoted = false;
             if (isRequiredExtensionsSupported)
             {
@@ -1608,7 +1736,7 @@ namespace al::vulkan
             return
             {
                 physicalDeviceCommandQueues,
-                isQueueFamiliesInfoComplete && isRequiredExtensionsSupported && isSwapChainSuppoted
+                is_command_queues_complete(&physicalDeviceCommandQueues) && isRequiredExtensionsSupported && isSwapChainSuppoted
             };
         };
         ArrayView<VkPhysicalDevice> available = vk::get_available_physical_devices(backend->instance, backend->memoryManager.cpu_allocationBindings);

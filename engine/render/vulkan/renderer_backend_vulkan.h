@@ -25,6 +25,8 @@ namespace al::vulkan
         { .position = { -0.3f,  0.7f, 0.2f }, .normal = { }, .uv = { } },
     };
 
+    u32 triangleIndices[] = { 0, 1, 2, 3, 4, 5 };
+
     struct SwapChainSupportDetails
     {
         VkSurfaceCapabilitiesKHR        capabilities;
@@ -88,11 +90,12 @@ namespace al::vulkan
 
     MemoryBuffer create_buffer(RendererBackend* backend, VkBufferCreateInfo* createInfo);
     MemoryBuffer create_vertex_buffer(RendererBackend* backend, uSize sizeSytes);
+    MemoryBuffer create_index_buffer(RendererBackend* backend, uSize sizeSytes);
     MemoryBuffer create_staging_buffer(RendererBackend* backend, uSize sizeSytes);
     void destroy_buffer(RendererBackend* backend, MemoryBuffer* buffer);
 
-    void copy_cpu_memory_to_buffer(RendererBackend* backend, MemoryBuffer* buffer, void* data, uSize dataSizeBytes);
-    void copy_buffer_to_buffer(RendererBackend* backend, MemoryBuffer* src, MemoryBuffer* dst, uSize sizeBytes);
+    void copy_cpu_memory_to_buffer(RendererBackend* backend, void* data, MemoryBuffer* buffer, uSize dataSizeBytes);
+    void copy_buffer_to_buffer(RendererBackend* backend, MemoryBuffer* src, MemoryBuffer* dst, uSize sizeBytes, uSize srcOffsetBytes = 0, uSize dstOffsetBytes = 0);
 
     struct GPU
     {
@@ -114,52 +117,13 @@ namespace al::vulkan
         };
         struct Queue
         {
-            const struct
-            {
-                bool    (*isSupported)(SupportQuery*);
-                bool    isUsedBySwapchain;
-            } readOnly;
             VkQueue     handle;
             u32         deviceFamilyIndex;
             bool        isFamilyPresent;
         };
         union
         {
-            Queue queues[QUEUES_NUM] =
-            {
-                {
-                    .readOnly =
-                    {
-                        .isSupported = [](SupportQuery* query) -> bool
-                        {
-                            return query->props->queueFlags & VK_QUEUE_GRAPHICS_BIT;
-                        },
-                        .isUsedBySwapchain = true
-                    }
-                },
-                {
-                    .readOnly =
-                    {
-                        .isSupported = [](SupportQuery* query) -> bool
-                        {
-                            VkBool32 isSupported;
-                            vkGetPhysicalDeviceSurfaceSupportKHR(query->device, query->familyIndex, query->surface, &isSupported);
-                            return isSupported;
-                        },
-                        .isUsedBySwapchain = true
-                    }
-                },
-                {
-                    .readOnly =
-                    {
-                        .isSupported = [](SupportQuery* query) -> bool
-                        {
-                            return query->props->queueFlags & VK_QUEUE_TRANSFER_BIT;
-                        },
-                        .isUsedBySwapchain = false
-                    }
-                },
-            };
+            Queue queues[QUEUES_NUM];
             struct
             {
                 Queue graphics;
@@ -169,6 +133,26 @@ namespace al::vulkan
         };
     };
 
+    bool is_command_queues_complete(CommandQueues* queues);
+    void try_pick_graphics_queue(CommandQueues::Queue* queue, ArrayView<VkQueueFamilyProperties> familyProperties);
+    void try_pick_present_queue(CommandQueues::Queue* queue, ArrayView<VkQueueFamilyProperties> familyProperties, VkPhysicalDevice device, VkSurfaceKHR surface);
+    void try_pick_transfer_queue(CommandQueues::Queue* queue, ArrayView<VkQueueFamilyProperties> familyProperties, u32 graphicsFamilyIndex);
+
+    template<typename T>
+    struct ThreadLocalStorage
+    {
+        static constexpr uSize DEFAULT_CAPACITY = 8;
+        AllocatorBindings bindings;
+        PlatformThreadId* threadIds;
+        T* memory;
+        uSize size;
+        uSize capacity;
+    };
+
+    template<typename T> void tls_construct(ThreadLocalStorage<T>* storage, AllocatorBindings bindings);
+    template<typename T> void tls_destruct(ThreadLocalStorage<T>* storage);
+    template<typename T> T* tls_access(ThreadLocalStorage<T>* storage);
+
     struct CommandPools
     {
         static constexpr uSize POOLS_NUM = 2;
@@ -176,35 +160,26 @@ namespace al::vulkan
         {
             VkCommandPool handle;
         };
-        union
-        {
-            // @TODO :  separate pools and buffers for each thread
-            // @TODO :  separate pools and buffers for each thread
-            // @TODO :  separate pools and buffers for each thread
-            // @TODO :  separate pools and buffers for each thread
-            Pool pools[POOLS_NUM] =
-            {
-                { },
-                { }
-            };
-            struct
-            {
-                Pool graphics;
-                Pool transfer;
-            };
-        };
+        Pool graphics;
+        Pool transfer;
     };
+
+    void create_command_pools(RendererBackend* backend, CommandPools* pools);
+    void destroy_command_pools(RendererBackend* backend, CommandPools* pools);
+    CommandPools* get_command_pools(RendererBackend* backend);
 
     struct CommandBuffers
     {
-        // @TODO :  separate pools and buffers for each thread
-        // @TODO :  separate pools and buffers for each thread
-        // @TODO :  separate pools and buffers for each thread
-        // @TODO :  separate pools and buffers for each thread
+        // @TODO :  if we'll use thread-local storage for command buffers, we probably would want to
+        //          move primaryBuffers outside of tls (because they are accessed only from render thread)
         ArrayView<VkCommandBuffer> primaryBuffers;      // Array size is equal to the number of swap chain images
         ArrayView<VkCommandBuffer> secondaryBuffers;    // Array size is equal to the number of swap chain images
         VkCommandBuffer transferBuffer;
     };
+
+    void create_command_buffers(RendererBackend* backend, CommandBuffers* buffers);
+    void destroy_command_buffers(RendererBackend* backend, CommandBuffers* buffers);
+    CommandBuffers* get_command_buffers(RendererBackend* backend);
 
     struct FramebufferAttachment
     {
@@ -259,8 +234,6 @@ namespace al::vulkan
         VkSurfaceKHR                surface;
         GPU                         gpu;
         CommandQueues               queues;
-        CommandPools                commandPools;
-        CommandBuffers              commandBuffers;
         SwapChain                   swapChain;
         FramebufferAttachment       depthStencil;
         VkRenderPass                simpleRenderPass;
@@ -268,7 +241,13 @@ namespace al::vulkan
         VkPipeline                  pipeline;
         SyncPrimitives              syncPrimitives;
 
+        CommandPools    _commandPools;
+        CommandBuffers  _commandBuffers;
+        // ThreadLocalStorage<CommandPools>    _commandPools;
+        // ThreadLocalStorage<CommandBuffers>  _commandBuffers;
+
         MemoryBuffer                _vertexBuffer;
+        MemoryBuffer                _indexBuffer;
         MemoryBuffer                _stagingBuffer;
 
         // ArrayView<RenderStage>      renderStages;
@@ -289,8 +268,6 @@ namespace al::vulkan
     void create_framebuffers                (RendererBackend* backend);
     void create_render_passes               (RendererBackend* backend);
     void create_render_pipelines            (RendererBackend* backend);
-    void create_command_pools               (RendererBackend* backend);
-    void create_command_buffers             (RendererBackend* backend);
     void create_sync_primitives             (RendererBackend* backend);
 
     void destroy_memory_manager             (RendererBackend* backend);
@@ -302,8 +279,6 @@ namespace al::vulkan
     void destroy_framebuffers               (RendererBackend* backend);
     void destroy_render_passes              (RendererBackend* backend);
     void destroy_render_pipelines           (RendererBackend* backend);
-    void destroy_command_pools              (RendererBackend* backend);
-    void destroy_command_buffers            (RendererBackend* backend);
     void destroy_sync_primitives            (RendererBackend* backend);
 }
 

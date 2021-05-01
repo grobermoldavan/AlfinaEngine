@@ -94,6 +94,46 @@ namespace al::vk
         return result;
     };
 
+    ArrayView<VkQueueFamilyProperties> get_physical_device_queue_family_properties(VkPhysicalDevice physicalDevice, AllocatorBindings bindings)
+    {
+        u32 count;
+        ArrayView<VkQueueFamilyProperties> familyProperties;
+        vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &count, nullptr);
+        av_construct(&familyProperties, &bindings, count);
+        vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &count, familyProperties.memory);
+        return familyProperties;
+    }
+
+    bool does_physical_device_supports_required_extensions(VkPhysicalDevice device, ArrayView<const char* const> extensions, AllocatorBindings bindings)
+    {
+        u32 count;
+        vkEnumerateDeviceExtensionProperties(device, nullptr, &count, nullptr);
+        ArrayView<VkExtensionProperties> availableExtensions;
+        av_construct(&availableExtensions, &bindings, count);
+        defer(av_destruct(availableExtensions));
+        vkEnumerateDeviceExtensionProperties(device, nullptr, &count, availableExtensions.memory);
+        bool isRequiredExtensionAvailable;
+        bool result = true;
+        for (uSize requiredIt = 0; requiredIt < extensions.count; requiredIt++)
+        {
+            isRequiredExtensionAvailable = false;
+            for (uSize availableIt = 0; availableIt < availableExtensions.count; availableIt++)
+            {
+                if (al_vk_strcmp(availableExtensions[availableIt].extensionName, extensions[requiredIt]))
+                {
+                    isRequiredExtensionAvailable = true;
+                    break;
+                }
+            }
+            if (!isRequiredExtensionAvailable)
+            {
+                result = false;
+                break;
+            }
+        }
+        return result;
+    };
+
     VkCommandBuffer create_command_buffer(VkDevice device, VkCommandPool pool, VkCommandBufferLevel level)
     {
         VkCommandBuffer buffer;
