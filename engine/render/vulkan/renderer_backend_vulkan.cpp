@@ -2,6 +2,7 @@
 #include <cassert>
 #include <cstdlib>
 #include <cstring>
+#include <type_traits> // for std::remove_pointer_t
 
 #include "renderer_backend_vulkan.h"
 
@@ -27,6 +28,9 @@ namespace al
         create_swap_chain               (backend);
         create_depth_stencil            (backend);
         create_render_passes            (backend);
+
+        create_test_descriptor_sets (backend, &backend->descriptorSets);
+
         create_render_pipelines         (backend);
         create_framebuffers             (backend);
         create_sync_primitives          (backend);
@@ -112,6 +116,16 @@ namespace al
                 };
                 vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
                 vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, backend->pipeline);
+                static f32 tint = 0.0f;
+                tint += 0.0001f;
+                if (tint > 1.0f)
+                {
+                    tint = 0.0f;
+                }
+                f32 color = tint; //(f32)rand() / (f32)RAND_MAX;
+                f32_3 testPushConstant = { color, color, color };
+                vkCmdPushConstants(commandBuffer, backend->pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(f32_3), &testPushConstant);
+                vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, backend->pipelineLayout, 0, 1, &backend->descriptorSets.sets[swapChainImageIndex], 0, nullptr);
                 VkBuffer vertexBuffers[] = { backend->_vertexBuffer.handle };
                 VkDeviceSize offsets[] = { 0 };
                 vkCmdBindVertexBuffers(commandBuffer, 0, array_size(vertexBuffers), vertexBuffers, offsets);
@@ -140,12 +154,12 @@ namespace al
             {
                 .sType                  = VK_STRUCTURE_TYPE_SUBMIT_INFO,
                 .pNext                  = nullptr,
-                .waitSemaphoreCount     = sizeof(waitSemaphores) / sizeof(waitSemaphores[0]),
+                .waitSemaphoreCount     = array_size(waitSemaphores),
                 .pWaitSemaphores        = waitSemaphores,
                 .pWaitDstStageMask      = waitStages,
                 .commandBufferCount     = 1,
                 .pCommandBuffers        = &commandBuffer,
-                .signalSemaphoreCount   = sizeof(signalSemaphores) / sizeof(signalSemaphores[0]),
+                .signalSemaphoreCount   = array_size(signalSemaphores),
                 .pSignalSemaphores      = signalSemaphores,
             };
             vkResetFences(backend->gpu.logicalHandle, 1, &backend->syncPrimitives.inFlightFences[backend->currentRenderFrame]);
@@ -158,9 +172,9 @@ namespace al
             {
                 .sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
                 .pNext              = nullptr,
-                .waitSemaphoreCount = sizeof(signalSemaphores) / sizeof(signalSemaphores[0]),
+                .waitSemaphoreCount = array_size(signalSemaphores),
                 .pWaitSemaphores    = signalSemaphores,
-                .swapchainCount     = sizeof(swapChains) / sizeof(swapChains[0]),
+                .swapchainCount     = array_size(swapChains),
                 .pSwapchains        = swapChains,
                 .pImageIndices      = &swapChainImageIndex,
                 .pResults           = nullptr,
@@ -183,6 +197,8 @@ namespace al
         destroy_buffer(backend, &backend->_vertexBuffer);
         destroy_buffer(backend, &backend->_stagingBuffer);
 
+        destroy_test_descriptor_sets(backend, &backend->descriptorSets);
+
         // for (uSize it = 0; it < backend->_commandBuffers.size; it++)
         // {
         //     destroy_command_buffers(backend, &backend->_commandBuffers.memory[it]);
@@ -199,6 +215,7 @@ namespace al
         destroy_sync_primitives     (backend);
         destroy_framebuffers        (backend);
         destroy_render_pipelines    (backend);
+
         destroy_render_passes       (backend);
         destroy_depth_stencil       (backend);
         destroy_swap_chain          (backend);
@@ -914,42 +931,23 @@ namespace al::vulkan
             .dynamicStateCount  = sizeof(dynamicStates) / sizeof(dynamicStates[0]),
             .pDynamicStates     = dynamicStates,
         };
-        // @TODO : VkDescriptorSetLayout
-        // @TODO : VkDescriptorSetLayout
-        // @TODO : VkDescriptorSetLayout
-        // @TODO : VkDescriptorSetLayout
-        // @TODO : VkDescriptorSetLayout
-        // @TODO : VkDescriptorSetLayout
-        // @TODO : VkDescriptorSetLayout
-        // @TODO : VkDescriptorSetLayout
-        // @TODO : VkDescriptorSetLayout
-        // @TODO : VkDescriptorSetLayout
-        // @TODO : VkDescriptorSetLayout
-        // @TODO : VkDescriptorSetLayout
-        // @TODO : VkDescriptorSetLayout
-        // @TODO : VkDescriptorSetLayout
-        // @TODO : VkDescriptorSetLayout
-        // @TODO : VkDescriptorSetLayout
-        // @TODO : VkDescriptorSetLayout
-        // @TODO : VkDescriptorSetLayout
-        // @TODO : VkDescriptorSetLayout
-        // @TODO : VkDescriptorSetLayout
-        // @TODO : VkDescriptorSetLayout
-        // @TODO : VkDescriptorSetLayout
-        // @TODO : VkDescriptorSetLayout
-        // @TODO : VkDescriptorSetLayout
-        // @TODO : VkDescriptorSetLayout
-        // @TODO : VkDescriptorSetLayout
-        // @TODO : VkDescriptorSetLayout
+        VkPushConstantRange testPushContantRanges[] =
+        {
+            {
+                .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+                .offset     = 0,
+                .size       = sizeof(f32_3),
+            }
+        };
         VkPipelineLayoutCreateInfo pipelineLayoutInfo
         {
             .sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
             .pNext                  = nullptr,
             .flags                  = 0,
-            .setLayoutCount         = 0,
-            .pSetLayouts            = nullptr, //&backend->vkDescriptorSetLayout,
-            .pushConstantRangeCount = 0,
-            .pPushConstantRanges    = nullptr,
+            .setLayoutCount         = 1,
+            .pSetLayouts            = &backend->descriptorSets.layout,
+            .pushConstantRangeCount = array_size(testPushContantRanges),
+            .pPushConstantRanges    = testPushContantRanges,
         };
         al_vk_check(vkCreatePipelineLayout(backend->gpu.logicalHandle, &pipelineLayoutInfo, &backend->memoryManager.cpu_allocationCallbacks, &backend->pipelineLayout));
         VkGraphicsPipelineCreateInfo pipelineInfo
@@ -1454,6 +1452,22 @@ namespace al::vulkan
         return create_buffer(backend, &bufferInfo, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
     }
 
+    MemoryBuffer create_uniform_buffer(RendererBackend* backend, uSize sizeSytes)
+    {
+        VkBufferCreateInfo bufferInfo
+        {
+            .sType                  = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+            .pNext                  = nullptr,
+            .flags                  = 0,
+            .size                   = sizeSytes,
+            .usage                  = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+            .sharingMode            = VK_SHARING_MODE_EXCLUSIVE,
+            .queueFamilyIndexCount  = 0,        // ignored if sharingMode is not VK_SHARING_MODE_CONCURRENT
+            .pQueueFamilyIndices    = nullptr,  // ignored if sharingMode is not VK_SHARING_MODE_CONCURRENT
+        };
+        return create_buffer(backend, &bufferInfo, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    }
+
     void destroy_buffer(RendererBackend* backend, MemoryBuffer* buffer)
     {
         gpu_deallocate(&backend->memoryManager, backend->gpu.logicalHandle, buffer->gpuMemory);
@@ -1690,6 +1704,126 @@ namespace al::vulkan
         // return buffers;
         return &backend->_commandBuffers;
     }
+
+    void create_test_descriptor_sets(RendererBackend* backend, TestDescriptorSets* sets)
+    {
+        using DescriptorSetT = std::remove_pointer_t<decltype(sets)>;
+
+        av_construct(&sets->buffers, &backend->memoryManager.cpu_allocationBindings, backend->swapChain.images.count);
+        for (uSize it = 0; it < sets->buffers.count; it++)
+        {
+            al_vk_log_msg("%d\n", (int)it);
+            sets->buffers[it] = create_uniform_buffer(backend, sizeof(DescriptorSetT::Ubo));
+            DescriptorSetT::Ubo ubo
+            {
+                { 0, 0, 1 }
+            };
+            copy_cpu_memory_to_buffer(backend, &ubo, &sets->buffers[it], sizeof(DescriptorSetT::Ubo));
+        }
+
+        VkDescriptorSetLayoutBinding layoutBindings[DescriptorSetT::NUM_BINDINGS];
+        for (uSize it = 0; it < DescriptorSetT::NUM_BINDINGS; it++)
+        {
+            layoutBindings[it] =
+            {
+                .binding            = 0,
+                .descriptorType     = DescriptorSetT::BINDING_DESCS[it].type,
+                .descriptorCount    = 1, // Size of an array of uniform buffer objects
+                .stageFlags         = DescriptorSetT::BINDING_DESCS[it].stageFlags,
+                .pImmutableSamplers = nullptr,
+            };
+        }
+        VkDescriptorSetLayoutCreateInfo layoutInfo
+        {
+            .sType          = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+            .pNext          = nullptr,
+            .flags          = 0,
+            .bindingCount   = array_size(layoutBindings),
+            .pBindings      = layoutBindings,
+        };
+        al_vk_check(vkCreateDescriptorSetLayout(backend->gpu.logicalHandle, &layoutInfo, &backend->memoryManager.cpu_allocationCallbacks, &sets->layout));
+
+        VkDescriptorPoolSize poolSizes[DescriptorSetT::NUM_BINDINGS];
+        for (uSize it = 0; it < DescriptorSetT::NUM_BINDINGS; it++)
+        {
+            poolSizes[it] =
+            {
+                .type = DescriptorSetT::BINDING_DESCS[it].type,
+                .descriptorCount = static_cast<u32>(DescriptorSetT::NUM_BINDINGS * backend->swapChain.images.count),
+            };
+        }
+        VkDescriptorPoolCreateInfo poolInfo
+        {
+            .sType          = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+            .pNext          = nullptr,
+            .flags          = 0,
+            .maxSets        = static_cast<u32>(backend->swapChain.images.count),
+            .poolSizeCount  = array_size(poolSizes),
+            .pPoolSizes     = poolSizes,
+        };
+        al_vk_check(vkCreateDescriptorPool(backend->gpu.logicalHandle, &poolInfo, &backend->memoryManager.cpu_allocationCallbacks, &sets->pool));
+        
+        VkDescriptorSetLayout layouts[10]; // hack, I'm to tired to come up with "correct" (lol) solution
+        for (uSize it = 0; it < backend->swapChain.images.count; it++)
+        {
+            layouts[it] = sets->layout;
+        }
+        av_construct(&sets->sets, &backend->memoryManager.cpu_allocationBindings, backend->swapChain.images.count);
+        VkDescriptorSetAllocateInfo allocateInfo
+        {
+            .sType               = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+            .pNext               = nullptr,
+            .descriptorPool      = sets->pool,
+            .descriptorSetCount  = static_cast<u32>(backend->swapChain.images.count),
+            .pSetLayouts         = layouts,
+        };
+        al_vk_check(vkAllocateDescriptorSets(backend->gpu.logicalHandle, &allocateInfo, sets->sets.memory));
+
+        for (uSize it = 0; it < backend->swapChain.images.count; it++)
+        {
+            VkDescriptorBufferInfo bufferInfo
+            {
+                .buffer = sets->buffers[it].handle,
+                .offset = 0,
+                .range  = sizeof(DescriptorSetT::Ubo), // VK_WHOLE_SIZE
+            };
+            VkWriteDescriptorSet descriptorWrite
+            {
+                .sType              = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .pNext              = nullptr,
+                .dstSet             = sets->sets[it],
+                .dstBinding         = 0,
+                .dstArrayElement    = 0,
+                .descriptorCount    = 1,
+                .descriptorType     = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                .pImageInfo         = nullptr,
+                .pBufferInfo        = &bufferInfo,
+                .pTexelBufferView   = nullptr,
+            };
+            vkUpdateDescriptorSets(backend->gpu.logicalHandle, 1, &descriptorWrite, 0, nullptr);
+        }
+    }
+
+    void destroy_test_descriptor_sets(RendererBackend* backend, TestDescriptorSets* sets)
+    {
+        // @HACK :  without first empty loop, second one produces wrong "it" values :
+        //          instead of going like "0 1 2" it for some reason goes like "0 1 1".
+        //          Inserting empty loop helps to avoid this problem. Tested with msvc compiler :
+        //          "Microsoft (R) C/C++ Optimizing Compiler Version 19.28.29914 for x64"
+        for (int i = 0; i < 3; i++) { }
+        for (uSize it = 0; it < sets->buffers.count; it++)
+        {
+            al_vk_log_msg("%d\n", (int)it);
+            destroy_buffer(backend, &sets->buffers[it]);
+        }
+        av_destruct(sets->buffers);
+        av_destruct(sets->sets);
+        vkDestroyDescriptorSetLayout(backend->gpu.logicalHandle, sets->layout, &backend->memoryManager.cpu_allocationCallbacks);
+        vkDestroyDescriptorPool(backend->gpu.logicalHandle, sets->pool, &backend->memoryManager.cpu_allocationCallbacks);
+    }
+
+
+
 
 
 

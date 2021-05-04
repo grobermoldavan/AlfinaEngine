@@ -70,6 +70,7 @@ namespace al::vulkan
         struct GpuAllocationRequest
         {
             uSize sizeBytes;
+            uSize alignment; // @TODO : support alignment
             u32 memoryTypeIndex;
         };
         ArrayView<GpuMemoryChunk>   gpu_chunks;
@@ -92,6 +93,7 @@ namespace al::vulkan
     MemoryBuffer create_vertex_buffer(RendererBackend* backend, uSize sizeSytes);
     MemoryBuffer create_index_buffer(RendererBackend* backend, uSize sizeSytes);
     MemoryBuffer create_staging_buffer(RendererBackend* backend, uSize sizeSytes);
+    MemoryBuffer create_uniform_buffer(RendererBackend* backend, uSize sizeSytes);
     void destroy_buffer(RendererBackend* backend, MemoryBuffer* buffer);
 
     void copy_cpu_memory_to_buffer(RendererBackend* backend, void* data, MemoryBuffer* buffer, uSize dataSizeBytes);
@@ -181,6 +183,35 @@ namespace al::vulkan
     void destroy_command_buffers(RendererBackend* backend, CommandBuffers* buffers);
     CommandBuffers* get_command_buffers(RendererBackend* backend);
 
+    struct TestDescriptorSets
+    {
+        struct Ubo
+        {
+            f32_3 color;
+        };
+        struct BindingDesc
+        {
+            VkShaderStageFlags stageFlags;
+            VkDescriptorType type;
+        };
+        static constexpr uSize NUM_BINDINGS = 1;
+        static constexpr BindingDesc BINDING_DESCS[NUM_BINDINGS] =
+        {
+            {
+                .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+                .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            },
+        };
+        
+        VkDescriptorSetLayout layout;
+        VkDescriptorPool pool;
+        ArrayView<VkDescriptorSet> sets;    // Array size is equal to the number of swap chain images
+        ArrayView<MemoryBuffer> buffers;    // Array size is equal to the number of swap chain images
+    };
+
+    void create_test_descriptor_sets(RendererBackend* backend, TestDescriptorSets* sets);
+    void destroy_test_descriptor_sets(RendererBackend* backend, TestDescriptorSets* sets);
+
     struct FramebufferAttachment
     {
         VkImage image;
@@ -241,6 +272,8 @@ namespace al::vulkan
         VkPipeline                  pipeline;
         SyncPrimitives              syncPrimitives;
 
+        TestDescriptorSets descriptorSets;
+
         CommandPools    _commandPools;
         CommandBuffers  _commandBuffers;
         // ThreadLocalStorage<CommandPools>    _commandPools;
@@ -270,7 +303,6 @@ namespace al::vulkan
     void create_render_pipelines            (RendererBackend* backend);
     void create_sync_primitives             (RendererBackend* backend);
 
-    void destroy_memory_manager             (RendererBackend* backend);
     void destroy_instance                   (RendererBackend* backend);
     void destroy_surface                    (RendererBackend* backend);
     void destroy_gpu                        (RendererBackend* backend);
