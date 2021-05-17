@@ -2,7 +2,7 @@
 #define AL_VULKAN_H
 
 #include "vulkan_base.h"
-#include "vulkan_help.h"
+#include "vulkan_utils.h"
 #include "engine/render/renderer_backend_core.h"
 
 #include "engine/types.h"
@@ -16,25 +16,32 @@ namespace al::vulkan
 
     RenderVertex triangle[] = // actually two triangles
     {
-        { .position = {  0.0f, -0.5f, 0.1f }, .normal = { }, .uv = { } },
-        { .position = {  0.5f,  0.5f, 0.1f }, .normal = { }, .uv = { } },
-        { .position = { -0.5f,  0.5f, 0.1f }, .normal = { }, .uv = { } },
+        { .position = {  0.0f, -0.5f, 0.1f }, .normal = { }, .uv = { 0.0, 0.0 } },
+        { .position = {  0.5f,  0.5f, 0.1f }, .normal = { }, .uv = { 1.0, 1.0 } },
+        { .position = { -0.5f,  0.5f, 0.1f }, .normal = { }, .uv = { 0.0, 1.0 } },
 
-        { .position = {  0.2f, -0.3f, 0.2f }, .normal = { }, .uv = { } },
-        { .position = {  0.7f,  0.7f, 0.2f }, .normal = { }, .uv = { } },
-        { .position = { -0.3f,  0.7f, 0.2f }, .normal = { }, .uv = { } },
+        { .position = {  0.2f, -0.3f, 0.2f }, .normal = { }, .uv = { 0.0, 0.0 } },
+        { .position = {  0.7f,  0.7f, 0.2f }, .normal = { }, .uv = { 1.0, 1.0 } },
+        { .position = { -0.3f,  0.7f, 0.2f }, .normal = { }, .uv = { 0.0, 1.0 } },
     };
 
     u32 triangleIndices[] = { 0, 1, 2, 3, 4, 5 };
 
-    struct SwapChainSupportDetails
+#define WHITE   255, 255, 255, 255,
+#define RED     255, 0  , 0  , 255,
+#define BLUE    0  , 0  , 255, 255,
+
+    u8 testEpicTexture[] =
     {
-        VkSurfaceCapabilitiesKHR        capabilities;
-        ArrayView<VkSurfaceFormatKHR>   formats;
-        ArrayView<VkPresentModeKHR>     presentModes;
+        RED RED   RED   RED   RED
+        RED WHITE WHITE WHITE RED
+        RED WHITE BLUE  WHITE RED
+        RED WHITE WHITE WHITE RED
+        RED RED   RED   RED   RED
     };
 
-    SwapChainSupportDetails get_swap_chain_support_details(VkSurfaceKHR surface, VkPhysicalDevice device, AllocatorBindings bindings);
+#undef RED
+#undef WHITE
 
     struct GpuMemory
     {
@@ -70,75 +77,113 @@ namespace al::vulkan
         struct GpuAllocationRequest
         {
             uSize sizeBytes;
-            uSize alignment; // @TODO : support alignment
+            uSize alignment;
             u32 memoryTypeIndex;
         };
         ArrayView<GpuMemoryChunk>   gpu_chunks;
         ArrayView<u8>               gpu_ledgers;
     };
 
-    void construct(VulkanMemoryManager* memoryManager, AllocatorBindings bindings);
-    void destruct(VulkanMemoryManager* memoryManager, VkDevice device);
-
+    void construct_memory_manager(VulkanMemoryManager* memoryManager, AllocatorBindings bindings);
+    void destroy_memory_manager(VulkanMemoryManager* memoryManager, VkDevice device);
+    uSize memory_chunk_find_aligned_free_space(VulkanMemoryManager::GpuMemoryChunk* chunk, uSize requiredNumberOfBlocks, uSize alignment);
     GpuMemory gpu_allocate(VulkanMemoryManager* memoryManager, VkDevice device, VulkanMemoryManager::GpuAllocationRequest request);
     void gpu_deallocate(VulkanMemoryManager* memoryManager, VkDevice device, GpuMemory allocation);
 
-    struct MemoryBuffer
-    {
-        GpuMemory gpuMemory;
-        VkBuffer handle;
-    };
-
-    MemoryBuffer create_buffer(RendererBackend* backend, VkBufferCreateInfo* createInfo);
-    MemoryBuffer create_vertex_buffer(RendererBackend* backend, uSize sizeSytes);
-    MemoryBuffer create_index_buffer(RendererBackend* backend, uSize sizeSytes);
-    MemoryBuffer create_staging_buffer(RendererBackend* backend, uSize sizeSytes);
-    MemoryBuffer create_uniform_buffer(RendererBackend* backend, uSize sizeSytes);
-    void destroy_buffer(RendererBackend* backend, MemoryBuffer* buffer);
-
-    void copy_cpu_memory_to_buffer(RendererBackend* backend, void* data, MemoryBuffer* buffer, uSize dataSizeBytes);
-    void copy_buffer_to_buffer(RendererBackend* backend, MemoryBuffer* src, MemoryBuffer* dst, uSize sizeBytes, uSize srcOffsetBytes = 0, uSize dstOffsetBytes = 0);
-
     struct GPU
     {
-        VkPhysicalDevice                    physicalHandle;
-        VkDevice                            logicalHandle;
-        VkPhysicalDeviceMemoryProperties    memoryProperties;
-        // available memory and stuff...
-    };
-
-    struct CommandQueues
-    {
-        static constexpr uSize QUEUES_NUM = 3;
-        struct SupportQuery
+        struct CommandQueue
         {
-            VkQueueFamilyProperties* props;
-            VkSurfaceKHR surface;
-            VkPhysicalDevice device;
-            u32 familyIndex;
-        };
-        struct Queue
-        {
-            VkQueue     handle;
-            u32         deviceFamilyIndex;
-            bool        isFamilyPresent;
+            VkQueue handle;
+            u32     deviceFamilyIndex;
+            bool    isFamilyPresent;
         };
         union
         {
-            Queue queues[QUEUES_NUM];
+            CommandQueue commandQueues[3];
             struct
             {
-                Queue graphics;
-                Queue present;
-                Queue transfer;
+                CommandQueue graphicsQueue;
+                CommandQueue presentQueue;
+                CommandQueue transferQueue;
             };
         };
+        VkPhysicalDevice                    physicalHandle;
+        VkDevice                            logicalHandle;
+        VkPhysicalDeviceMemoryProperties    memoryProperties;
+        VkFormat                            depthStencilFormat;
+        // available memory and stuff...
     };
 
-    bool is_command_queues_complete(CommandQueues* queues);
-    void try_pick_graphics_queue(CommandQueues::Queue* queue, ArrayView<VkQueueFamilyProperties> familyProperties);
-    void try_pick_present_queue(CommandQueues::Queue* queue, ArrayView<VkQueueFamilyProperties> familyProperties, VkPhysicalDevice device, VkSurfaceKHR surface);
-    void try_pick_transfer_queue(CommandQueues::Queue* queue, ArrayView<VkQueueFamilyProperties> familyProperties, u32 graphicsFamilyIndex);
+    bool is_command_queues_complete(ArrayView<GPU::CommandQueue> queues);
+    void try_pick_graphics_queue(GPU::CommandQueue* queue, ArrayView<VkQueueFamilyProperties> familyProperties);
+    void try_pick_present_queue(GPU::CommandQueue* queue, ArrayView<VkQueueFamilyProperties> familyProperties, VkPhysicalDevice device, VkSurfaceKHR surface);
+    void try_pick_transfer_queue(GPU::CommandQueue* queue, ArrayView<VkQueueFamilyProperties> familyProperties, u32 graphicsFamilyIndex);
+
+    void fill_required_physical_deivce_features(VkPhysicalDeviceFeatures* features);
+    VkPhysicalDevice pick_physical_device(VkInstance instance, VkSurfaceKHR surface, AllocatorBindings bindings);
+
+    void construct_gpu(GPU* gpu, VkInstance instance, VkSurfaceKHR surface, AllocatorBindings bindings, VkAllocationCallbacks* callbacks);
+    void destroy_gpu(GPU* gpu, VkAllocationCallbacks* callbacks);
+
+    struct SwapChainSupportDetails
+    {
+        VkSurfaceCapabilitiesKHR        capabilities;
+        ArrayView<VkSurfaceFormatKHR>   formats;
+        ArrayView<VkPresentModeKHR>     presentModes;
+    };
+
+    SwapChainSupportDetails create_swap_chain_support_details(VkSurfaceKHR surface, VkPhysicalDevice device, AllocatorBindings bindings);
+    void destroy_swap_chain_support_details(SwapChainSupportDetails* details);
+
+    struct SwapChain
+    {
+        VkSwapchainKHR handle;
+        ArrayView<VkImage> images;
+        ArrayView<VkImageView> imageViews;
+        VkFormat format;
+        VkExtent2D extent;
+    };
+
+    VkSurfaceFormatKHR choose_swap_chain_surface_format(ArrayView<VkSurfaceFormatKHR> available);
+    VkPresentModeKHR choose_swap_chain_surface_present_mode(ArrayView<VkPresentModeKHR> available);
+    VkExtent2D choose_swap_chain_extent(u32 windowWidth, u32 windowHeight, VkSurfaceCapabilitiesKHR* capabilities);
+    void fill_swap_chain_sharing_mode(VkSharingMode* resultMode, u32* resultCount, ArrayView<u32> resultFamilyIndices, GPU* gpu);
+    void construct_swap_chain(SwapChain* swapChain, VkSurfaceKHR surface, GPU* gpu, PlatformWindow* window, AllocatorBindings bindings, VkAllocationCallbacks* callbacks);
+    void destroy_swap_chain(SwapChain* swapChain, GPU* gpu, VkAllocationCallbacks* callbacks);
+
+    struct ImageAttachment
+    {
+        enum Type
+        {
+            TYPE_1D,
+            TYPE_2D,
+            TYPE_3D,
+        };
+        struct ConstructInfo
+        {
+            VkExtent3D extent;
+            VkFormat format;
+            VkImageUsageFlags usage;
+            VkImageAspectFlags aspect;
+            Type type;
+        };
+        GpuMemory memory;
+        VkImage image;
+        VkImageView view;
+        VkFormat format;
+        VkExtent3D extent;
+    };
+
+    VkImageType image_attachment_type_to_vk_image_type(ImageAttachment::Type type);
+    VkImageViewType image_attachment_type_to_vk_image_view_type(ImageAttachment::Type type);
+
+    void construct_image_attachment(ImageAttachment* attachment, ImageAttachment::ConstructInfo constructInfo, GPU* gpu, VulkanMemoryManager* memoryManager);
+    void construct_depth_stencil_attachment(ImageAttachment* attachment, VkExtent2D extent, GPU* gpu, VulkanMemoryManager* memoryManager);
+    void construct_color_attachment(ImageAttachment* attachment, VkExtent2D extent, GPU* gpu, VulkanMemoryManager* memoryManager);
+    void destroy_image_attachment(ImageAttachment* attachment, GPU* gpu, VulkanMemoryManager* memoryManager);
+
+    void transition_image_layout(GPU* gpu, struct CommandBuffers* buffers, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
 
     template<typename T>
     struct ThreadLocalStorage
@@ -152,7 +197,7 @@ namespace al::vulkan
     };
 
     template<typename T> void tls_construct(ThreadLocalStorage<T>* storage, AllocatorBindings bindings);
-    template<typename T> void tls_destruct(ThreadLocalStorage<T>* storage);
+    template<typename T> void tls_destroy(ThreadLocalStorage<T>* storage);
     template<typename T> T* tls_access(ThreadLocalStorage<T>* storage);
 
     struct CommandPools
@@ -166,7 +211,7 @@ namespace al::vulkan
         Pool transfer;
     };
 
-    void create_command_pools(RendererBackend* backend, CommandPools* pools);
+    void construct_command_pools(RendererBackend* backend, CommandPools* pools);
     void destroy_command_pools(RendererBackend* backend, CommandPools* pools);
     CommandPools* get_command_pools(RendererBackend* backend);
 
@@ -179,11 +224,27 @@ namespace al::vulkan
         VkCommandBuffer transferBuffer;
     };
 
-    void create_command_buffers(RendererBackend* backend, CommandBuffers* buffers);
+    void construct_command_buffers(RendererBackend* backend, CommandBuffers* buffers);
     void destroy_command_buffers(RendererBackend* backend, CommandBuffers* buffers);
-    CommandBuffers* get_command_buffers(RendererBackend* backend);
 
-    struct TestDescriptorSets
+    struct MemoryBuffer
+    {
+        GpuMemory gpuMemory;
+        VkBuffer handle;
+    };
+
+    MemoryBuffer create_buffer(GPU* gpu, VulkanMemoryManager* memoryManager, VkBufferCreateInfo* createInfo, VkMemoryPropertyFlags memoryProperty);
+    MemoryBuffer create_vertex_buffer(GPU* gpu, VulkanMemoryManager* memoryManager, uSize sizeSytes);
+    MemoryBuffer create_index_buffer(GPU* gpu, VulkanMemoryManager* memoryManager, uSize sizeSytes);
+    MemoryBuffer create_staging_buffer(GPU* gpu, VulkanMemoryManager* memoryManager, uSize sizeSytes);
+    MemoryBuffer create_uniform_buffer(GPU* gpu, VulkanMemoryManager* memoryManager, uSize sizeSytes);
+    void destroy_buffer(GPU* gpu, VulkanMemoryManager* memoryManager, MemoryBuffer* buffer);
+
+    void copy_cpu_memory_to_buffer(VkDevice device, void* data, MemoryBuffer* buffer, uSize dataSizeBytes);
+    void copy_buffer_to_buffer(GPU* gpu, CommandBuffers* buffers, MemoryBuffer* src, MemoryBuffer* dst, uSize sizeBytes, uSize srcOffsetBytes = 0, uSize dstOffsetBytes = 0);
+    void copy_buffer_to_image(GPU* gpu, CommandBuffers* buffers, MemoryBuffer* src, VkImage dst, VkExtent3D extent);
+
+    struct HardcodedDescriptorsSets
     {
         struct Ubo
         {
@@ -194,57 +255,21 @@ namespace al::vulkan
             VkShaderStageFlags stageFlags;
             VkDescriptorType type;
         };
-        static constexpr uSize NUM_BINDINGS = 1;
-        static constexpr BindingDesc BINDING_DESCS[NUM_BINDINGS] =
+        static constexpr BindingDesc BINDING_DESCS[1] =
         {
             {
-                .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
-                .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,   // Can be retrieved from a reflection data
+                .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,  // Can be retrieved from a reflection data
             },
         };
-        
         VkDescriptorSetLayout layout;
         VkDescriptorPool pool;
         ArrayView<VkDescriptorSet> sets;    // Array size is equal to the number of swap chain images
         ArrayView<MemoryBuffer> buffers;    // Array size is equal to the number of swap chain images
     };
 
-    void create_test_descriptor_sets(RendererBackend* backend, TestDescriptorSets* sets);
-    void destroy_test_descriptor_sets(RendererBackend* backend, TestDescriptorSets* sets);
-
-    struct FramebufferAttachment
-    {
-        VkImage image;
-        VkImageView view;
-        VkFormat format;
-        VkDeviceMemory memory;
-    };
-
-    struct Framebuffer
-    {
-        VkFramebuffer framebuffer;
-        VkRenderPass renderPass;
-        VkExtent2D extent;
-        // ArrayView<FramebufferAttachment> attachments;
-    };
-
-    struct SwapChain
-    {
-        VkSwapchainKHR              handle;
-        ArrayView<VkImage>          images;
-        ArrayView<VkImageView>      imageViews;
-        ArrayView<VkFramebuffer>    framebuffers;
-        VkFormat                    format;
-        VkExtent2D                  extent;
-    };
-
-    // struct RenderStage
-    // {
-    //     Framebuffer         framebuffer;    // tied to a render pass
-    //     VkRenderPass        renderPass;     // tied to nothing
-    //     VkPipelineLayout    pipelineLayout; // tied to descriptor sets
-    //     VkPipeline          pipeline;       // tied to pepeline layout and render pass (and other stuff like shaders)
-    // };
+    void create_test_descriptor_sets(RendererBackend* backend, HardcodedDescriptorsSets* sets);
+    void destroy_test_descriptor_sets(RendererBackend* backend, HardcodedDescriptorsSets* sets);
 
     struct SyncPrimitives
     {
@@ -264,26 +289,25 @@ namespace al::vulkan
         VkInstance                  instance;
         VkSurfaceKHR                surface;
         GPU                         gpu;
-        CommandQueues               queues;
         SwapChain                   swapChain;
-        FramebufferAttachment       depthStencil;
-        VkRenderPass                simpleRenderPass;
+        ImageAttachment             depthStencil;
+
+        VkRenderPass                renderPass;
+        ArrayView<VkFramebuffer>    passFramebuffers;
+        HardcodedDescriptorsSets    descriptorSets;
         VkPipelineLayout            pipelineLayout;
         VkPipeline                  pipeline;
+
         SyncPrimitives              syncPrimitives;
 
-        TestDescriptorSets descriptorSets;
-
-        CommandPools    _commandPools;
-        CommandBuffers  _commandBuffers;
-        // ThreadLocalStorage<CommandPools>    _commandPools;
-        // ThreadLocalStorage<CommandBuffers>  _commandBuffers;
+        CommandPools                commandPools;
+        CommandBuffers              commandBuffers;
 
         MemoryBuffer                _vertexBuffer;
         MemoryBuffer                _indexBuffer;
         MemoryBuffer                _stagingBuffer;
-
-        // ArrayView<RenderStage>      renderStages;
+        ImageAttachment             _texture;
+        VkSampler                   _textureSampler;
 
         uSize                       currentRenderFrame;
         PlatformWindow*             window;
@@ -291,27 +315,19 @@ namespace al::vulkan
 
     VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT, const VkDebugUtilsMessengerCallbackDataEXT*, void*);
 
-    Tuple<CommandQueues, VkPhysicalDevice>  pick_physical_device(RendererBackend* backend);
+    void construct_instance         (VkInstance* instance, VkDebugUtilsMessengerEXT* debugMessenger, RendererBackendInitData* initData, AllocatorBindings bindings, VkAllocationCallbacks* callbacks);
+    void construct_surface          (VkSurfaceKHR* surface, PlatformWindow* window, VkInstance instance, VkAllocationCallbacks* allocationCallbacks);
+    void construct_render_pass      (VkRenderPass* pass, SwapChain* swapChain, ImageAttachment* depthStencil, GPU* gpu, VulkanMemoryManager* memoryManager);
+    void construct_framebuffers     (ArrayView<VkFramebuffer>* framebuffers, VkRenderPass pass, SwapChain* swapChain, VulkanMemoryManager* memoryManager, GPU* gpu, ImageAttachment* depthStencil);
+    void construct_render_pipeline  (RendererBackend* backend);
+    void create_sync_primitives     (RendererBackend* backend);
 
-    void create_instance                    (RendererBackend* backend, RendererBackendInitData* initData);
-    void create_surface                     (RendererBackend* backend);
-    void pick_gpu_and_init_command_queues   (RendererBackend* backend);
-    void create_swap_chain                  (RendererBackend* backend);
-    void create_depth_stencil               (RendererBackend* backend);
-    void create_framebuffers                (RendererBackend* backend);
-    void create_render_passes               (RendererBackend* backend);
-    void create_render_pipelines            (RendererBackend* backend);
-    void create_sync_primitives             (RendererBackend* backend);
-
-    void destroy_instance                   (RendererBackend* backend);
-    void destroy_surface                    (RendererBackend* backend);
-    void destroy_gpu                        (RendererBackend* backend);
-    void destroy_swap_chain                 (RendererBackend* backend);
-    void destroy_depth_stencil              (RendererBackend* backend);
-    void destroy_framebuffers               (RendererBackend* backend);
-    void destroy_render_passes              (RendererBackend* backend);
-    void destroy_render_pipelines           (RendererBackend* backend);
-    void destroy_sync_primitives            (RendererBackend* backend);
+    void destroy_instance           (VkInstance instance, VkDebugUtilsMessengerEXT messenger, VkAllocationCallbacks* callbacks);
+    void destroy_surface            (VkSurfaceKHR surface, VkInstance instance, VkAllocationCallbacks* callbacks);
+    void destroy_render_pass        (VkRenderPass pass, GPU* gpu, VulkanMemoryManager* memoryManager);
+    void destroy_framebuffers       (ArrayView<VkFramebuffer> framebuffers, GPU* gpu, VulkanMemoryManager* memoryManager);
+    void destroy_render_pipeline    (RendererBackend* backend);
+    void destroy_sync_primitives    (RendererBackend* backend);
 }
 
 namespace al

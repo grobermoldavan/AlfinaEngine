@@ -6,7 +6,7 @@
 #include "engine/utilities/utilities.h"
 #include "engine/memory/memory.h"
 
-namespace al::vk
+namespace al::vulkan::utils
 {
     const char* VALIDATION_LAYERS[] = 
     {
@@ -33,12 +33,16 @@ namespace al::vk
     ArrayView<VkExtensionProperties> get_available_instance_extensions(AllocatorBindings* bindings);
 
     VkDebugUtilsMessengerCreateInfoEXT get_debug_messenger_create_info(PFN_vkDebugUtilsMessengerCallbackEXT callback, void* userData = nullptr);
-    VkDebugUtilsMessengerEXT create_debug_messenger(VkDebugUtilsMessengerCreateInfoEXT* createInfo, VkInstance instance, VkAllocationCallbacks* allocationCb = nullptr);
+    VkDebugUtilsMessengerEXT create_debug_messenger(VkDebugUtilsMessengerCreateInfoEXT* createInfo, VkInstance instance, VkAllocationCallbacks* callbacks = nullptr);
+    void destroy_debug_messenger(VkInstance instance, VkDebugUtilsMessengerEXT messenger, VkAllocationCallbacks* callbacks = nullptr);
 
     bool pick_depth_format(VkPhysicalDevice physicalDevice, VkFormat* result);
     ArrayView<VkPhysicalDevice> get_available_physical_devices(VkInstance instance, AllocatorBindings bindings);
     ArrayView<VkQueueFamilyProperties> get_physical_device_queue_family_properties(VkPhysicalDevice physicalDevice, AllocatorBindings bindings);
     bool does_physical_device_supports_required_extensions(VkPhysicalDevice device, ArrayView<const char* const> extensions, AllocatorBindings bindings);
+    bool does_physical_device_supports_required_features(VkPhysicalDevice device, VkPhysicalDeviceFeatures* requiredFeatures);
+
+    VkImageType pick_image_type(VkExtent3D imageExtent);
 
     VkCommandBuffer create_command_buffer(VkDevice device, VkCommandPool pool, VkCommandBufferLevel level);
 

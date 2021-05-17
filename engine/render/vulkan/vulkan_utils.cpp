@@ -1,7 +1,7 @@
 
-#include "vulkan_help.h"
+#include "vulkan_utils.h"
 
-namespace al::vk
+namespace al::vulkan::utils
 {
     ArrayView<VkLayerProperties> get_available_validation_layers(AllocatorBindings* bindings)
     {
@@ -37,7 +37,7 @@ namespace al::vk
         };
     }
 
-    VkDebugUtilsMessengerEXT create_debug_messenger(VkDebugUtilsMessengerCreateInfoEXT* createInfo, VkInstance instance, VkAllocationCallbacks* allocationCb)
+    VkDebugUtilsMessengerEXT create_debug_messenger(VkDebugUtilsMessengerCreateInfoEXT* createInfo, VkInstance instance, VkAllocationCallbacks* callbacks)
     {
         VkDebugUtilsMessengerEXT messenger;
         auto CreateDebugUtilsMessengerEXT = [](VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger) -> VkResult
@@ -52,8 +52,21 @@ namespace al::vk
                 return VK_ERROR_EXTENSION_NOT_PRESENT;
             }
         };
-        al_vk_check(CreateDebugUtilsMessengerEXT(instance, createInfo, allocationCb, &messenger));
+        al_vk_check(CreateDebugUtilsMessengerEXT(instance, createInfo, callbacks, &messenger));
         return messenger;
+    }
+
+    void destroy_debug_messenger(VkInstance instance, VkDebugUtilsMessengerEXT messenger, VkAllocationCallbacks* callbacks)
+    {
+        auto DestroyDebugUtilsMessengerEXT = [](VkInstance instance, VkDebugUtilsMessengerEXT messenger, const VkAllocationCallbacks* pAllocator)
+        {
+            PFN_vkDestroyDebugUtilsMessengerEXT func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
+            if (func)
+            {
+                func(instance, messenger, pAllocator);
+            }
+        };
+        DestroyDebugUtilsMessengerEXT(instance, messenger, callbacks);
     }
 
     bool pick_depth_format(VkPhysicalDevice physicalDevice, VkFormat* result)
@@ -133,6 +146,39 @@ namespace al::vk
         }
         return result;
     };
+
+    bool does_physical_device_supports_required_features(VkPhysicalDevice device, VkPhysicalDeviceFeatures* requiredFeatures)
+    {
+        // VkPhysicalDeviceFeatures is just a collection of VkBool32 values, so we can iterate over it like an array
+        VkPhysicalDeviceFeatures supportedFeatures{ };
+        vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
+        VkBool32* requiredArray = reinterpret_cast<VkBool32*>(requiredFeatures);
+        VkBool32* supportedArray = reinterpret_cast<VkBool32*>(&supportedFeatures);
+        for (uSize it = 0; it < sizeof(VkPhysicalDeviceFeatures) / sizeof(VkBool32); it++)
+        {
+            if (!(!requiredArray[it] || supportedArray[it]))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    VkImageType pick_image_type(VkExtent3D imageExtent)
+    {
+        // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkImageCreateInfo.html
+        // If imageType is VK_IMAGE_TYPE_1D, both extent.height and extent.depth must be 1
+        if (imageExtent.height == 1 && imageExtent.depth == 1)
+        {
+            return VK_IMAGE_TYPE_1D;
+        }
+        // If imageType is VK_IMAGE_TYPE_2D, extent.depth must be 1
+        if (imageExtent.depth == 1)
+        {
+            return VK_IMAGE_TYPE_2D;
+        }
+        return VK_IMAGE_TYPE_3D;
+    }
 
     VkCommandBuffer create_command_buffer(VkDevice device, VkCommandPool pool, VkCommandBufferLevel level)
     {

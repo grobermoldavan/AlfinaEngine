@@ -21,43 +21,75 @@ namespace al
     {
         using namespace vulkan;
         backend->window = initData->window;
-        construct                       (&backend->memoryManager, initData->bindings);
-        create_instance                 (backend, initData);
-        create_surface                  (backend);
-        pick_gpu_and_init_command_queues(backend);
-        create_swap_chain               (backend);
-        create_depth_stencil            (backend);
-        create_render_passes            (backend);
 
-        create_test_descriptor_sets (backend, &backend->descriptorSets);
+        // This stuff is constructed per renderer instance
+        construct_memory_manager            (&backend->memoryManager, initData->bindings);
+        construct_instance                  (&backend->instance, &backend->debugMessenger, initData, backend->memoryManager.cpu_allocationBindings, &backend->memoryManager.cpu_allocationCallbacks);
+        construct_surface                   (&backend->surface, backend->window, backend->instance, &backend->memoryManager.cpu_allocationCallbacks);
+        construct_gpu                       (&backend->gpu, backend->instance, backend->surface, backend->memoryManager.cpu_allocationBindings, &backend->memoryManager.cpu_allocationCallbacks);
+        construct_swap_chain                (&backend->swapChain, backend->surface, &backend->gpu, backend->window, backend->memoryManager.cpu_allocationBindings, &backend->memoryManager.cpu_allocationCallbacks);
+        construct_depth_stencil_attachment  (&backend->depthStencil, backend->swapChain.extent, &backend->gpu, &backend->memoryManager);        
+        construct_command_pools             (backend, &backend->commandPools);
+        construct_command_buffers           (backend, &backend->commandBuffers);
+        create_sync_primitives              (backend);
 
-        create_render_pipelines         (backend);
-        create_framebuffers             (backend);
-        create_sync_primitives          (backend);
-
-        // @NOTE :  Do we really need a thread-local storage for command pools and command buffers? need to think about this
-        // @TODO :  create command pools and buffers for each thread in advance, so we won't have to do it in the middle of running (in get_command_pools/buffers functions)
-        // tls_construct(&backend->_commandPools, initData->bindings);
-        // tls_construct(&backend->_commandBuffers, initData->bindings);
-        create_command_pools(backend, &backend->_commandPools);
-        create_command_buffers(backend, &backend->_commandBuffers);
-
+        // This stuff is created by the user
         // Filling triangle buffer
-        backend->_vertexBuffer = create_vertex_buffer(backend, sizeof(triangle));
-        backend->_indexBuffer = create_index_buffer(backend, sizeof(triangleIndices));
+        backend->_vertexBuffer = create_vertex_buffer(&backend->gpu, &backend->memoryManager, sizeof(triangle));
+        backend->_indexBuffer = create_index_buffer(&backend->gpu, &backend->memoryManager, sizeof(triangleIndices));
         // Staging buffer occupies the whole memory chunk
-        backend->_stagingBuffer = create_staging_buffer(backend, VulkanMemoryManager::GPU_CHUNK_SIZE_BYTES);
-        copy_cpu_memory_to_buffer(backend, triangle, &backend->_stagingBuffer, sizeof(triangle));
-        copy_buffer_to_buffer(backend, &backend->_stagingBuffer, &backend->_vertexBuffer, sizeof(triangle));
-        copy_cpu_memory_to_buffer(backend, triangleIndices, &backend->_stagingBuffer, sizeof(triangleIndices));
-        copy_buffer_to_buffer(backend, &backend->_stagingBuffer, &backend->_indexBuffer, sizeof(triangleIndices));
+        backend->_stagingBuffer = create_staging_buffer(&backend->gpu, &backend->memoryManager, VulkanMemoryManager::GPU_CHUNK_SIZE_BYTES);
+        copy_cpu_memory_to_buffer(backend->gpu.logicalHandle, triangle, &backend->_stagingBuffer, sizeof(triangle));
+        copy_buffer_to_buffer(&backend->gpu, &backend->commandBuffers, &backend->_stagingBuffer, &backend->_vertexBuffer, sizeof(triangle));
+        copy_cpu_memory_to_buffer(backend->gpu.logicalHandle, triangleIndices, &backend->_stagingBuffer, sizeof(triangleIndices));
+        copy_buffer_to_buffer(&backend->gpu, &backend->commandBuffers, &backend->_stagingBuffer, &backend->_indexBuffer, sizeof(triangleIndices));
+
+        construct_color_attachment(&backend->_texture, { 5, 5 }, &backend->gpu, &backend->memoryManager);
+        transition_image_layout(&backend->gpu, &backend->commandBuffers, backend->_texture.image, backend->_texture.format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        copy_cpu_memory_to_buffer(backend->gpu.logicalHandle, testEpicTexture, &backend->_stagingBuffer, sizeof(testEpicTexture));
+        copy_buffer_to_image(&backend->gpu, &backend->commandBuffers, &backend->_stagingBuffer, backend->_texture.image, backend->_texture.extent);
+        transition_image_layout(&backend->gpu, &backend->commandBuffers, backend->_texture.image, backend->_texture.format, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+        // Texture sampler
+        {
+            VkPhysicalDeviceProperties properties;
+            vkGetPhysicalDeviceProperties(backend->gpu.physicalHandle, &properties);
+            VkSamplerCreateInfo samplerInfo
+            {
+                .sType                      = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+                .pNext                      = nullptr,
+                .flags                      = 0,
+                .magFilter                  = VK_FILTER_NEAREST,
+                .minFilter                  = VK_FILTER_NEAREST,
+                .mipmapMode                 = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+                .addressModeU               = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+                .addressModeV               = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+                .addressModeW               = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+                .mipLodBias                 = 0.0f,
+                .anisotropyEnable           = VK_TRUE,
+                .maxAnisotropy              = properties.limits.maxSamplerAnisotropy, // make anisotropy optional
+                .compareEnable              = VK_FALSE,
+                .compareOp                  = VK_COMPARE_OP_ALWAYS,
+                .minLod                     = 0.0f,
+                .maxLod                     = 0.0f,
+                .borderColor                = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
+                .unnormalizedCoordinates    = VK_FALSE,
+            };
+            al_vk_check(vkCreateSampler(backend->gpu.logicalHandle, &samplerInfo, &backend->memoryManager.cpu_allocationCallbacks, &backend->_textureSampler));
+
+            // This stuff is costructed per pipeline instance
+            construct_render_pass       (&backend->renderPass, &backend->swapChain, &backend->depthStencil, &backend->gpu, &backend->memoryManager);
+            construct_framebuffers      (&backend->passFramebuffers, backend->renderPass, &backend->swapChain, &backend->memoryManager, &backend->gpu, &backend->depthStencil);
+            create_test_descriptor_sets (backend, &backend->descriptorSets);
+            construct_render_pipeline   (backend);
+        }
     }
 
     template<>
     void renderer_backend_render<vulkan::RendererBackend>(vulkan::RendererBackend* backend)
     {
         using namespace vulkan;
-        backend->currentRenderFrame = vk::advance_render_frame(backend->currentRenderFrame);
+        backend->currentRenderFrame = utils::advance_render_frame(backend->currentRenderFrame);
         // @NOTE :  wait for current render frame processing to be finished
         vkWaitForFences(backend->gpu.logicalHandle, 1, &backend->syncPrimitives.inFlightFences[backend->currentRenderFrame], VK_TRUE, UINT64_MAX);
         // @NOTE :  get next swap chain image and set the semaphore to be signaled when image is free
@@ -70,7 +102,7 @@ namespace al
         }
         // @NOTE :  mark this image as used by this render frame
         backend->syncPrimitives.imageInFlightFencesRef[swapChainImageIndex] = backend->syncPrimitives.inFlightFences[backend->currentRenderFrame];
-        VkCommandBuffer commandBuffer = get_command_buffers(backend)->primaryBuffers[swapChainImageIndex];
+        VkCommandBuffer commandBuffer = backend->commandBuffers.primaryBuffers[swapChainImageIndex];
         VkCommandBufferBeginInfo beginInfo
         {
             .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -108,8 +140,8 @@ namespace al
                 {
                     .sType              = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
                     .pNext              = nullptr,
-                    .renderPass         = backend->simpleRenderPass,
-                    .framebuffer        = backend->swapChain.framebuffers[swapChainImageIndex],
+                    .renderPass         = backend->renderPass,
+                    .framebuffer        = backend->passFramebuffers[swapChainImageIndex],
                     .renderArea         = { .offset = { 0, 0 }, .extent = backend->swapChain.extent },
                     .clearValueCount    = array_size(clearValues),
                     .pClearValues       = clearValues,
@@ -122,7 +154,7 @@ namespace al
                 {
                     tint = 0.0f;
                 }
-                f32 color = tint; //(f32)rand() / (f32)RAND_MAX;
+                f32 color = tint;
                 f32_3 testPushConstant = { color, color, color };
                 vkCmdPushConstants(commandBuffer, backend->pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(f32_3), &testPushConstant);
                 vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, backend->pipelineLayout, 0, 1, &backend->descriptorSets.sets[swapChainImageIndex], 0, nullptr);
@@ -163,7 +195,7 @@ namespace al
                 .pSignalSemaphores      = signalSemaphores,
             };
             vkResetFences(backend->gpu.logicalHandle, 1, &backend->syncPrimitives.inFlightFences[backend->currentRenderFrame]);
-            vkQueueSubmit(backend->queues.graphics.handle, 1, &submitInfo, backend->syncPrimitives.inFlightFences[backend->currentRenderFrame]);
+            vkQueueSubmit(backend->gpu.graphicsQueue.handle, 1, &submitInfo, backend->syncPrimitives.inFlightFences[backend->currentRenderFrame]);
             VkSwapchainKHR swapChains[] =
             {
                 backend->swapChain.handle
@@ -179,7 +211,7 @@ namespace al
                 .pImageIndices      = &swapChainImageIndex,
                 .pResults           = nullptr,
             };
-            al_vk_check(vkQueuePresentKHR(backend->queues.present.handle, &presentInfo));
+            al_vk_check(vkQueuePresentKHR(backend->gpu.presentQueue.handle, &presentInfo));
             // @NOTE :  if VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT flag in VkCommandPoolCreateInfo is true,
             //          command buffer gets implicitly reset when calling vkBeginCommandBuffer
             //          https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkCommandPoolCreateFlagBits.html
@@ -193,36 +225,27 @@ namespace al
         using namespace vulkan;
         vkDeviceWaitIdle(backend->gpu.logicalHandle);
 
-        destroy_buffer(backend, &backend->_indexBuffer);
-        destroy_buffer(backend, &backend->_vertexBuffer);
-        destroy_buffer(backend, &backend->_stagingBuffer);
+        vkDestroySampler(backend->gpu.logicalHandle, backend->_textureSampler, &backend->memoryManager.cpu_allocationCallbacks);
+        destroy_image_attachment(&backend->_texture, &backend->gpu, &backend->memoryManager);
 
+        destroy_buffer(&backend->gpu, &backend->memoryManager, &backend->_indexBuffer);
+        destroy_buffer(&backend->gpu, &backend->memoryManager, &backend->_vertexBuffer);
+        destroy_buffer(&backend->gpu, &backend->memoryManager, &backend->_stagingBuffer);
+
+        destroy_render_pipeline     (backend);
         destroy_test_descriptor_sets(backend, &backend->descriptorSets);
+        destroy_framebuffers        (backend->passFramebuffers, &backend->gpu, &backend->memoryManager);
+        destroy_render_pass         (backend->renderPass, &backend->gpu, &backend->memoryManager);
 
-        // for (uSize it = 0; it < backend->_commandBuffers.size; it++)
-        // {
-        //     destroy_command_buffers(backend, &backend->_commandBuffers.memory[it]);
-        // }
-        // tls_destruct(&backend->_commandBuffers);
-        // for (uSize it = 0; it < backend->_commandPools.size; it++)
-        // {
-        //     destroy_command_pools(backend, &backend->_commandPools.memory[it]);
-        // }
-        // tls_destruct(&backend->_commandPools);
-        destroy_command_buffers(backend, &backend->_commandBuffers);
-        destroy_command_pools(backend, &backend->_commandPools);
-
-        destroy_sync_primitives     (backend);
-        destroy_framebuffers        (backend);
-        destroy_render_pipelines    (backend);
-
-        destroy_render_passes       (backend);
-        destroy_depth_stencil       (backend);
-        destroy_swap_chain          (backend);
-        destruct                    (&backend->memoryManager, backend->gpu.logicalHandle);
-        destroy_gpu                 (backend);
-        destroy_surface             (backend);
-        destroy_instance            (backend);
+        destroy_sync_primitives (backend);
+        destroy_command_buffers (backend, &backend->commandBuffers);
+        destroy_command_pools   (backend, &backend->commandPools);
+        destroy_image_attachment(&backend->depthStencil, &backend->gpu, &backend->memoryManager);
+        destroy_swap_chain      (&backend->swapChain, &backend->gpu, &backend->memoryManager.cpu_allocationCallbacks);
+        destroy_memory_manager  (&backend->memoryManager, backend->gpu.logicalHandle);
+        destroy_gpu             (&backend->gpu, &backend->memoryManager.cpu_allocationCallbacks);
+        destroy_surface         (backend->surface, backend->instance, &backend->memoryManager.cpu_allocationCallbacks);
+        destroy_instance        (backend->instance, backend->debugMessenger, &backend->memoryManager.cpu_allocationCallbacks);
     }
 
     template<>
@@ -235,18 +258,18 @@ namespace al
         }
         vkDeviceWaitIdle(backend->gpu.logicalHandle);
         {
-            destroy_framebuffers    (backend);
-            destroy_render_pipelines(backend);
-            destroy_render_passes   (backend);
-            destroy_depth_stencil   (backend);
-            destroy_swap_chain      (backend);
+            destroy_render_pipeline(backend);
+            destroy_framebuffers(backend->passFramebuffers, &backend->gpu, &backend->memoryManager);
+            destroy_render_pass       (backend->renderPass, &backend->gpu, &backend->memoryManager);
+            destroy_image_attachment(&backend->depthStencil, &backend->gpu, &backend->memoryManager);
+            destroy_swap_chain      (&backend->swapChain, &backend->gpu, &backend->memoryManager.cpu_allocationCallbacks);
         }
         {
-            create_swap_chain       (backend);
-            create_depth_stencil    (backend);
-            create_render_passes    (backend);
-            create_render_pipelines (backend);
-            create_framebuffers     (backend);
+            construct_swap_chain    (&backend->swapChain, backend->surface, &backend->gpu, backend->window, backend->memoryManager.cpu_allocationBindings, &backend->memoryManager.cpu_allocationCallbacks);
+            construct_depth_stencil_attachment (&backend->depthStencil, backend->swapChain.extent, &backend->gpu, &backend->memoryManager);
+            construct_render_pass            (&backend->renderPass, &backend->swapChain, &backend->depthStencil, &backend->gpu, &backend->memoryManager);
+            construct_framebuffers      (&backend->passFramebuffers, backend->renderPass, &backend->swapChain, &backend->memoryManager, &backend->gpu, &backend->depthStencil);
+            construct_render_pipeline (backend);
         }
     }
 }
@@ -257,15 +280,15 @@ namespace al::vulkan
     // CREATION
     // =================================================================================================================
 
-    void create_instance(RendererBackend* backend, RendererBackendInitData* initData)
+    void construct_instance(VkInstance* instance, VkDebugUtilsMessengerEXT* debugMessenger, RendererBackendInitData* initData, AllocatorBindings bindings, VkAllocationCallbacks* callbacks)
     {
 #ifdef AL_DEBUG
         {
-            ArrayView<VkLayerProperties> availableValidationLayers = vk::get_available_validation_layers(&backend->memoryManager.cpu_allocationBindings);
+            ArrayView<VkLayerProperties> availableValidationLayers = utils::get_available_validation_layers(&bindings);
             defer(av_destruct(availableValidationLayers));
-            for (uSize requiredIt = 0; requiredIt < array_size(vk::VALIDATION_LAYERS); requiredIt++)
+            for (uSize requiredIt = 0; requiredIt < array_size(utils::VALIDATION_LAYERS); requiredIt++)
             {
-                const char* requiredLayerName = vk::VALIDATION_LAYERS[requiredIt];
+                const char* requiredLayerName = utils::VALIDATION_LAYERS[requiredIt];
                 bool isFound = false;
                 for (uSize availableIt = 0; availableIt < availableValidationLayers.count; availableIt++)
                 {
@@ -285,11 +308,11 @@ namespace al::vulkan
         }
 #endif
         {
-            ArrayView<VkExtensionProperties> availableInstanceExtensions = vk::get_available_instance_extensions(&backend->memoryManager.cpu_allocationBindings);
+            ArrayView<VkExtensionProperties> availableInstanceExtensions = utils::get_available_instance_extensions(&bindings);
             defer(av_destruct(availableInstanceExtensions));
-            for (uSize requiredIt = 0; requiredIt < array_size(vk::INSTANCE_EXTENSIONS); requiredIt++)
+            for (uSize requiredIt = 0; requiredIt < array_size(utils::INSTANCE_EXTENSIONS); requiredIt++)
             {
-                const char* requiredInstanceExtensionName = vk::INSTANCE_EXTENSIONS[requiredIt];
+                const char* requiredInstanceExtensionName = utils::INSTANCE_EXTENSIONS[requiredIt];
                 bool isFound = false;
                 for (uSize availableIt = 0; availableIt < availableInstanceExtensions.count; availableIt++)
                 {
@@ -325,21 +348,21 @@ namespace al::vulkan
         VkInstanceCreateInfo instanceCreateInfo{ };
         instanceCreateInfo.sType                    = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
         instanceCreateInfo.pApplicationInfo         = &applicationInfo;
-        instanceCreateInfo.enabledExtensionCount    = array_size(vk::INSTANCE_EXTENSIONS);
-        instanceCreateInfo.ppEnabledExtensionNames  = vk::INSTANCE_EXTENSIONS;
+        instanceCreateInfo.enabledExtensionCount    = array_size(utils::INSTANCE_EXTENSIONS);
+        instanceCreateInfo.ppEnabledExtensionNames  = utils::INSTANCE_EXTENSIONS;
 #ifdef AL_DEBUG
-        VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo = vk::get_debug_messenger_create_info(vulkan_debug_callback);
+        VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo = utils::get_debug_messenger_create_info(vulkan_debug_callback);
         instanceCreateInfo.pNext                = &debugCreateInfo;
-        instanceCreateInfo.enabledLayerCount    = array_size(vk::VALIDATION_LAYERS);
-        instanceCreateInfo.ppEnabledLayerNames  = vk::VALIDATION_LAYERS;
+        instanceCreateInfo.enabledLayerCount    = array_size(utils::VALIDATION_LAYERS);
+        instanceCreateInfo.ppEnabledLayerNames  = utils::VALIDATION_LAYERS;
 #endif
-        al_vk_check(vkCreateInstance(&instanceCreateInfo, &backend->memoryManager.cpu_allocationCallbacks, &backend->instance));
+        al_vk_check(vkCreateInstance(&instanceCreateInfo, callbacks, instance));
 #ifdef AL_DEBUG
-        backend->debugMessenger = vk::create_debug_messenger(&debugCreateInfo, backend->instance, &backend->memoryManager.cpu_allocationCallbacks);
+        *debugMessenger = utils::create_debug_messenger(&debugCreateInfo, *instance, callbacks);
 #endif
     }
 
-    void create_surface(RendererBackend* backend)
+    void construct_surface(VkSurfaceKHR* surface, PlatformWindow* window, VkInstance instance, VkAllocationCallbacks* allocationCallbacks)
     {
 #ifdef _WIN32
         {
@@ -349,321 +372,22 @@ namespace al::vulkan
                 .pNext      = nullptr,
                 .flags      = 0,
                 .hinstance  = ::GetModuleHandle(nullptr),
-                .hwnd       = backend->window->handle
+                .hwnd       = window->handle
             };
-            al_vk_check(vkCreateWin32SurfaceKHR(backend->instance, &surfaceCreateInfo, &backend->memoryManager.cpu_allocationCallbacks, &backend->surface));
+            al_vk_check(vkCreateWin32SurfaceKHR(instance, &surfaceCreateInfo, allocationCallbacks, surface));
         }
 #else
 #   error Unsupported platform
 #endif
     }
 
-    void pick_gpu_and_init_command_queues(RendererBackend* backend)
-    {
-        auto getQueueCreateInfos = [](RendererBackend* backend, CommandQueues* queues) -> ArrayView<VkDeviceQueueCreateInfo>
-        {
-            // @NOTE :  this is possible that queue family might support more than one of the required features,
-            //          so we have to remove duplicates from queueFamiliesInfo and create VkDeviceQueueCreateInfos
-            //          only for unique indexes
-            static const f32 QUEUE_DEFAULT_PRIORITY = 1.0f;
-            u32 indicesArray[CommandQueues::QUEUES_NUM];
-            ArrayView<u32> uniqueQueueIndices
-            {
-                .memory = indicesArray,
-                .count = 0
-            };
-            auto updateUniqueIndicesArray = [](ArrayView<u32>* targetArray, u32 familyIndex)
-            {
-                bool isFound = false;
-                for (uSize uniqueIt = 0; uniqueIt < targetArray->count; uniqueIt++)
-                {
-                    if ((*targetArray)[uniqueIt] == familyIndex)
-                    {
-                        isFound = true;
-                        break;
-                    }
-                }
-                if (!isFound)
-                {
-                    targetArray->count += 1;
-                    (*targetArray)[targetArray->count - 1] = familyIndex;
-                }
-            };
-            for (uSize it = 0; it < CommandQueues::QUEUES_NUM; it++)
-            {
-                updateUniqueIndicesArray(&uniqueQueueIndices, queues->queues[it].deviceFamilyIndex);
-            }
-            ArrayView<VkDeviceQueueCreateInfo> result;
-            av_construct(&result, &backend->memoryManager.cpu_allocationBindings, uniqueQueueIndices.count);
-            for (uSize it = 0; it < result.count; it++)
-            {
-                result[it] = 
-                {
-                    .sType              = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-                    .pNext              = nullptr,
-                    .flags              = 0,
-                    .queueFamilyIndex   = uniqueQueueIndices[it],
-                    .queueCount         = 1,
-                    .pQueuePriorities   = &QUEUE_DEFAULT_PRIORITY,
-                };
-            }
-            return result;
-        };
-        auto[commandQueues, physicalDevice] = pick_physical_device(backend);
-        al_vk_assert(physicalDevice != VK_NULL_HANDLE);
-        VkDevice logicalDevice = VK_NULL_HANDLE;
-        ArrayView<VkDeviceQueueCreateInfo> queueCreateInfos = getQueueCreateInfos(backend, &commandQueues);
-        defer(av_destruct(queueCreateInfos));
-        VkPhysicalDeviceFeatures deviceFeatures{ };
-        VkDeviceCreateInfo logicalDeviceCreateInfo
-        {
-            .sType                      = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-            .pNext                      = nullptr,
-            .flags                      = 0,
-            .queueCreateInfoCount       = static_cast<u32>(queueCreateInfos.count),
-            .pQueueCreateInfos          = queueCreateInfos.memory,
-            // @NOTE : Validation layers info is not used by recent vulkan implemetations, but still can be set for compatibility reasons
-            .enabledLayerCount          = array_size(vk::VALIDATION_LAYERS),
-            .ppEnabledLayerNames        = vk::VALIDATION_LAYERS,
-            .enabledExtensionCount      = array_size(vk::DEVICE_EXTENSIONS),
-            .ppEnabledExtensionNames    = vk::DEVICE_EXTENSIONS,
-            .pEnabledFeatures           = &deviceFeatures
-        };
-        al_vk_check(vkCreateDevice(physicalDevice, &logicalDeviceCreateInfo, &backend->memoryManager.cpu_allocationCallbacks, &logicalDevice));
-        for (uSize it = 0; it < CommandQueues::QUEUES_NUM; it++)
-        {
-            vkGetDeviceQueue(logicalDevice, commandQueues.queues[it].deviceFamilyIndex, 0, &commandQueues.queues[it].handle);
-        }
-        vk::pick_depth_format(physicalDevice, &backend->depthStencil.format);
-        vkGetPhysicalDeviceMemoryProperties(physicalDevice, &backend->gpu.memoryProperties);
-        backend->gpu.physicalHandle = physicalDevice;
-        backend->gpu.logicalHandle = logicalDevice;
-        std::memcpy(&backend->queues, &commandQueues, sizeof(CommandQueues));
-    }
-
-    void create_swap_chain(RendererBackend* backend)
-    {
-        auto chooseSurfaceFormat = [](ArrayView<VkSurfaceFormatKHR> formats) -> VkSurfaceFormatKHR
-        {
-            for (uSize it = 0; it < formats.count; it++)
-            {
-                if (formats[it].format == VK_FORMAT_B8G8R8A8_SRGB && formats[it].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
-                {
-                    return formats[it];
-                }
-            }
-            return formats[0];
-        };
-        auto choosePresentationMode = [](ArrayView<VkPresentModeKHR> modes) -> VkPresentModeKHR
-        {
-            for (uSize it = 0; it < modes.count; it++)
-            {
-                // VK_PRESENT_MODE_MAILBOX_KHR will allow us to implemet triple buffering
-                if (modes[it] == VK_PRESENT_MODE_MAILBOX_KHR) //VK_PRESENT_MODE_IMMEDIATE_KHR
-                {
-                    return modes[it];
-                }
-            }
-            return VK_PRESENT_MODE_FIFO_KHR; // Guarateed to be available
-        };
-        auto chooseSwapExtent = [](RendererBackend* backend, VkSurfaceCapabilitiesKHR* capabilities) -> VkExtent2D
-        {
-            if (capabilities->currentExtent.width != UINT32_MAX)
-            {
-                return capabilities->currentExtent;
-            }
-            else
-            {
-                auto clamp = [](u32 min, u32 max, u32 value) -> u32 { return value < min ? min : (value > max ? max : value); };
-                return
-                {
-                    clamp(capabilities->minImageExtent.width , capabilities->maxImageExtent.width , platform_window_get_current_width (backend->window)),
-                    clamp(capabilities->minImageExtent.height, capabilities->maxImageExtent.height, platform_window_get_current_height(backend->window))
-                };
-            }
-        };
-        {
-            SwapChainSupportDetails supportDetails = get_swap_chain_support_details(backend->surface, backend->gpu.physicalHandle, backend->memoryManager.cpu_allocationBindings);
-            defer(av_destruct(supportDetails.formats));
-            defer(av_destruct(supportDetails.presentModes));
-            VkSurfaceFormatKHR  surfaceFormat   = chooseSurfaceFormat   (supportDetails.formats);
-            VkPresentModeKHR    presentMode     = choosePresentationMode(supportDetails.presentModes);
-            VkExtent2D          extent          = chooseSwapExtent      (backend, &supportDetails.capabilities);
-            // @NOTE :  supportDetails.capabilities.maxImageCount == 0 means unlimited amount of images in swapchain
-            u32 imageCount = supportDetails.capabilities.minImageCount + 1;
-            if (supportDetails.capabilities.maxImageCount != 0 && imageCount > supportDetails.capabilities.maxImageCount)
-            {
-                imageCount = supportDetails.capabilities.maxImageCount;
-            }
-            // @NOTE :  imageSharingMode, queueFamilyIndexCount and pQueueFamilyIndices may vary depending on queue families indices.
-            //          If the same queue family supports both graphics operations and presentation operations, we use exclusive sharing mode
-            //          (which is more performance-friendly), but if there is two different queue families for these operations, we use
-            //          concurrent sharing mode and pass indices array info to queueFamilyIndexCount and pQueueFamilyIndices
-            VkSharingMode   imageSharingMode        = VK_SHARING_MODE_EXCLUSIVE;
-            u32             queueFamilyIndexCount   = 0;
-            const u32*      pQueueFamilyIndices     = nullptr;
-            u32 queueFamiliesIndices[CommandQueues::QUEUES_NUM];
-            for (uSize it = 0; it < CommandQueues::QUEUES_NUM; it++)
-            {
-                queueFamiliesIndices[it] = backend->queues.queues[it].deviceFamilyIndex;
-            }
-            bool isConcurrentSharingNeeded = false;
-            for (uSize it = 1; it < CommandQueues::QUEUES_NUM; it++)
-            {
-                if (&backend->queues.queues[it] == &backend->queues.transfer)
-                {
-                    // ignore transfer queue
-                    continue;
-                }
-                if (queueFamiliesIndices[it] != queueFamiliesIndices[0])
-                {
-                    isConcurrentSharingNeeded = true;
-                    break;
-                }
-            }
-            if (isConcurrentSharingNeeded)
-            {
-                // @NOTE :  if VK_SHARING_MODE_EXCLUSIVE was used here, we would have to explicitly transfer ownership of swap chain images
-                //          from one queue to another
-                imageSharingMode        = VK_SHARING_MODE_CONCURRENT;
-                queueFamilyIndexCount   = CommandQueues::QUEUES_NUM;
-                pQueueFamilyIndices     = queueFamiliesIndices;
-            }
-            VkSwapchainCreateInfoKHR createInfo
-            {
-                .sType                  = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-                .pNext                  = nullptr,
-                .flags                  = 0,
-                .surface                = backend->surface,
-                .minImageCount          = imageCount,
-                .imageFormat            = surfaceFormat.format,
-                .imageColorSpace        = surfaceFormat.colorSpace,
-                .imageExtent            = extent,
-                .imageArrayLayers       = 1, // "This is always 1 unless you are developing a stereoscopic 3D application"
-                .imageUsage             = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-                .imageSharingMode       = imageSharingMode,
-                .queueFamilyIndexCount  = queueFamilyIndexCount,
-                .pQueueFamilyIndices    = pQueueFamilyIndices,
-                .preTransform           = supportDetails.capabilities.currentTransform, // Allows to apply transform to images (rotate etc)
-                .compositeAlpha         = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-                .presentMode            = presentMode,
-                .clipped                = VK_TRUE,
-                .oldSwapchain           = VK_NULL_HANDLE,
-            };
-            u32 swapChainImageCount;
-            al_vk_check(vkCreateSwapchainKHR(backend->gpu.logicalHandle, &createInfo, &backend->memoryManager.cpu_allocationCallbacks, &backend->swapChain.handle));
-            al_vk_check(vkGetSwapchainImagesKHR(backend->gpu.logicalHandle, backend->swapChain.handle, &swapChainImageCount, nullptr));
-            av_construct(&backend->swapChain.images, &backend->memoryManager.cpu_allocationBindings, swapChainImageCount);
-            al_vk_check(vkGetSwapchainImagesKHR(backend->gpu.logicalHandle, backend->swapChain.handle, &swapChainImageCount, backend->swapChain.images.memory));
-            backend->swapChain.format = surfaceFormat.format;
-            backend->swapChain.extent = extent;
-        }
-        {
-            av_construct(&backend->swapChain.imageViews, &backend->memoryManager.cpu_allocationBindings, backend->swapChain.images.count);
-            for (uSize it = 0; it < backend->swapChain.imageViews.count; it++)
-            {
-                VkImageViewCreateInfo createInfo
-                {
-                    .sType              = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                    .pNext              = nullptr,
-                    .flags              = 0,
-                    .image              = backend->swapChain.images[it],
-                    .viewType           = VK_IMAGE_VIEW_TYPE_2D,
-                    .format             = backend->swapChain.format,
-                    .components         = 
-                    {
-                        .r = VK_COMPONENT_SWIZZLE_IDENTITY,
-                        .g = VK_COMPONENT_SWIZZLE_IDENTITY,
-                        .b = VK_COMPONENT_SWIZZLE_IDENTITY,
-                        .a = VK_COMPONENT_SWIZZLE_IDENTITY
-                    },
-                    .subresourceRange   = 
-                    {
-                        .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-                        .baseMipLevel   = 0,
-                        .levelCount     = 1,
-                        .baseArrayLayer = 0,
-                        .layerCount     = 1
-                    }
-                };
-                al_vk_check(vkCreateImageView(backend->gpu.logicalHandle, &createInfo, &backend->memoryManager.cpu_allocationCallbacks, &backend->swapChain.imageViews[it]));
-            }
-        }
-    }
-
-    void create_depth_stencil(RendererBackend* backend)
-    {
-        VkImageCreateInfo imageCreateInfo = { };
-        imageCreateInfo.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-        imageCreateInfo.imageType     = VK_IMAGE_TYPE_2D;
-        imageCreateInfo.format        = backend->depthStencil.format;
-        imageCreateInfo.extent        = { backend->swapChain.extent.width, backend->swapChain.extent.height, 1 };
-        imageCreateInfo.mipLevels     = 1;
-        imageCreateInfo.arrayLayers   = 1;
-        imageCreateInfo.samples       = VK_SAMPLE_COUNT_1_BIT;
-        imageCreateInfo.tiling        = VK_IMAGE_TILING_OPTIMAL;
-        imageCreateInfo.usage         = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-        imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        al_vk_check(vkCreateImage(backend->gpu.logicalHandle, &imageCreateInfo, &backend->memoryManager.cpu_allocationCallbacks, &backend->depthStencil.image));
-
-        VkMemoryRequirements memoryRequirements;
-        vkGetImageMemoryRequirements(backend->gpu.logicalHandle, backend->depthStencil.image, &memoryRequirements);
-
-        VkMemoryAllocateInfo memoryAllocateInfo = { };
-        memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        memoryAllocateInfo.allocationSize = memoryRequirements.size;
-        bool result = vk::get_memory_type_index(&backend->gpu.memoryProperties, memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &memoryAllocateInfo.memoryTypeIndex);
-        al_vk_assert(result);
-        al_vk_check(vkAllocateMemory(backend->gpu.logicalHandle, &memoryAllocateInfo, &backend->memoryManager.cpu_allocationCallbacks, &backend->depthStencil.memory));
-        al_vk_check(vkBindImageMemory(backend->gpu.logicalHandle, backend->depthStencil.image, backend->depthStencil.memory, 0));
-
-        VkImageViewCreateInfo imageViewCreateInfo = { };
-        imageViewCreateInfo.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        imageViewCreateInfo.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
-        imageViewCreateInfo.format                          = backend->depthStencil.format;
-        imageViewCreateInfo.subresourceRange                = { };
-        imageViewCreateInfo.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-        imageViewCreateInfo.subresourceRange.baseMipLevel   = 0;
-        imageViewCreateInfo.subresourceRange.levelCount     = 1;
-        imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-        imageViewCreateInfo.subresourceRange.layerCount     = 1;
-        imageViewCreateInfo.image                           = backend->depthStencil.image;
-        al_vk_check(vkCreateImageView(backend->gpu.logicalHandle, &imageViewCreateInfo, &backend->memoryManager.cpu_allocationCallbacks, &backend->depthStencil.view));
-    }
-
-    void create_framebuffers(RendererBackend* backend)
-    {
-        av_construct(&backend->swapChain.framebuffers, &backend->memoryManager.cpu_allocationBindings, backend->swapChain.images.count);
-        for (uSize it = 0; it < backend->swapChain.images.count; it++)
-        {
-            VkImageView attachments[] =
-            {
-                backend->swapChain.imageViews[it],
-                backend->depthStencil.view
-            };
-            VkFramebufferCreateInfo framebufferInfo
-            {
-                .sType              = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-                .pNext              = nullptr,
-                .flags              = 0,
-                .renderPass         = backend->simpleRenderPass,
-                .attachmentCount    = array_size(attachments),
-                .pAttachments       = attachments,
-                .width              = backend->swapChain.extent.width,
-                .height             = backend->swapChain.extent.height,
-                .layers             = 1,
-            };
-            al_vk_check(vkCreateFramebuffer(backend->gpu.logicalHandle, &framebufferInfo, &backend->memoryManager.cpu_allocationCallbacks, &backend->swapChain.framebuffers[it]));
-        }
-    }
-
-    void create_render_passes(RendererBackend* backend)
+    void construct_render_pass(VkRenderPass* pass, SwapChain* swapChain, ImageAttachment* depthStencil, GPU* gpu, VulkanMemoryManager* memoryManager)
     {
         // Descriptors for the attachments used by this renderpass
         VkAttachmentDescription attachments[2] = { };
 
         // Color attachment
-        attachments[0].format           = backend->swapChain.format;            // Use the color format selected by the swapchain
+        attachments[0].format           = swapChain->format;                    // Use the color format selected by the swapchain
         attachments[0].samples          = VK_SAMPLE_COUNT_1_BIT;                // We don't use multi sampling in this example
         attachments[0].loadOp           = VK_ATTACHMENT_LOAD_OP_CLEAR;          // Clear this attachment at the start of the render pass
         attachments[0].storeOp          = VK_ATTACHMENT_STORE_OP_STORE;         // Keep its contents after the render pass is finished (for displaying it)
@@ -673,7 +397,7 @@ namespace al::vulkan
         attachments[0].finalLayout      = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;      // Layout to which the attachment is transitioned when the render pass is finished
                                                                                 // As we want to present the color buffer to the swapchain, we transition to PRESENT_KHR
         // Depth attachment
-        attachments[1].format           = backend->depthStencil.format;
+        attachments[1].format           = depthStencil->format;
         attachments[1].samples          = VK_SAMPLE_COUNT_1_BIT;
         attachments[1].loadOp           = VK_ATTACHMENT_LOAD_OP_CLEAR;                      // Clear depth at start of first subpass
         attachments[1].storeOp          = VK_ATTACHMENT_STORE_OP_DONT_CARE;                 // We don't need depth after render pass has finished (DONT_CARE may result in better performance)
@@ -742,19 +466,53 @@ namespace al::vulkan
         renderPassInfo.dependencyCount  = array_size(dependencies);                 // Number of subpass dependencies
         renderPassInfo.pDependencies    = dependencies;                             // Subpass dependencies used by the render pass
 
-        al_vk_check(vkCreateRenderPass(backend->gpu.logicalHandle, &renderPassInfo, &backend->memoryManager.cpu_allocationCallbacks, &backend->simpleRenderPass));
+        al_vk_check(vkCreateRenderPass(gpu->logicalHandle, &renderPassInfo, &memoryManager->cpu_allocationCallbacks, pass));
     }
 
-    void create_render_pipelines(RendererBackend* backend)
+    void construct_framebuffers(ArrayView<VkFramebuffer>* framebuffers, VkRenderPass pass, SwapChain* swapChain, VulkanMemoryManager* memoryManager, GPU* gpu, ImageAttachment* depthStencil)
     {
-        PlatformFile vertShader = platform_file_load(backend->memoryManager.cpu_allocationBindings, RendererBackend::VERTEX_SHADER_PATH, PlatformFileLoadMode::READ);
-        PlatformFile fragShader = platform_file_load(backend->memoryManager.cpu_allocationBindings, RendererBackend::FRAGMENT_SHADER_PATH, PlatformFileLoadMode::READ);
-        defer(platform_file_unload(backend->memoryManager.cpu_allocationBindings, vertShader));
-        defer(platform_file_unload(backend->memoryManager.cpu_allocationBindings, fragShader));
-        VkShaderModule vertShaderModule = vk::create_shader_module(backend->gpu.logicalHandle, { static_cast<u32*>(vertShader.memory), vertShader.sizeBytes }, &backend->memoryManager.cpu_allocationCallbacks);
-        VkShaderModule fragShaderModule = vk::create_shader_module(backend->gpu.logicalHandle, { static_cast<u32*>(fragShader.memory), fragShader.sizeBytes }, &backend->memoryManager.cpu_allocationCallbacks);
-        defer(vk::destroy_shader_module(backend->gpu.logicalHandle, vertShaderModule, &backend->memoryManager.cpu_allocationCallbacks));
-        defer(vk::destroy_shader_module(backend->gpu.logicalHandle, fragShaderModule, &backend->memoryManager.cpu_allocationCallbacks));
+        av_construct(framebuffers, &memoryManager->cpu_allocationBindings, swapChain->images.count);
+        for (uSize it = 0; it < swapChain->images.count; it++)
+        {
+            VkImageView attachments[] =
+            {
+                swapChain->imageViews[it],
+                depthStencil->view
+            };
+            VkFramebufferCreateInfo framebufferInfo
+            {
+                .sType              = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+                .pNext              = nullptr,
+                .flags              = 0,
+                .renderPass         = pass,
+                .attachmentCount    = array_size(attachments),
+                .pAttachments       = attachments,
+                .width              = swapChain->extent.width,
+                .height             = swapChain->extent.height,
+                .layers             = 1,
+            };
+            al_vk_check(vkCreateFramebuffer(gpu->logicalHandle, &framebufferInfo, &memoryManager->cpu_allocationCallbacks, &(*framebuffers)[it]));
+        }
+    }
+
+    void construct_render_pipeline(RendererBackend* backend)
+    {
+        VulkanMemoryManager*        memoryManager   = &backend->memoryManager;
+        GPU*                        gpu             = &backend->gpu;
+        SwapChain*                  swapChain       = &backend->swapChain;
+        VkRenderPass                pass            =  backend->renderPass;
+        VkPipelineLayout*           layout          = &backend->pipelineLayout;
+        VkPipeline*                 pipeline        = &backend->pipeline;
+        HardcodedDescriptorsSets*   descriptorSets  = &backend->descriptorSets;
+
+        PlatformFile vertShader = platform_file_load(memoryManager->cpu_allocationBindings, RendererBackend::VERTEX_SHADER_PATH, PlatformFileLoadMode::READ);
+        PlatformFile fragShader = platform_file_load(memoryManager->cpu_allocationBindings, RendererBackend::FRAGMENT_SHADER_PATH, PlatformFileLoadMode::READ);
+        defer(platform_file_unload(memoryManager->cpu_allocationBindings, vertShader));
+        defer(platform_file_unload(memoryManager->cpu_allocationBindings, fragShader));
+        VkShaderModule vertShaderModule = utils::create_shader_module(gpu->logicalHandle, { static_cast<u32*>(vertShader.memory), vertShader.sizeBytes }, &memoryManager->cpu_allocationCallbacks);
+        VkShaderModule fragShaderModule = utils::create_shader_module(gpu->logicalHandle, { static_cast<u32*>(fragShader.memory), fragShader.sizeBytes }, &memoryManager->cpu_allocationCallbacks);
+        defer(utils::destroy_shader_module(gpu->logicalHandle, vertShaderModule, &memoryManager->cpu_allocationCallbacks));
+        defer(utils::destroy_shader_module(gpu->logicalHandle, fragShaderModule, &memoryManager->cpu_allocationCallbacks));
         VkPipelineShaderStageCreateInfo shaderStages[] =
         {
             {
@@ -827,15 +585,15 @@ namespace al::vulkan
         {
             .x          = 0.0f,
             .y          = 0.0f,
-            .width      = static_cast<float>(backend->swapChain.extent.width),
-            .height     = static_cast<float>(backend->swapChain.extent.height),
+            .width      = static_cast<float>(swapChain->extent.width),
+            .height     = static_cast<float>(swapChain->extent.height),
             .minDepth   = 0.0f,
             .maxDepth   = 1.0f,
         };
         VkRect2D scissor
         {
             .offset = { 0, 0 },
-            .extent = backend->swapChain.extent,
+            .extent = swapChain->extent,
         };
         VkPipelineViewportStateCreateInfo viewportState
         {
@@ -931,6 +689,7 @@ namespace al::vulkan
             .dynamicStateCount  = sizeof(dynamicStates) / sizeof(dynamicStates[0]),
             .pDynamicStates     = dynamicStates,
         };
+        // Push constants can be retrieved from reflection data
         VkPushConstantRange testPushContantRanges[] =
         {
             {
@@ -945,17 +704,17 @@ namespace al::vulkan
             .pNext                  = nullptr,
             .flags                  = 0,
             .setLayoutCount         = 1,
-            .pSetLayouts            = &backend->descriptorSets.layout,
+            .pSetLayouts            = &descriptorSets->layout,
             .pushConstantRangeCount = array_size(testPushContantRanges),
             .pPushConstantRanges    = testPushContantRanges,
         };
-        al_vk_check(vkCreatePipelineLayout(backend->gpu.logicalHandle, &pipelineLayoutInfo, &backend->memoryManager.cpu_allocationCallbacks, &backend->pipelineLayout));
+        al_vk_check(vkCreatePipelineLayout(gpu->logicalHandle, &pipelineLayoutInfo, &memoryManager->cpu_allocationCallbacks, layout));
         VkGraphicsPipelineCreateInfo pipelineInfo
         {
             .sType                  = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
             .pNext                  = nullptr,
             .flags                  = 0,
-            .stageCount             = 2,
+            .stageCount             = array_size(shaderStages),
             .pStages                = shaderStages,
             .pVertexInputState      = &vertexInputInfo,
             .pInputAssemblyState    = &inputAssembly,
@@ -966,21 +725,21 @@ namespace al::vulkan
             .pDepthStencilState     = &depthStencil,
             .pColorBlendState       = &colorBlending,
             .pDynamicState          = &dynamicState,
-            .layout                 = backend->pipelineLayout,
-            .renderPass             = backend->simpleRenderPass,
+            .layout                 = *layout,
+            .renderPass             = pass,
             .subpass                = 0,
             .basePipelineHandle     = VK_NULL_HANDLE,
             .basePipelineIndex      = -1,
         };
-        al_vk_check(vkCreateGraphicsPipelines(backend->gpu.logicalHandle, VK_NULL_HANDLE, 1, &pipelineInfo, &backend->memoryManager.cpu_allocationCallbacks, &backend->pipeline));
+        al_vk_check(vkCreateGraphicsPipelines(gpu->logicalHandle, VK_NULL_HANDLE, 1, &pipelineInfo, &memoryManager->cpu_allocationCallbacks, pipeline));
     }
 
     void create_sync_primitives(RendererBackend* backend)
     {
         // Semaphores
-        av_construct(&backend->syncPrimitives.imageAvailableSemaphores, &backend->memoryManager.cpu_allocationBindings, vk::MAX_IMAGES_IN_FLIGHT);
-        av_construct(&backend->syncPrimitives.renderFinishedSemaphores, &backend->memoryManager.cpu_allocationBindings, vk::MAX_IMAGES_IN_FLIGHT);
-        for (uSize it = 0; it < vk::MAX_IMAGES_IN_FLIGHT; it++)
+        av_construct(&backend->syncPrimitives.imageAvailableSemaphores, &backend->memoryManager.cpu_allocationBindings, utils::MAX_IMAGES_IN_FLIGHT);
+        av_construct(&backend->syncPrimitives.renderFinishedSemaphores, &backend->memoryManager.cpu_allocationBindings, utils::MAX_IMAGES_IN_FLIGHT);
+        for (uSize it = 0; it < utils::MAX_IMAGES_IN_FLIGHT; it++)
         {
             VkSemaphoreCreateInfo semaphoreInfo
             {
@@ -992,8 +751,8 @@ namespace al::vulkan
             al_vk_check(vkCreateSemaphore(backend->gpu.logicalHandle, &semaphoreInfo, &backend->memoryManager.cpu_allocationCallbacks, &backend->syncPrimitives.renderFinishedSemaphores[it]));
         }
         // Fences
-        av_construct(&backend->syncPrimitives.inFlightFences, &backend->memoryManager.cpu_allocationBindings, vk::MAX_IMAGES_IN_FLIGHT);
-        for (uSize it = 0; it < vk::MAX_IMAGES_IN_FLIGHT; it++)
+        av_construct(&backend->syncPrimitives.inFlightFences, &backend->memoryManager.cpu_allocationBindings, utils::MAX_IMAGES_IN_FLIGHT);
+        for (uSize it = 0; it < utils::MAX_IMAGES_IN_FLIGHT; it++)
         {
             VkFenceCreateInfo fenceInfo
             {
@@ -1014,72 +773,48 @@ namespace al::vulkan
     // DESTRUCTION
     // =================================================================================================================
 
-    void destroy_instance(RendererBackend* backend)
+    void destroy_instance(VkInstance instance, VkDebugUtilsMessengerEXT messenger, VkAllocationCallbacks* callbacks)
     {
-        auto DestroyDebugUtilsMessengerEXT = [](VkInstance instance, VkDebugUtilsMessengerEXT messenger, const VkAllocationCallbacks* pAllocator)
+#ifdef AL_DEBUG
+        utils::destroy_debug_messenger(instance, messenger, callbacks);
+#endif
+        vkDestroyInstance(instance, callbacks);
+    }
+
+    void destroy_surface(VkSurfaceKHR surface, VkInstance instance, VkAllocationCallbacks* callbacks)
+    {
+        vkDestroySurfaceKHR(instance, surface, callbacks);
+    }
+
+    void destroy_framebuffers(ArrayView<VkFramebuffer> framebuffers, GPU* gpu, VulkanMemoryManager* memoryManager)
+    {
+        for (uSize it = 0; it < framebuffers.count; it++)
         {
-            PFN_vkDestroyDebugUtilsMessengerEXT func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
-            if (func)
-            {
-                func(instance, messenger, pAllocator);
-            }
-        };
-        DestroyDebugUtilsMessengerEXT(backend->instance, backend->debugMessenger, &backend->memoryManager.cpu_allocationCallbacks);
-        vkDestroyInstance(backend->instance, &backend->memoryManager.cpu_allocationCallbacks);
-    }
-
-    void destroy_surface(RendererBackend* backend)
-    {
-        vkDestroySurfaceKHR(backend->instance, backend->surface, &backend->memoryManager.cpu_allocationCallbacks);
-    }
-
-    void destroy_gpu(RendererBackend* backend)
-    {
-        vkDestroyDevice(backend->gpu.logicalHandle, &backend->memoryManager.cpu_allocationCallbacks);
-    }
-
-    void destroy_swap_chain(RendererBackend* backend)
-    {
-        for (uSize it = 0; it < backend->swapChain.imageViews.count; it++)
-        {
-            vkDestroyImageView(backend->gpu.logicalHandle, backend->swapChain.imageViews[it], &backend->memoryManager.cpu_allocationCallbacks);
+            vkDestroyFramebuffer(gpu->logicalHandle, framebuffers[it], &memoryManager->cpu_allocationCallbacks);
         }
-        vkDestroySwapchainKHR(backend->gpu.logicalHandle, backend->swapChain.handle, &backend->memoryManager.cpu_allocationCallbacks);
-        av_destruct(backend->swapChain.imageViews);
-        av_destruct(backend->swapChain.images);
+        av_destruct(framebuffers);
     }
 
-    void destroy_depth_stencil(RendererBackend* backend)
+    void destroy_render_pass(VkRenderPass pass, GPU* gpu, VulkanMemoryManager* memoryManager)
     {
-        vkDestroyImageView(backend->gpu.logicalHandle, backend->depthStencil.view, &backend->memoryManager.cpu_allocationCallbacks);
-        vkDestroyImage(backend->gpu.logicalHandle, backend->depthStencil.image, &backend->memoryManager.cpu_allocationCallbacks);
-        vkFreeMemory(backend->gpu.logicalHandle, backend->depthStencil.memory, &backend->memoryManager.cpu_allocationCallbacks);
+        vkDestroyRenderPass(gpu->logicalHandle, pass, &memoryManager->cpu_allocationCallbacks);
     }
 
-    void destroy_framebuffers(RendererBackend* backend)
+    void destroy_render_pipeline(RendererBackend* backend)
     {
-        for (uSize it = 0; it < backend->swapChain.framebuffers.count; it++)
-        {
-            vkDestroyFramebuffer(backend->gpu.logicalHandle, backend->swapChain.framebuffers[it], &backend->memoryManager.cpu_allocationCallbacks);
-        }
-        av_destruct(backend->swapChain.framebuffers);
-    }
+        VulkanMemoryManager*    memoryManager   = &backend->memoryManager;
+        GPU*                    gpu             = &backend->gpu;
+        VkPipelineLayout        layout          =  backend->pipelineLayout;
+        VkPipeline              pipeline        =  backend->pipeline;
 
-    void destroy_render_passes(RendererBackend* backend)
-    {
-        vkDestroyRenderPass(backend->gpu.logicalHandle, backend->simpleRenderPass, &backend->memoryManager.cpu_allocationCallbacks);
-    }
-
-    void destroy_render_pipelines(RendererBackend* backend)
-    {
-        vkDestroyPipeline(backend->gpu.logicalHandle, backend->pipeline, &backend->memoryManager.cpu_allocationCallbacks);
-        vkDestroyPipelineLayout(backend->gpu.logicalHandle, backend->pipelineLayout, &backend->memoryManager.cpu_allocationCallbacks);
+        vkDestroyPipeline(gpu->logicalHandle, pipeline, &memoryManager->cpu_allocationCallbacks);
+        vkDestroyPipelineLayout(gpu->logicalHandle, layout, &memoryManager->cpu_allocationCallbacks);
     }
 
     void destroy_sync_primitives(RendererBackend* backend)
     {
         // Semaphores
-        for (uSize it = 0; it < vk::MAX_IMAGES_IN_FLIGHT; it++)
+        for (uSize it = 0; it < utils::MAX_IMAGES_IN_FLIGHT; it++)
         {
             vkDestroySemaphore(backend->gpu.logicalHandle, backend->syncPrimitives.imageAvailableSemaphores[it], &backend->memoryManager.cpu_allocationCallbacks);
             vkDestroySemaphore(backend->gpu.logicalHandle, backend->syncPrimitives.renderFinishedSemaphores[it], &backend->memoryManager.cpu_allocationCallbacks);
@@ -1087,7 +822,7 @@ namespace al::vulkan
         av_destruct(backend->syncPrimitives.imageAvailableSemaphores);
         av_destruct(backend->syncPrimitives.renderFinishedSemaphores);
         // Fences
-        for (uSize it = 0; it < vk::MAX_IMAGES_IN_FLIGHT; it++)
+        for (uSize it = 0; it < utils::MAX_IMAGES_IN_FLIGHT; it++)
         {
             vkDestroyFence(backend->gpu.logicalHandle, backend->syncPrimitives.inFlightFences[it], &backend->memoryManager.cpu_allocationCallbacks);
         }
@@ -1116,27 +851,9 @@ namespace al::vulkan
 
 
 
-    SwapChainSupportDetails get_swap_chain_support_details(VkSurfaceKHR surface, VkPhysicalDevice device, AllocatorBindings bindings)
-    {
-        SwapChainSupportDetails result{ };
-        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &result.capabilities);
-        u32 count;
-        vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &count, nullptr);
-        if (count != 0)
-        {
-            av_construct(&result.formats, &bindings, count);
-            vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &count, result.formats.memory);
-        }
-        vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &count, nullptr);
-        if (count != 0)
-        {
-            av_construct(&result.presentModes, &bindings, count);
-            vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &count, result.presentModes.memory);
-        }
-        return result;
-    }
+    
 
-    void construct(VulkanMemoryManager* memoryManager, AllocatorBindings bindings)
+    void construct_memory_manager(VulkanMemoryManager* memoryManager, AllocatorBindings bindings)
     {
         std::memset(memoryManager, 0, sizeof(VulkanMemoryManager));
         memoryManager->cpu_allocationBindings = bindings;
@@ -1204,7 +921,7 @@ namespace al::vulkan
         }
     }
 
-    void destruct(VulkanMemoryManager* memoryManager, VkDevice device)
+    void destroy_memory_manager(VulkanMemoryManager* memoryManager, VkDevice device)
     {
         for (uSize it = 0; it < VulkanMemoryManager::GPU_MAX_CHUNKS; it++)
         {
@@ -1218,47 +935,57 @@ namespace al::vulkan
         av_destruct(memoryManager->gpu_ledgers);
     }
 
-    GpuMemory gpu_allocate(VulkanMemoryManager* memoryManager, VkDevice device, VulkanMemoryManager::GpuAllocationRequest request)
+    uSize memory_chunk_find_aligned_free_space(VulkanMemoryManager::GpuMemoryChunk* chunk, uSize requiredNumberOfBlocks, uSize alignment)
     {
-        auto findFreeSpace = [](VulkanMemoryManager::GpuMemoryChunk* chunk, uSize numBlocks) -> uSize
+        uSize freeCount = 0;
+        uSize startBlock = 0;
+        uSize currentBlock = 0;
+        for (uSize ledgerIt = 0; ledgerIt < VulkanMemoryManager::GPU_LEDGER_SIZE_BYTES; ledgerIt++)
         {
-            uSize freeCount = 0;
-            uSize startBlock = 0;
-            uSize currentBlock = 0;
-            for (uSize ledgerIt = 0; ledgerIt < VulkanMemoryManager::GPU_LEDGER_SIZE_BYTES; ledgerIt++)
+            u8 byte = chunk->ledger[ledgerIt];
+            if (byte == 255)
             {
-                u8 byte = chunk->ledger[ledgerIt];
-                if (byte == 255)
+                freeCount = 0;
+                currentBlock += 8;
+                continue;
+            }
+            for (uSize byteIt = 0; byteIt < 8; byteIt++)
+            {
+                if (byte & (1 << byteIt))
                 {
                     freeCount = 0;
-                    currentBlock += 8;
-                    continue;
                 }
-                for (uSize byteIt = 0; byteIt < 8; byteIt++)
+                else
                 {
-                    if (byte & (1 << byteIt))
+                    if (freeCount == 0)
                     {
-                        freeCount = 0;
+                        uSize currentBlockOffsetBytes = (ledgerIt * 8 + byteIt) * VulkanMemoryManager::GPU_MEMORY_BLOCK_SIZE_BYTES;
+                        bool isAlignedCorrectly = (currentBlockOffsetBytes % alignment) == 0;
+                        if (isAlignedCorrectly)
+                        {
+                            startBlock = currentBlock;
+                            freeCount += 1;
+                        }
                     }
                     else
                     {
-                        if (freeCount == 0)
-                        {
-                            startBlock = currentBlock;
-                        }
                         freeCount += 1;
                     }
-                    currentBlock += 1;
-                    if (freeCount == numBlocks)
-                    {
-                        goto block_found;
-                    }
+                }
+                currentBlock += 1;
+                if (freeCount == requiredNumberOfBlocks)
+                {
+                    goto block_found;
                 }
             }
-            startBlock = VulkanMemoryManager::GPU_LEDGER_SIZE_BYTES;
-            block_found:
-            return startBlock;
-        };
+        }
+        startBlock = VulkanMemoryManager::GPU_LEDGER_SIZE_BYTES;
+        block_found:
+        return startBlock;
+    }
+
+    GpuMemory gpu_allocate(VulkanMemoryManager* memoryManager, VkDevice device, VulkanMemoryManager::GpuAllocationRequest request)
+    {
         auto setInUse = [](VulkanMemoryManager::GpuMemoryChunk* chunk, uSize numBlocks, uSize startBlock)
         {
             for (uSize it = 0; it < numBlocks; it++)
@@ -1272,7 +999,6 @@ namespace al::vulkan
             al_vk_assert(chunk->usedMemoryBytes <= VulkanMemoryManager::GPU_CHUNK_SIZE_BYTES);
         };
         al_vk_assert(request.sizeBytes <= VulkanMemoryManager::GPU_CHUNK_SIZE_BYTES);
-        GpuMemory result{ };
         uSize requiredNumberOfBlocks = 1 + ((request.sizeBytes - 1) / VulkanMemoryManager::GPU_MEMORY_BLOCK_SIZE_BYTES);
         // 1. Try to find memory in available chunks
         for (uSize it = 0; it < VulkanMemoryManager::GPU_MAX_CHUNKS; it++)
@@ -1280,31 +1006,28 @@ namespace al::vulkan
             VulkanMemoryManager::GpuMemoryChunk* chunk = &memoryManager->gpu_chunks[it];
             if (!chunk->memory)
             {
-                // Chunk is not allocated
                 continue;
             }
             if (chunk->memoryTypeIndex != request.memoryTypeIndex)
             {
-                // Chunk has wrong memory type
                 continue;
             }
             if ((VulkanMemoryManager::GPU_CHUNK_SIZE_BYTES - chunk->usedMemoryBytes) < request.sizeBytes)
             {
-                // Chunk does not have enough memory
                 continue;
             }
-            uSize inChunkOffset = findFreeSpace(chunk, requiredNumberOfBlocks);
-            assert(inChunkOffset != VulkanMemoryManager::GPU_LEDGER_SIZE_BYTES);
+            uSize inChunkOffset = memory_chunk_find_aligned_free_space(chunk, requiredNumberOfBlocks, request.alignment);
+            if (inChunkOffset == VulkanMemoryManager::GPU_LEDGER_SIZE_BYTES)
+            {
+                continue;
+            }
             setInUse(chunk, requiredNumberOfBlocks, inChunkOffset);
-            result.memory = chunk->memory;
-            result.offsetBytes = inChunkOffset * VulkanMemoryManager::GPU_MEMORY_BLOCK_SIZE_BYTES;
-            result.sizeBytes = requiredNumberOfBlocks * VulkanMemoryManager::GPU_MEMORY_BLOCK_SIZE_BYTES;
-            break;
-        }
-        if (result.memory)
-        {
-            // Found free space in already allocated chunk
-            return result;
+            return
+            {
+                .memory = chunk->memory,
+                .offsetBytes = inChunkOffset * VulkanMemoryManager::GPU_MEMORY_BLOCK_SIZE_BYTES,
+                .sizeBytes = requiredNumberOfBlocks * VulkanMemoryManager::GPU_MEMORY_BLOCK_SIZE_BYTES,
+            };
         }
         // 2. Try to allocate new chunk
         for (uSize it = 0; it < VulkanMemoryManager::GPU_MAX_CHUNKS; it++)
@@ -1315,24 +1038,28 @@ namespace al::vulkan
                 continue;
             }
             // Allocating new chunk
-            VkMemoryAllocateInfo memoryAllocateInfo = { };
-            memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-            memoryAllocateInfo.allocationSize = VulkanMemoryManager::GPU_CHUNK_SIZE_BYTES;
-            memoryAllocateInfo.memoryTypeIndex = request.memoryTypeIndex;
-            al_vk_check(vkAllocateMemory(device, &memoryAllocateInfo, &memoryManager->cpu_allocationCallbacks, &chunk->memory));
-            chunk->memoryTypeIndex = request.memoryTypeIndex;
-            std::memset(chunk->ledger, 0, VulkanMemoryManager::GPU_LEDGER_SIZE_BYTES);
+            {
+                VkMemoryAllocateInfo memoryAllocateInfo = { };
+                memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+                memoryAllocateInfo.allocationSize = VulkanMemoryManager::GPU_CHUNK_SIZE_BYTES;
+                memoryAllocateInfo.memoryTypeIndex = request.memoryTypeIndex;
+                al_vk_check(vkAllocateMemory(device, &memoryAllocateInfo, &memoryManager->cpu_allocationCallbacks, &chunk->memory));
+                chunk->memoryTypeIndex = request.memoryTypeIndex;
+                std::memset(chunk->ledger, 0, VulkanMemoryManager::GPU_LEDGER_SIZE_BYTES);
+            }
             // Allocating memory in new chunk
-            uSize inChunkOffset = findFreeSpace(chunk, requiredNumberOfBlocks);
+            uSize inChunkOffset = memory_chunk_find_aligned_free_space(chunk, requiredNumberOfBlocks, request.alignment);
             al_vk_assert(inChunkOffset != VulkanMemoryManager::GPU_LEDGER_SIZE_BYTES);
             setInUse(chunk, requiredNumberOfBlocks, inChunkOffset);
-            result.memory = chunk->memory;
-            result.offsetBytes = inChunkOffset * VulkanMemoryManager::GPU_MEMORY_BLOCK_SIZE_BYTES;
-            result.sizeBytes = requiredNumberOfBlocks * VulkanMemoryManager::GPU_MEMORY_BLOCK_SIZE_BYTES;
-            break;
+            return
+            {
+                .memory = chunk->memory,
+                .offsetBytes = inChunkOffset * VulkanMemoryManager::GPU_MEMORY_BLOCK_SIZE_BYTES,
+                .sizeBytes = requiredNumberOfBlocks * VulkanMemoryManager::GPU_MEMORY_BLOCK_SIZE_BYTES,
+            };
         }
-        al_vk_assert(result.memory); // Out of memory
-        return result;
+        al_vk_assert(!"Out of memory");
+        return { };
     }
 
     void gpu_deallocate(VulkanMemoryManager* memoryManager, VkDevice device, GpuMemory allocation)
@@ -1369,20 +1096,20 @@ namespace al::vulkan
         }
     }
 
-    MemoryBuffer create_buffer(RendererBackend* backend, VkBufferCreateInfo* createInfo, VkMemoryPropertyFlags memoryProperty)
+    MemoryBuffer create_buffer(GPU* gpu, VulkanMemoryManager* memoryManager, VkBufferCreateInfo* createInfo, VkMemoryPropertyFlags memoryProperty)
     {
         MemoryBuffer buffer{ };
-        al_vk_check(vkCreateBuffer(backend->gpu.logicalHandle, createInfo, &backend->memoryManager.cpu_allocationCallbacks, &buffer.handle));
+        al_vk_check(vkCreateBuffer(gpu->logicalHandle, createInfo, &memoryManager->cpu_allocationCallbacks, &buffer.handle));
         VkMemoryRequirements memoryRequirements;
-        vkGetBufferMemoryRequirements(backend->gpu.logicalHandle, buffer.handle, &memoryRequirements);
+        vkGetBufferMemoryRequirements(gpu->logicalHandle, buffer.handle, &memoryRequirements);
         u32 memoryTypeIndex;
-        vk::get_memory_type_index(&backend->gpu.memoryProperties, memoryRequirements.memoryTypeBits, memoryProperty, &memoryTypeIndex);
-        buffer.gpuMemory = gpu_allocate(&backend->memoryManager, backend->gpu.logicalHandle, { .sizeBytes = memoryRequirements.size, .memoryTypeIndex = memoryTypeIndex });
-        al_vk_check(vkBindBufferMemory(backend->gpu.logicalHandle, buffer.handle, buffer.gpuMemory.memory, buffer.gpuMemory.offsetBytes));
+        utils::get_memory_type_index(&gpu->memoryProperties, memoryRequirements.memoryTypeBits, memoryProperty, &memoryTypeIndex);
+        buffer.gpuMemory = gpu_allocate(memoryManager, gpu->logicalHandle, { .sizeBytes = memoryRequirements.size, .alignment = memoryRequirements.alignment, .memoryTypeIndex = memoryTypeIndex });
+        al_vk_check(vkBindBufferMemory(gpu->logicalHandle, buffer.handle, buffer.gpuMemory.memory, buffer.gpuMemory.offsetBytes));
         return buffer;
     }
 
-    MemoryBuffer create_vertex_buffer(RendererBackend* backend, uSize sizeSytes)
+    MemoryBuffer create_vertex_buffer(GPU* gpu, VulkanMemoryManager* memoryManager, uSize sizeSytes)
     {
         VkBufferCreateInfo bufferInfo
         {
@@ -1397,19 +1124,19 @@ namespace al::vulkan
         };
         u32 queueFamilyIndices[] =
         {
-            backend->queues.transfer.deviceFamilyIndex,
-            backend->queues.graphics.deviceFamilyIndex
+            gpu->transferQueue.deviceFamilyIndex,
+            gpu->graphicsQueue.deviceFamilyIndex
         };
-        if (backend->queues.transfer.deviceFamilyIndex != backend->queues.graphics.deviceFamilyIndex)
+        if (gpu->transferQueue.deviceFamilyIndex != gpu->graphicsQueue.deviceFamilyIndex)
         {
             bufferInfo.sharingMode = VK_SHARING_MODE_CONCURRENT;
             bufferInfo.queueFamilyIndexCount = 2;
             bufferInfo.pQueueFamilyIndices = queueFamilyIndices;
         }
-        return create_buffer(backend, &bufferInfo, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        return create_buffer(gpu, memoryManager, &bufferInfo, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
     }
 
-    MemoryBuffer create_index_buffer(RendererBackend* backend, uSize sizeSytes)
+    MemoryBuffer create_index_buffer(GPU* gpu, VulkanMemoryManager* memoryManager, uSize sizeSytes)
     {
         VkBufferCreateInfo bufferInfo
         {
@@ -1424,19 +1151,19 @@ namespace al::vulkan
         };
         u32 queueFamilyIndices[] =
         {
-            backend->queues.transfer.deviceFamilyIndex,
-            backend->queues.graphics.deviceFamilyIndex
+            gpu->transferQueue.deviceFamilyIndex,
+            gpu->graphicsQueue.deviceFamilyIndex
         };
-        if (backend->queues.transfer.deviceFamilyIndex != backend->queues.graphics.deviceFamilyIndex)
+        if (gpu->transferQueue.deviceFamilyIndex != gpu->graphicsQueue.deviceFamilyIndex)
         {
             bufferInfo.sharingMode = VK_SHARING_MODE_CONCURRENT;
             bufferInfo.queueFamilyIndexCount = 2;
             bufferInfo.pQueueFamilyIndices = queueFamilyIndices;
         }
-        return create_buffer(backend, &bufferInfo, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        return create_buffer(gpu, memoryManager, &bufferInfo, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
     }
 
-    MemoryBuffer create_staging_buffer(RendererBackend* backend, uSize sizeSytes)
+    MemoryBuffer create_staging_buffer(GPU* gpu, VulkanMemoryManager* memoryManager, uSize sizeSytes)
     {
         VkBufferCreateInfo bufferInfo
         {
@@ -1449,10 +1176,10 @@ namespace al::vulkan
             .queueFamilyIndexCount  = 0,        // ignored if sharingMode is not VK_SHARING_MODE_CONCURRENT
             .pQueueFamilyIndices    = nullptr,  // ignored if sharingMode is not VK_SHARING_MODE_CONCURRENT
         };
-        return create_buffer(backend, &bufferInfo, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        return create_buffer(gpu, memoryManager, &bufferInfo, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
     }
 
-    MemoryBuffer create_uniform_buffer(RendererBackend* backend, uSize sizeSytes)
+    MemoryBuffer create_uniform_buffer(GPU* gpu, VulkanMemoryManager* memoryManager, uSize sizeSytes)
     {
         VkBufferCreateInfo bufferInfo
         {
@@ -1465,27 +1192,26 @@ namespace al::vulkan
             .queueFamilyIndexCount  = 0,        // ignored if sharingMode is not VK_SHARING_MODE_CONCURRENT
             .pQueueFamilyIndices    = nullptr,  // ignored if sharingMode is not VK_SHARING_MODE_CONCURRENT
         };
-        return create_buffer(backend, &bufferInfo, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        return create_buffer(gpu, memoryManager, &bufferInfo, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
     }
 
-    void destroy_buffer(RendererBackend* backend, MemoryBuffer* buffer)
+    void destroy_buffer(GPU* gpu, VulkanMemoryManager* memoryManager, MemoryBuffer* buffer)
     {
-        gpu_deallocate(&backend->memoryManager, backend->gpu.logicalHandle, buffer->gpuMemory);
-        vkDestroyBuffer(backend->gpu.logicalHandle, buffer->handle, &backend->memoryManager.cpu_allocationCallbacks);
+        gpu_deallocate(memoryManager, gpu->logicalHandle, buffer->gpuMemory);
+        vkDestroyBuffer(gpu->logicalHandle, buffer->handle, &memoryManager->cpu_allocationCallbacks);
         std::memset(&buffer, 0, sizeof(MemoryBuffer));
     }
 
-    void copy_cpu_memory_to_buffer(RendererBackend* backend, void* data, MemoryBuffer* buffer, uSize dataSizeBytes)
+    void copy_cpu_memory_to_buffer(VkDevice device, void* data, MemoryBuffer* buffer, uSize dataSizeBytes)
     {
         void* mappedMemory;
-        vkMapMemory(backend->gpu.logicalHandle, buffer->gpuMemory.memory, buffer->gpuMemory.offsetBytes, dataSizeBytes, 0, &mappedMemory);
+        vkMapMemory(device, buffer->gpuMemory.memory, buffer->gpuMemory.offsetBytes, dataSizeBytes, 0, &mappedMemory);
         std::memcpy(mappedMemory, data, dataSizeBytes);
-        vkUnmapMemory(backend->gpu.logicalHandle, buffer->gpuMemory.memory);
+        vkUnmapMemory(device, buffer->gpuMemory.memory);
     }
 
-    void copy_buffer_to_buffer(RendererBackend* backend, MemoryBuffer* src, MemoryBuffer* dst, uSize sizeBytes, uSize srcOffsetBytes, uSize dstOffsetBytes)
+    void copy_buffer_to_buffer(GPU* gpu, CommandBuffers* buffers, MemoryBuffer* src, MemoryBuffer* dst, uSize sizeBytes, uSize srcOffsetBytes, uSize dstOffsetBytes)
     {
-        CommandBuffers* buffers = get_command_buffers(backend);
         VkCommandBufferBeginInfo beginInfo
         {
             .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -1514,16 +1240,58 @@ namespace al::vulkan
             .signalSemaphoreCount   = 0,
             .pSignalSemaphores      = nullptr,
         };
-        vkQueueSubmit(backend->queues.transfer.handle, 1, &submitInfo, VK_NULL_HANDLE);
-        vkQueueWaitIdle(backend->queues.transfer.handle);
-        // vkFreeCommandBuffers(backend->gpu.logicalHandle, backend->commandPools.transfer.handle, 1, &commandBuffer);
+        vkQueueSubmit(gpu->transferQueue.handle, 1, &submitInfo, VK_NULL_HANDLE);
+        vkQueueWaitIdle(gpu->transferQueue.handle);
     }
 
-    bool is_command_queues_complete(CommandQueues* queues)
+    void copy_buffer_to_image(GPU* gpu, CommandBuffers* buffers, MemoryBuffer* src, VkImage dst, VkExtent3D extent)
     {
-        for (uSize it = 0; it < CommandQueues::QUEUES_NUM; it++)
+        VkCommandBufferBeginInfo beginInfo
         {
-            if (!queues->queues[it].isFamilyPresent)
+            .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+            .pNext              = nullptr,
+            .flags              = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+            .pInheritanceInfo   = nullptr,
+        };
+        vkBeginCommandBuffer(buffers->transferBuffer, &beginInfo);
+        VkBufferImageCopy imageCopy
+        {
+            .bufferOffset       = 0,
+            .bufferRowLength    = 0,
+            .bufferImageHeight  = 0,
+            .imageSubresource   =
+            {
+                .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,    // @TODO : unhardcode this
+                .mipLevel       = 0,
+                .baseArrayLayer = 0,
+                .layerCount     = 1,
+            },
+            .imageOffset        = 0,
+            .imageExtent        = extent,
+        };
+        vkCmdCopyBufferToImage(buffers->transferBuffer, src->handle, dst, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &imageCopy);
+        vkEndCommandBuffer(buffers->transferBuffer);
+        VkSubmitInfo submitInfo
+        {
+            .sType                  = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            .pNext                  = nullptr,
+            .waitSemaphoreCount     = 0,
+            .pWaitSemaphores        = nullptr,
+            .pWaitDstStageMask      = 0,
+            .commandBufferCount     = 1,
+            .pCommandBuffers        = &buffers->transferBuffer,
+            .signalSemaphoreCount   = 0,
+            .pSignalSemaphores      = nullptr,
+        };
+        vkQueueSubmit(gpu->transferQueue.handle, 1, &submitInfo, VK_NULL_HANDLE);
+        vkQueueWaitIdle(gpu->transferQueue.handle);
+    }
+
+    bool is_command_queues_complete(ArrayView<GPU::CommandQueue> queues)
+    {
+        for (uSize it = 0; it < queues.count; it++)
+        {
+            if (!queues[it].isFamilyPresent)
             {
                 return false;
             }
@@ -1531,7 +1299,7 @@ namespace al::vulkan
         return true;
     };
 
-    void try_pick_graphics_queue(CommandQueues::Queue* queue, ArrayView<VkQueueFamilyProperties> familyProperties)
+    void try_pick_graphics_queue(GPU::CommandQueue* queue, ArrayView<VkQueueFamilyProperties> familyProperties)
     {
         for (u32 it = 0; it < familyProperties.count; it++)
         {
@@ -1544,7 +1312,7 @@ namespace al::vulkan
         }
     }
 
-    void try_pick_present_queue(CommandQueues::Queue* queue, ArrayView<VkQueueFamilyProperties> familyProperties, VkPhysicalDevice device, VkSurfaceKHR surface)
+    void try_pick_present_queue(GPU::CommandQueue* queue, ArrayView<VkQueueFamilyProperties> familyProperties, VkPhysicalDevice device, VkSurfaceKHR surface)
     {
         for (u32 it = 0; it < familyProperties.count; it++)
         {
@@ -1559,8 +1327,9 @@ namespace al::vulkan
         }
     }
 
-    void try_pick_transfer_queue(CommandQueues::Queue* queue, ArrayView<VkQueueFamilyProperties> familyProperties, u32 graphicsFamilyIndex)
+    void try_pick_transfer_queue(GPU::CommandQueue* queue, ArrayView<VkQueueFamilyProperties> familyProperties, u32 graphicsFamilyIndex)
     {
+        //
         // First try to pick queue that is different from the graphics queue
         for (u32 it = 0; it < familyProperties.count; it++)
         {
@@ -1575,6 +1344,7 @@ namespace al::vulkan
                 return;
             }
         }
+        //
         // If there is no separate queue family, use graphics family (if possible (propbably this is possible almost always))
         if (familyProperties[graphicsFamilyIndex].queueFlags & VK_QUEUE_TRANSFER_BIT)
         {
@@ -1583,7 +1353,572 @@ namespace al::vulkan
         }
     }
 
+    void fill_required_physical_deivce_features(VkPhysicalDeviceFeatures* features)
+    {
+        // @TODO : fill features struct
+        features->samplerAnisotropy = true;
+    }
 
+    VkPhysicalDevice pick_physical_device(VkInstance instance, VkSurfaceKHR surface, AllocatorBindings bindings)
+    {
+        auto isDeviceSuitable = [](VkPhysicalDevice device, VkSurfaceKHR surface, AllocatorBindings bindings) -> bool
+        {
+            //
+            // Check if all required queues are supported
+            ArrayView<VkQueueFamilyProperties> familyProperties = utils::get_physical_device_queue_family_properties(device, bindings);
+            defer(av_destruct(familyProperties));
+            GPU::CommandQueue physicalDeviceCommandQueues[array_size(GPU::commandQueues)] = {};
+            try_pick_graphics_queue(&physicalDeviceCommandQueues[0], familyProperties);
+            try_pick_present_queue(&physicalDeviceCommandQueues[1], familyProperties, device, surface);
+            if (physicalDeviceCommandQueues[0].isFamilyPresent)
+            {
+                try_pick_transfer_queue(&physicalDeviceCommandQueues[2], familyProperties, physicalDeviceCommandQueues[0].deviceFamilyIndex);
+            }
+            ArrayView<const char* const> deviceExtensions
+            {
+                .bindings   = { },
+                .memory     = utils::DEVICE_EXTENSIONS,
+                .count      = array_size(utils::DEVICE_EXTENSIONS),
+            };
+            //
+            // Check if required extensions are supported
+            bool isRequiredExtensionsSupported = utils::does_physical_device_supports_required_extensions(device, deviceExtensions, bindings);
+            //
+            // Check if swapchain is supported
+            bool isSwapChainSuppoted = false;
+            if (isRequiredExtensionsSupported)
+            {
+                SwapChainSupportDetails supportDetails = create_swap_chain_support_details(surface, device, bindings);
+                isSwapChainSuppoted = supportDetails.formats.count && supportDetails.presentModes.count;
+                destroy_swap_chain_support_details(&supportDetails);
+            }
+            //
+            // Check if all device features are supported
+            VkPhysicalDeviceFeatures requiredFeatures{ };
+            fill_required_physical_deivce_features(&requiredFeatures);
+            bool isRequiredFeaturesSupported = utils::does_physical_device_supports_required_features(device, &requiredFeatures);
+            return
+            {
+                is_command_queues_complete({ .bindings = { }, .memory = physicalDeviceCommandQueues, .count = array_size(GPU::commandQueues)})
+                && isRequiredExtensionsSupported && isSwapChainSuppoted && isRequiredFeaturesSupported
+            };
+        };
+        ArrayView<VkPhysicalDevice> available = utils::get_available_physical_devices(instance, bindings);
+        defer(av_destruct(available));
+        for (uSize it = 0; it < available.count; it++)
+        {
+            if (isDeviceSuitable(available[it], surface, bindings))
+            {
+                // @TODO :  log device name and shit
+                // VkPhysicalDeviceProperties deviceProperties;
+                // vkGetPhysicalDeviceProperties(chosenPhysicalDevice, &deviceProperties);
+                return available[it];
+            }
+        }
+        return
+        {
+            VK_NULL_HANDLE
+        };
+    }
+
+    void construct_gpu(GPU* gpu, VkInstance instance, VkSurfaceKHR surface, AllocatorBindings bindings, VkAllocationCallbacks* callbacks)
+    {
+        auto getQueueCreateInfos = [](GPU::CommandQueue* queues, AllocatorBindings bindings) -> ArrayView<VkDeviceQueueCreateInfo>
+        {
+            // @NOTE :  this is possible that queue family might support more than one of the required features,
+            //          so we have to remove duplicates from queueFamiliesInfo and create VkDeviceQueueCreateInfos
+            //          only for unique indexes
+            static const f32 QUEUE_DEFAULT_PRIORITY = 1.0f;
+            u32 indicesArray[array_size(GPU::commandQueues)];
+            ArrayView<u32> uniqueQueueIndices
+            {
+                .memory = indicesArray,
+                .count = 0
+            };
+            auto updateUniqueIndicesArray = [](ArrayView<u32>* targetArray, u32 familyIndex)
+            {
+                bool isFound = false;
+                for (uSize uniqueIt = 0; uniqueIt < targetArray->count; uniqueIt++)
+                {
+                    if ((*targetArray)[uniqueIt] == familyIndex)
+                    {
+                        isFound = true;
+                        break;
+                    }
+                }
+                if (!isFound)
+                {
+                    targetArray->count += 1;
+                    (*targetArray)[targetArray->count - 1] = familyIndex;
+                }
+            };
+            for (uSize it = 0; it < array_size(GPU::commandQueues); it++)
+            {
+                updateUniqueIndicesArray(&uniqueQueueIndices, queues[it].deviceFamilyIndex);
+            }
+            ArrayView<VkDeviceQueueCreateInfo> result;
+            av_construct(&result, &bindings, uniqueQueueIndices.count);
+            for (uSize it = 0; it < result.count; it++)
+            {
+                result[it] = 
+                {
+                    .sType              = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+                    .pNext              = nullptr,
+                    .flags              = 0,
+                    .queueFamilyIndex   = uniqueQueueIndices[it],
+                    .queueCount         = 1,
+                    .pQueuePriorities   = &QUEUE_DEFAULT_PRIORITY,
+                };
+            }
+            return result;
+        };
+        //
+        // Get physical device
+        gpu->physicalHandle = pick_physical_device(instance, surface, bindings);
+        al_vk_assert(gpu->physicalHandle != VK_NULL_HANDLE);
+        //
+        // Get command queue infos
+        ArrayView<VkQueueFamilyProperties> familyProperties = utils::get_physical_device_queue_family_properties(gpu->physicalHandle, bindings);
+        defer(av_destruct(familyProperties));
+        try_pick_graphics_queue(&gpu->graphicsQueue, familyProperties);
+        try_pick_present_queue(&gpu->presentQueue, familyProperties, gpu->physicalHandle, surface);
+        try_pick_transfer_queue(&gpu->transferQueue, familyProperties, gpu->graphicsQueue.deviceFamilyIndex);
+        //
+        // Create logical device
+        ArrayView<VkDeviceQueueCreateInfo> queueCreateInfos = getQueueCreateInfos(gpu->commandQueues, bindings);
+        defer(av_destruct(queueCreateInfos));
+        VkPhysicalDeviceFeatures deviceFeatures{ };
+        fill_required_physical_deivce_features(&deviceFeatures);
+        VkDeviceCreateInfo logicalDeviceCreateInfo
+        {
+            .sType                      = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+            .pNext                      = nullptr,
+            .flags                      = 0,
+            .queueCreateInfoCount       = static_cast<u32>(queueCreateInfos.count),
+            .pQueueCreateInfos          = queueCreateInfos.memory,
+            // @NOTE : Validation layers info is not used by recent vulkan implemetations, but still can be set for compatibility reasons
+            .enabledLayerCount          = array_size(utils::VALIDATION_LAYERS),
+            .ppEnabledLayerNames        = utils::VALIDATION_LAYERS,
+            .enabledExtensionCount      = array_size(utils::DEVICE_EXTENSIONS),
+            .ppEnabledExtensionNames    = utils::DEVICE_EXTENSIONS,
+            .pEnabledFeatures           = &deviceFeatures
+        };
+        al_vk_check(vkCreateDevice(gpu->physicalHandle, &logicalDeviceCreateInfo, callbacks, &gpu->logicalHandle));
+        //
+        // Create queues and get other stuff
+        for (uSize it = 0; it < array_size(GPU::commandQueues); it++)
+        {
+            vkGetDeviceQueue(gpu->logicalHandle, gpu->commandQueues[it].deviceFamilyIndex, 0, &gpu->commandQueues[it].handle);
+        }
+        utils::pick_depth_format(gpu->physicalHandle, &gpu->depthStencilFormat);
+        vkGetPhysicalDeviceMemoryProperties(gpu->physicalHandle, &gpu->memoryProperties);
+    }
+
+    void destroy_gpu(GPU* gpu, VkAllocationCallbacks* callbacks)
+    {
+        vkDestroyDevice(gpu->logicalHandle, callbacks);
+    }
+
+    SwapChainSupportDetails create_swap_chain_support_details(VkSurfaceKHR surface, VkPhysicalDevice device, AllocatorBindings bindings)
+    {
+        SwapChainSupportDetails result{ };
+        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &result.capabilities);
+        u32 count;
+        vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &count, nullptr);
+        if (count != 0)
+        {
+            av_construct(&result.formats, &bindings, count);
+            vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &count, result.formats.memory);
+        }
+        vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &count, nullptr);
+        if (count != 0)
+        {
+            av_construct(&result.presentModes, &bindings, count);
+            vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &count, result.presentModes.memory);
+        }
+        return result;
+    }
+
+    void destroy_swap_chain_support_details(SwapChainSupportDetails* details)
+    {
+        av_destruct(details->formats);
+        av_destruct(details->presentModes);
+    }
+
+    VkSurfaceFormatKHR choose_swap_chain_surface_format(ArrayView<VkSurfaceFormatKHR> available)
+    {
+        for (uSize it = 0; it < available.count; it++)
+        {
+            if (available[it].format == VK_FORMAT_B8G8R8A8_SRGB && available[it].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+            {
+                return available[it];
+            }
+        }
+        return available[0];
+    }
+
+    VkPresentModeKHR choose_swap_chain_surface_present_mode(ArrayView<VkPresentModeKHR> available)
+    {
+        for (uSize it = 0; it < available.count; it++)
+        {
+            if (available[it] == VK_PRESENT_MODE_MAILBOX_KHR)
+            {
+                return available[it];
+            }
+        }
+        return VK_PRESENT_MODE_FIFO_KHR; // Guarateed to be available
+    }
+
+    VkExtent2D choose_swap_chain_extent(u32 windowWidth, u32 windowHeight, VkSurfaceCapabilitiesKHR* capabilities)
+    {
+        if (capabilities->currentExtent.width != UINT32_MAX)
+        {
+            return capabilities->currentExtent;
+        }
+        else
+        {
+            auto clamp = [](u32 min, u32 max, u32 value) -> u32 { return value < min ? min : (value > max ? max : value); };
+            return
+            {
+                clamp(capabilities->minImageExtent.width , capabilities->maxImageExtent.width , windowWidth),
+                clamp(capabilities->minImageExtent.height, capabilities->maxImageExtent.height, windowHeight)
+            };
+        }
+    }
+
+    void fill_swap_chain_sharing_mode(VkSharingMode* resultMode, u32* resultCount, ArrayView<u32> resultFamilyIndices, GPU* gpu)
+    {
+        al_vk_assert(resultFamilyIndices.count >= 2);
+        if (gpu->graphicsQueue.deviceFamilyIndex == gpu->presentQueue.deviceFamilyIndex)
+        {
+            *resultMode = VK_SHARING_MODE_EXCLUSIVE;
+            *resultCount = 0;
+        }
+        else
+        {
+            *resultMode = VK_SHARING_MODE_CONCURRENT;
+            *resultCount = 2;
+            resultFamilyIndices[0] = gpu->graphicsQueue.deviceFamilyIndex;
+            resultFamilyIndices[1] = gpu->presentQueue.deviceFamilyIndex;
+        }
+    }
+
+    void construct_swap_chain(SwapChain* swapChain, VkSurfaceKHR surface, GPU* gpu, PlatformWindow* window, AllocatorBindings bindings, VkAllocationCallbacks* callbacks)
+    {
+        {
+            SwapChainSupportDetails supportDetails = create_swap_chain_support_details(surface, gpu->physicalHandle, bindings);
+            defer(destroy_swap_chain_support_details(&supportDetails));
+            VkSurfaceFormatKHR  surfaceFormat   = choose_swap_chain_surface_format(supportDetails.formats);
+            VkPresentModeKHR    presentMode     = choose_swap_chain_surface_present_mode(supportDetails.presentModes);
+            VkExtent2D          extent          = choose_swap_chain_extent(platform_window_get_current_width(window), platform_window_get_current_width(window), &supportDetails.capabilities);
+            // @NOTE :  supportDetails.capabilities.maxImageCount == 0 means unlimited amount of images in swapchain
+            u32 imageCount = supportDetails.capabilities.minImageCount + 1;
+            if (supportDetails.capabilities.maxImageCount != 0 && imageCount > supportDetails.capabilities.maxImageCount)
+            {
+                imageCount = supportDetails.capabilities.maxImageCount;
+            }
+            u32 queueFamiliesIndices[array_size(GPU::commandQueues)];
+            VkSwapchainCreateInfoKHR createInfo
+            {
+                .sType                  = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+                .pNext                  = nullptr,
+                .flags                  = 0,
+                .surface                = surface,
+                .minImageCount          = imageCount,
+                .imageFormat            = surfaceFormat.format,
+                .imageColorSpace        = surfaceFormat.colorSpace,
+                .imageExtent            = extent,
+                .imageArrayLayers       = 1, // "This is always 1 unless you are developing a stereoscopic 3D application"
+                .imageUsage             = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+                .imageSharingMode       = VK_SHARING_MODE_EXCLUSIVE,
+                .queueFamilyIndexCount  = 0,
+                .pQueueFamilyIndices    = queueFamiliesIndices,
+                .preTransform           = supportDetails.capabilities.currentTransform, // Allows to apply transform to images (rotate etc)
+                .compositeAlpha         = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+                .presentMode            = presentMode,
+                .clipped                = VK_TRUE,
+                .oldSwapchain           = VK_NULL_HANDLE,
+            };
+            fill_swap_chain_sharing_mode(&createInfo.imageSharingMode, &createInfo.queueFamilyIndexCount, { .bindings = {}, .memory = queueFamiliesIndices, .count = array_size(queueFamiliesIndices) }, gpu);
+
+            u32 swapChainImageCount;
+            al_vk_check(vkCreateSwapchainKHR(gpu->logicalHandle, &createInfo, callbacks, &swapChain->handle));
+            al_vk_check(vkGetSwapchainImagesKHR(gpu->logicalHandle, swapChain->handle, &swapChainImageCount, nullptr));
+            av_construct(&swapChain->images, &bindings, swapChainImageCount);
+            al_vk_check(vkGetSwapchainImagesKHR(gpu->logicalHandle, swapChain->handle, &swapChainImageCount, swapChain->images.memory));
+            swapChain->format = surfaceFormat.format;
+            swapChain->extent = extent;
+        }
+        {
+            av_construct(&swapChain->imageViews, &bindings, swapChain->images.count);
+            for (uSize it = 0; it < swapChain->imageViews.count; it++)
+            {
+                VkImageViewCreateInfo createInfo
+                {
+                    .sType              = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+                    .pNext              = nullptr,
+                    .flags              = 0,
+                    .image              = swapChain->images[it],
+                    .viewType           = VK_IMAGE_VIEW_TYPE_2D,
+                    .format             = swapChain->format,
+                    .components         = 
+                    {
+                        .r = VK_COMPONENT_SWIZZLE_IDENTITY,
+                        .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+                        .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+                        .a = VK_COMPONENT_SWIZZLE_IDENTITY
+                    },
+                    .subresourceRange   = 
+                    {
+                        .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+                        .baseMipLevel   = 0,
+                        .levelCount     = 1,
+                        .baseArrayLayer = 0,
+                        .layerCount     = 1
+                    }
+                };
+                al_vk_check(vkCreateImageView(gpu->logicalHandle, &createInfo, callbacks, &swapChain->imageViews[it]));
+            }
+        }
+    }
+
+    void destroy_swap_chain(SwapChain* swapChain, GPU* gpu, VkAllocationCallbacks* callbacks)
+    {
+        for (uSize it = 0; it < swapChain->imageViews.count; it++)
+        {
+            vkDestroyImageView(gpu->logicalHandle, swapChain->imageViews[it], callbacks);
+        }
+        vkDestroySwapchainKHR(gpu->logicalHandle, swapChain->handle, callbacks);
+        av_destruct(swapChain->imageViews);
+        av_destruct(swapChain->images);
+    }
+
+    void fill_image_attachment_sharing_mode(VkSharingMode* resultMode, u32* resultCount, ArrayView<u32> resultFamilyIndices, GPU* gpu)
+    {
+        al_vk_assert(resultFamilyIndices.count >= 2);
+        if (gpu->graphicsQueue.deviceFamilyIndex == gpu->transferQueue.deviceFamilyIndex)
+        {
+            *resultMode = VK_SHARING_MODE_EXCLUSIVE;
+            *resultCount = 0;
+        }
+        else
+        {
+            *resultMode = VK_SHARING_MODE_CONCURRENT;
+            *resultCount = 2;
+            resultFamilyIndices[0] = gpu->graphicsQueue.deviceFamilyIndex;
+            resultFamilyIndices[1] = gpu->transferQueue.deviceFamilyIndex;
+        }
+    }
+
+    VkImageType image_attachment_type_to_vk_image_type(ImageAttachment::Type type)
+    {
+        switch(type)
+        {
+            case ImageAttachment::TYPE_1D: return VK_IMAGE_TYPE_1D;
+            case ImageAttachment::TYPE_2D: return VK_IMAGE_TYPE_2D;
+            case ImageAttachment::TYPE_3D: return VK_IMAGE_TYPE_3D;
+        }
+        al_vk_assert(!"Unknown ImageAttachment::Type value");
+        return VkImageType(0);
+    }
+
+    VkImageViewType image_attachment_type_to_vk_image_view_type(ImageAttachment::Type type)
+    {
+        switch(type)
+        {
+            case ImageAttachment::TYPE_1D: return VK_IMAGE_VIEW_TYPE_1D;
+            case ImageAttachment::TYPE_2D: return VK_IMAGE_VIEW_TYPE_2D;
+            case ImageAttachment::TYPE_3D: return VK_IMAGE_VIEW_TYPE_3D;
+        }
+        al_vk_assert(!"Unknown ImageAttachment::Type value");
+        return VkImageViewType(0);
+    }
+
+    void construct_image_attachment(ImageAttachment* attachment, ImageAttachment::ConstructInfo constructInfo, GPU* gpu, VulkanMemoryManager* memoryManager)
+    {
+        attachment->extent = { constructInfo.extent.width, constructInfo.extent.height, 1 };
+        attachment->format = constructInfo.format;
+        {
+            u32 queueFamiliesIndices[array_size(GPU::commandQueues)];
+            VkImageCreateInfo createInfo
+            {
+                .sType                  = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+                .pNext                  = nullptr,
+                .flags                  = 0,
+                .imageType              = image_attachment_type_to_vk_image_type(constructInfo.type),
+                .format                 = constructInfo.format,
+                .extent                 = constructInfo.extent,
+                .mipLevels              = 1,
+                .arrayLayers            = 1,
+                .samples                = VK_SAMPLE_COUNT_1_BIT,
+                .tiling                 = VK_IMAGE_TILING_OPTIMAL,
+                .usage                  = constructInfo.usage,
+                .sharingMode            = VK_SHARING_MODE_EXCLUSIVE,
+                .queueFamilyIndexCount  = 0,
+                .pQueueFamilyIndices    = queueFamiliesIndices,
+                .initialLayout          = VK_IMAGE_LAYOUT_UNDEFINED,
+            };
+            fill_image_attachment_sharing_mode(&createInfo.sharingMode, &createInfo.queueFamilyIndexCount, { .bindings = {}, .memory = queueFamiliesIndices, .count = array_size(queueFamiliesIndices) }, gpu);
+            al_vk_check(vkCreateImage(gpu->logicalHandle, &createInfo, &memoryManager->cpu_allocationCallbacks, &attachment->image));
+        }
+        VkMemoryRequirements memoryRequirements;
+        vkGetImageMemoryRequirements(gpu->logicalHandle, attachment->image, &memoryRequirements);
+        u32 memoryTypeIndex;
+        bool result = utils::get_memory_type_index(&gpu->memoryProperties, memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &memoryTypeIndex);
+        al_vk_assert(result);
+        attachment->memory = gpu_allocate(memoryManager, gpu->logicalHandle, { .sizeBytes = memoryRequirements.size, .alignment = memoryRequirements.alignment, .memoryTypeIndex = memoryTypeIndex });
+        al_vk_check(vkBindImageMemory(gpu->logicalHandle, attachment->image, attachment->memory.memory, attachment->memory.offsetBytes));
+        VkImageViewCreateInfo createInfo
+        {
+            .sType              = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+            .pNext              = nullptr,
+            .flags              = 0,
+            .image              = attachment->image,
+            .viewType           = image_attachment_type_to_vk_image_view_type(constructInfo.type),
+            .format             = constructInfo.format,
+            .components         = { VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY },
+            .subresourceRange   =
+            {
+                .aspectMask     = constructInfo.aspect,
+                .baseMipLevel   = 0,
+                .levelCount     = 1,
+                .baseArrayLayer = 0,
+                .layerCount     = 1,
+            },
+        };
+        al_vk_check(vkCreateImageView(gpu->logicalHandle, &createInfo, &memoryManager->cpu_allocationCallbacks, &attachment->view));
+    }
+
+    void construct_depth_stencil_attachment(ImageAttachment* attachment, VkExtent2D extent, GPU* gpu, VulkanMemoryManager* memoryManager)
+    {
+        construct_image_attachment(attachment,
+        {
+            .extent = { extent.width, extent.height, 1 },
+            .format = gpu->depthStencilFormat,
+            .usage  = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+            .aspect = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
+            .type   = ImageAttachment::TYPE_2D,
+        }, gpu, memoryManager);
+    }
+
+    void construct_color_attachment(ImageAttachment* attachment, VkExtent2D extent, GPU* gpu, VulkanMemoryManager* memoryManager)
+    {
+        construct_image_attachment(attachment,
+        {
+            .extent = { extent.width, extent.height, 1 },
+            .format = VK_FORMAT_R8G8B8A8_SRGB,
+            .usage  = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+            .aspect = VK_IMAGE_ASPECT_COLOR_BIT,
+            .type   = ImageAttachment::TYPE_2D,
+        }, gpu, memoryManager);
+    }
+
+    void destroy_image_attachment(ImageAttachment* attachment, GPU* gpu, VulkanMemoryManager* memoryManager)
+    {
+        vkDestroyImageView(gpu->logicalHandle, attachment->view, &memoryManager->cpu_allocationCallbacks);
+        vkDestroyImage(gpu->logicalHandle, attachment->image, &memoryManager->cpu_allocationCallbacks);
+        gpu_deallocate(memoryManager, gpu->logicalHandle, attachment->memory);
+    }
+
+    void transition_image_layout(GPU* gpu, CommandBuffers* buffers, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout)
+    {
+        VkCommandBufferBeginInfo beginInfo
+        {
+            .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+            .pNext              = nullptr,
+            .flags              = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+            .pInheritanceInfo   = nullptr,
+        };
+        vkBeginCommandBuffer(buffers->primaryBuffers[0], &beginInfo);
+        VkImageMemoryBarrier barrier
+        {
+            .sType                  = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+            .pNext                  = nullptr,
+            .srcAccessMask          = 0,
+            .dstAccessMask          = 0,
+            .oldLayout              = oldLayout,
+            .newLayout              = newLayout,
+            .srcQueueFamilyIndex    = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex    = VK_QUEUE_FAMILY_IGNORED,
+            .image                  = image,
+            .subresourceRange       =
+            {
+                .aspectMask      = VK_IMAGE_ASPECT_COLOR_BIT, // @TODO : unhardcode this
+                .baseMipLevel    = 0,
+                .levelCount      = 1,
+                .baseArrayLayer  = 0,
+                .layerCount      = 1,
+            },
+        };
+        VkPipelineStageFlags sourceStage;
+        VkPipelineStageFlags destinationStage;
+        if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+        {
+            barrier.srcAccessMask   = 0;
+            barrier.dstAccessMask   = VK_ACCESS_TRANSFER_WRITE_BIT;
+            sourceStage             = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+            destinationStage        = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        }
+        else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+        {
+            barrier.srcAccessMask   = VK_ACCESS_TRANSFER_WRITE_BIT;
+            barrier.dstAccessMask   = VK_ACCESS_SHADER_READ_BIT;
+            sourceStage             = VK_PIPELINE_STAGE_TRANSFER_BIT;
+            destinationStage        = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        }
+        else
+        {
+            al_vk_assert(!"Unsupported image transition");
+        }
+        vkCmdPipelineBarrier(buffers->primaryBuffers[0], sourceStage, destinationStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+        vkEndCommandBuffer(buffers->primaryBuffers[0]);
+        VkSubmitInfo submitInfo
+        {
+            .sType                  = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            .pNext                  = nullptr,
+            .waitSemaphoreCount     = 0,
+            .pWaitSemaphores        = nullptr,
+            .pWaitDstStageMask      = 0,
+            .commandBufferCount     = 1,
+            .pCommandBuffers        = &buffers->primaryBuffers[0],
+            .signalSemaphoreCount   = 0,
+            .pSignalSemaphores      = nullptr,
+        };
+        vkQueueSubmit(gpu->graphicsQueue.handle, 1, &submitInfo, VK_NULL_HANDLE);
+        vkQueueWaitIdle(gpu->graphicsQueue.handle);
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
     template<typename T>
     void tls_construct(ThreadLocalStorage<T>* storage, AllocatorBindings bindings)
     {
@@ -1596,7 +1931,7 @@ namespace al::vulkan
     }
 
     template<typename T>
-    void tls_destruct(ThreadLocalStorage<T>* storage)
+    void tls_destroy(ThreadLocalStorage<T>* storage)
     {
         deallocate(&storage->bindings, storage->memory, storage->capacity * sizeof(T));
     }
@@ -1631,7 +1966,7 @@ namespace al::vulkan
         return &storage->memory[newPosition];
     }
 
-    void create_command_pools(RendererBackend* backend, CommandPools* pools)
+    void construct_command_pools(RendererBackend* backend, CommandPools* pools)
     {
         auto createPool = [](RendererBackend* backend, u32 queueFamiliIndex) -> VkCommandPool
         {
@@ -1648,12 +1983,12 @@ namespace al::vulkan
         };
         pools->graphics =
         {
-            .handle = createPool(backend, backend->queues.graphics.deviceFamilyIndex),
+            .handle = createPool(backend, backend->gpu.graphicsQueue.deviceFamilyIndex),
         };
         // @TODO :  do we need to create separate pool if transfer and graphics queues are in the same family ?
         pools->transfer =
         {
-            .handle = createPool(backend, backend->queues.transfer.deviceFamilyIndex),
+            .handle = createPool(backend, backend->gpu.transferQueue.deviceFamilyIndex),
         };
     }
 
@@ -1665,16 +2000,16 @@ namespace al::vulkan
 
     CommandPools* get_command_pools(RendererBackend* backend)
     {
-        // CommandPools* pools = tls_access(&backend->_commandPools);
+        // CommandPools* pools = tls_access(&backend->commandPools);
         // if (!pools->graphics.handle)
         // {
-        //     create_command_pools(backend, pools);
+        //     construct_command_pools(backend, pools);
         // }
         // return pools;
-        return &backend->_commandPools;
+        return &backend->commandPools;
     }
 
-    void create_command_buffers(RendererBackend* backend, CommandBuffers* buffers)
+    void construct_command_buffers(RendererBackend* backend, CommandBuffers* buffers)
     {
         av_construct(&buffers->primaryBuffers, &backend->memoryManager.cpu_allocationBindings, backend->swapChain.images.count);
         av_construct(&buffers->secondaryBuffers, &backend->memoryManager.cpu_allocationBindings, backend->swapChain.images.count);
@@ -1682,10 +2017,10 @@ namespace al::vulkan
         for (uSize it = 0; it < backend->swapChain.images.count; it++)
         {
             // @TODO :  create command buffers for each possible thread
-            buffers->primaryBuffers[it] = vk::create_command_buffer(backend->gpu.logicalHandle, pools->graphics.handle, VK_COMMAND_BUFFER_LEVEL_PRIMARY);
-            buffers->secondaryBuffers[it] = vk::create_command_buffer(backend->gpu.logicalHandle, pools->graphics.handle, VK_COMMAND_BUFFER_LEVEL_SECONDARY);
+            buffers->primaryBuffers[it] = utils::create_command_buffer(backend->gpu.logicalHandle, pools->graphics.handle, VK_COMMAND_BUFFER_LEVEL_PRIMARY);
+            buffers->secondaryBuffers[it] = utils::create_command_buffer(backend->gpu.logicalHandle, pools->graphics.handle, VK_COMMAND_BUFFER_LEVEL_SECONDARY);
         }
-        buffers->transferBuffer = vk::create_command_buffer(backend->gpu.logicalHandle, pools->transfer.handle, VK_COMMAND_BUFFER_LEVEL_PRIMARY);
+        buffers->transferBuffer = utils::create_command_buffer(backend->gpu.logicalHandle, pools->transfer.handle, VK_COMMAND_BUFFER_LEVEL_PRIMARY);
     }
 
     void destroy_command_buffers(RendererBackend* backend, CommandBuffers* buffers)
@@ -1694,45 +2029,45 @@ namespace al::vulkan
         av_destruct(buffers->secondaryBuffers);
     }
 
-    CommandBuffers* get_command_buffers(RendererBackend* backend)
+    void create_test_descriptor_sets(RendererBackend* backend, HardcodedDescriptorsSets* sets)
     {
-        // CommandBuffers* buffers = tls_access(&backend->_commandBuffers);
-        // if (!buffers->transferBuffer)
-        // {
-        //     create_command_buffers(backend, buffers);
-        // }
-        // return buffers;
-        return &backend->_commandBuffers;
-    }
+        VulkanMemoryManager*    memoryManager   = &backend->memoryManager;
+        SwapChain*              swapChain       = &backend->swapChain;
+        GPU*                    gpu             = &backend->gpu;
+        ImageAttachment*        texture         = &backend->_texture;
+        VkSampler               sampler         = backend->_textureSampler;
 
-    void create_test_descriptor_sets(RendererBackend* backend, TestDescriptorSets* sets)
-    {
-        using DescriptorSetT = std::remove_pointer_t<decltype(sets)>;
-
-        av_construct(&sets->buffers, &backend->memoryManager.cpu_allocationBindings, backend->swapChain.images.count);
+        av_construct(&sets->buffers, &memoryManager->cpu_allocationBindings, swapChain->images.count);
         for (uSize it = 0; it < sets->buffers.count; it++)
         {
-            al_vk_log_msg("%d\n", (int)it);
-            sets->buffers[it] = create_uniform_buffer(backend, sizeof(DescriptorSetT::Ubo));
-            DescriptorSetT::Ubo ubo
+            sets->buffers[it] = create_uniform_buffer(&backend->gpu, &backend->memoryManager, sizeof(HardcodedDescriptorsSets::Ubo));
+            HardcodedDescriptorsSets::Ubo ubo
             {
                 { 0, 0, 1 }
             };
-            copy_cpu_memory_to_buffer(backend, &ubo, &sets->buffers[it], sizeof(DescriptorSetT::Ubo));
+            copy_cpu_memory_to_buffer(gpu->logicalHandle, &ubo, &sets->buffers[it], sizeof(HardcodedDescriptorsSets::Ubo));
         }
 
-        VkDescriptorSetLayoutBinding layoutBindings[DescriptorSetT::NUM_BINDINGS];
-        for (uSize it = 0; it < DescriptorSetT::NUM_BINDINGS; it++)
+        VkDescriptorSetLayoutBinding layoutBindings[array_size(HardcodedDescriptorsSets::BINDING_DESCS) + 1];
+        for (u32 it = 0; it < array_size(HardcodedDescriptorsSets::BINDING_DESCS); it++)
         {
             layoutBindings[it] =
             {
-                .binding            = 0,
-                .descriptorType     = DescriptorSetT::BINDING_DESCS[it].type,
+                .binding            = it,
+                .descriptorType     = HardcodedDescriptorsSets::BINDING_DESCS[it].type,
                 .descriptorCount    = 1, // Size of an array of uniform buffer objects
-                .stageFlags         = DescriptorSetT::BINDING_DESCS[it].stageFlags,
+                .stageFlags         = HardcodedDescriptorsSets::BINDING_DESCS[it].stageFlags,
                 .pImmutableSamplers = nullptr,
             };
         }
+        layoutBindings[array_size(HardcodedDescriptorsSets::BINDING_DESCS)] =
+        {
+            .binding            = array_size(HardcodedDescriptorsSets::BINDING_DESCS),
+            .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .descriptorCount    = 1,
+            .stageFlags         = VK_SHADER_STAGE_FRAGMENT_BIT,
+            .pImmutableSamplers = nullptr,
+        };
         VkDescriptorSetLayoutCreateInfo layoutInfo
         {
             .sType          = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
@@ -1741,87 +2076,158 @@ namespace al::vulkan
             .bindingCount   = array_size(layoutBindings),
             .pBindings      = layoutBindings,
         };
-        al_vk_check(vkCreateDescriptorSetLayout(backend->gpu.logicalHandle, &layoutInfo, &backend->memoryManager.cpu_allocationCallbacks, &sets->layout));
+        al_vk_check(vkCreateDescriptorSetLayout(gpu->logicalHandle, &layoutInfo, &memoryManager->cpu_allocationCallbacks, &sets->layout));
 
-        VkDescriptorPoolSize poolSizes[DescriptorSetT::NUM_BINDINGS];
-        for (uSize it = 0; it < DescriptorSetT::NUM_BINDINGS; it++)
+        VkDescriptorPoolSize poolSizes[array_size(HardcodedDescriptorsSets::BINDING_DESCS) + 1];
+        for (uSize it = 0; it < array_size(HardcodedDescriptorsSets::BINDING_DESCS); it++)
         {
             poolSizes[it] =
             {
-                .type = DescriptorSetT::BINDING_DESCS[it].type,
-                .descriptorCount = static_cast<u32>(DescriptorSetT::NUM_BINDINGS * backend->swapChain.images.count),
+                .type = HardcodedDescriptorsSets::BINDING_DESCS[it].type,
+                .descriptorCount = static_cast<u32>(swapChain->images.count),
             };
         }
+        poolSizes[array_size(HardcodedDescriptorsSets::BINDING_DESCS)] =
+        {
+            .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .descriptorCount = static_cast<u32>(swapChain->images.count),
+        };
         VkDescriptorPoolCreateInfo poolInfo
         {
             .sType          = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
             .pNext          = nullptr,
             .flags          = 0,
-            .maxSets        = static_cast<u32>(backend->swapChain.images.count),
+            .maxSets        = static_cast<u32>(swapChain->images.count),
             .poolSizeCount  = array_size(poolSizes),
             .pPoolSizes     = poolSizes,
         };
-        al_vk_check(vkCreateDescriptorPool(backend->gpu.logicalHandle, &poolInfo, &backend->memoryManager.cpu_allocationCallbacks, &sets->pool));
+        al_vk_check(vkCreateDescriptorPool(gpu->logicalHandle, &poolInfo, &memoryManager->cpu_allocationCallbacks, &sets->pool));
         
         VkDescriptorSetLayout layouts[10]; // hack, I'm to tired to come up with "correct" (lol) solution
-        for (uSize it = 0; it < backend->swapChain.images.count; it++)
+        for (uSize it = 0; it < swapChain->images.count; it++)
         {
             layouts[it] = sets->layout;
         }
-        av_construct(&sets->sets, &backend->memoryManager.cpu_allocationBindings, backend->swapChain.images.count);
+        av_construct(&sets->sets, &memoryManager->cpu_allocationBindings, swapChain->images.count);
         VkDescriptorSetAllocateInfo allocateInfo
         {
             .sType               = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
             .pNext               = nullptr,
             .descriptorPool      = sets->pool,
-            .descriptorSetCount  = static_cast<u32>(backend->swapChain.images.count),
+            .descriptorSetCount  = static_cast<u32>(swapChain->images.count),
             .pSetLayouts         = layouts,
         };
-        al_vk_check(vkAllocateDescriptorSets(backend->gpu.logicalHandle, &allocateInfo, sets->sets.memory));
+        al_vk_check(vkAllocateDescriptorSets(gpu->logicalHandle, &allocateInfo, sets->sets.memory));
 
-        for (uSize it = 0; it < backend->swapChain.images.count; it++)
+        for (uSize it = 0; it < swapChain->images.count; it++)
         {
             VkDescriptorBufferInfo bufferInfo
             {
                 .buffer = sets->buffers[it].handle,
                 .offset = 0,
-                .range  = sizeof(DescriptorSetT::Ubo), // VK_WHOLE_SIZE
+                .range  = sizeof(HardcodedDescriptorsSets::Ubo), // VK_WHOLE_SIZE
             };
-            VkWriteDescriptorSet descriptorWrite
+            VkDescriptorImageInfo imageInfo
             {
-                .sType              = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .pNext              = nullptr,
-                .dstSet             = sets->sets[it],
-                .dstBinding         = 0,
-                .dstArrayElement    = 0,
-                .descriptorCount    = 1,
-                .descriptorType     = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                .pImageInfo         = nullptr,
-                .pBufferInfo        = &bufferInfo,
-                .pTexelBufferView   = nullptr,
+                .sampler        = sampler,
+                .imageView      = texture->view,
+                .imageLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
             };
-            vkUpdateDescriptorSets(backend->gpu.logicalHandle, 1, &descriptorWrite, 0, nullptr);
+            VkWriteDescriptorSet descriptorWrites[] =
+            {
+                {
+                    .sType              = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                    .pNext              = nullptr,
+                    .dstSet             = sets->sets[it],
+                    .dstBinding         = 0,
+                    .dstArrayElement    = 0,
+                    .descriptorCount    = 1,
+                    .descriptorType     = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                    .pImageInfo         = nullptr,
+                    .pBufferInfo        = &bufferInfo,
+                    .pTexelBufferView   = nullptr,
+                },
+                {
+                    .sType              = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                    .pNext              = nullptr,
+                    .dstSet             = sets->sets[it],
+                    .dstBinding         = 1,
+                    .dstArrayElement    = 0,
+                    .descriptorCount    = 1,
+                    .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                    .pImageInfo         = &imageInfo,
+                    .pBufferInfo        = nullptr,
+                    .pTexelBufferView   = nullptr,
+                },
+            };
+            vkUpdateDescriptorSets(gpu->logicalHandle, array_size(descriptorWrites), descriptorWrites, 0, nullptr);
         }
     }
 
-    void destroy_test_descriptor_sets(RendererBackend* backend, TestDescriptorSets* sets)
+    void destroy_test_descriptor_sets(RendererBackend* backend, HardcodedDescriptorsSets* sets)
     {
-        // @HACK :  without first empty loop, second one produces wrong "it" values :
-        //          instead of going like "0 1 2" it for some reason goes like "0 1 1".
-        //          Inserting empty loop helps to avoid this problem. Tested with msvc compiler :
-        //          "Microsoft (R) C/C++ Optimizing Compiler Version 19.28.29914 for x64"
-        for (int i = 0; i < 3; i++) { }
-        for (uSize it = 0; it < sets->buffers.count; it++)
-        {
-            al_vk_log_msg("%d\n", (int)it);
-            destroy_buffer(backend, &sets->buffers[it]);
-        }
+        destroy_buffer(&backend->gpu, &backend->memoryManager, &sets->buffers[0]);
+        destroy_buffer(&backend->gpu, &backend->memoryManager, &sets->buffers[1]);
+        destroy_buffer(&backend->gpu, &backend->memoryManager, &sets->buffers[2]);
         av_destruct(sets->buffers);
         av_destruct(sets->sets);
         vkDestroyDescriptorSetLayout(backend->gpu.logicalHandle, sets->layout, &backend->memoryManager.cpu_allocationCallbacks);
         vkDestroyDescriptorPool(backend->gpu.logicalHandle, sets->pool, &backend->memoryManager.cpu_allocationCallbacks);
     }
 
+    // void create_test_texture_image(RendererBackend* backend)
+    // {
+    //     copy_cpu_memory_to_buffer(backend, testEpicTexture, &backend->_stagingBuffer, sizeof(testEpicTexture));
+
+    //     VkImageCreateInfo imageCreateInfo
+    //     {
+    //         .sType                  = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+    //         .pNext                  = nullptr,
+    //         .flags                  = 0,
+    //         .imageType              = VK_IMAGE_TYPE_2D,
+    //         .format                 = VK_FORMAT_R8G8B8A8_SRGB,
+    //         .extent                 = { 5, 5, 1 },
+    //         .mipLevels              = 1,
+    //         .arrayLayers            = 1,
+    //         .samples                = VK_SAMPLE_COUNT_1_BIT,
+    //         .tiling                 = VK_IMAGE_TILING_OPTIMAL,
+    //         .usage                  = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+    //         .sharingMode            = VK_SHARING_MODE_EXCLUSIVE,    // @TODO :  fix this. Might need to use concurrent sharing mode
+    //         .queueFamilyIndexCount  = 0,                            // @TODO :  fix this. Might need to use concurrent sharing mode
+    //         .pQueueFamilyIndices    = nullptr,                      // @TODO :  fix this. Might need to use concurrent sharing mode
+    //         .initialLayout          = VK_IMAGE_LAYOUT_UNDEFINED,
+    //     };
+    //     al_vk_check(vkCreateImage(backend->gpu.logicalHandle, &imageCreateInfo, &backend->memoryManager.cpu_allocationCallbacks, &backend->testSampler.image));
+
+    //     VkMemoryRequirements memoryRequirements;
+    //     vkGetImageMemoryRequirements(backend->gpu.logicalHandle, backend->testSampler.image, &memoryRequirements);
+
+    //     u32 memoryTypeIndex;
+    //     bool result = utils::get_memory_type_index(&backend->gpu.memoryProperties, memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &memoryTypeIndex);
+    //     al_vk_assert(result);
+    //     backend->testSampler.memory = gpu_allocate(&backend->memoryManager, backend->gpu.logicalHandle, { .sizeBytes = memoryRequirements.size, .alignment = memoryRequirements.alignment, .memoryTypeIndex = memoryTypeIndex });
+    //     al_vk_check(vkBindImageMemory(backend->gpu.logicalHandle, backend->testSampler.image, backend->testSampler.memory.memory, backend->testSampler.memory.offsetBytes));
+
+    //     /*
+    //     transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    //         copyBufferToImage(stagingBuffer, textureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
+    //     transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+    //     vkDestroyBuffer(device, stagingBuffer, nullptr);
+    //     vkFreeMemory(device, stagingBufferMemory, nullptr);
+    //     */
+    // }
+
+    // void destroy_test_texture_image(RendererBackend* backend)
+    // {
+
+    // }
+
+    // void transition_image_layout(RendererBackend* backend, VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout)
+    // {
+    //     CommandBuffers* buffers = get_command_buffers(backend);
+
+    // }
 
 
 
@@ -1837,65 +2243,19 @@ namespace al::vulkan
 
 
 
-    // @NOTE :  this method return CommandQueues with valid deviceFamilyIndex values
-    Tuple<CommandQueues, VkPhysicalDevice> pick_physical_device(RendererBackend* backend)
-    {
-        auto isDeviceSuitable = [](RendererBackend* backend, VkPhysicalDevice device) -> Tuple<CommandQueues, bool>
-        {
-            ArrayView<VkQueueFamilyProperties> familyProperties = vk::get_physical_device_queue_family_properties(device, backend->memoryManager.cpu_allocationBindings);
-            defer(av_destruct(familyProperties));
-            // @NOTE :  checking if all required queue families are supported by device
-            CommandQueues physicalDeviceCommandQueues{ };
-            try_pick_graphics_queue(&physicalDeviceCommandQueues.graphics, familyProperties);
-            try_pick_present_queue(&physicalDeviceCommandQueues.present, familyProperties, device, backend->surface);
-            if (physicalDeviceCommandQueues.graphics.isFamilyPresent)
-            {
-                try_pick_transfer_queue(&physicalDeviceCommandQueues.transfer, familyProperties, physicalDeviceCommandQueues.graphics.deviceFamilyIndex);
-            }
-            ArrayView<const char* const> deviceExtensions
-            {
-                .bindings   = { },
-                .memory     = vk::DEVICE_EXTENSIONS,
-                .count      = array_size(vk::DEVICE_EXTENSIONS),
-            };
-            bool isRequiredExtensionsSupported = vk::does_physical_device_supports_required_extensions(device, deviceExtensions, backend->memoryManager.cpu_allocationBindings);
-            bool isSwapChainSuppoted = false;
-            if (isRequiredExtensionsSupported)
-            {
-                SwapChainSupportDetails supportDetails = get_swap_chain_support_details(backend->surface, device, backend->memoryManager.cpu_allocationBindings);
-                isSwapChainSuppoted = supportDetails.formats.count && supportDetails.presentModes.count;
-                av_destruct(supportDetails.formats);
-                av_destruct(supportDetails.presentModes);
-            }
-            return
-            {
-                physicalDeviceCommandQueues,
-                is_command_queues_complete(&physicalDeviceCommandQueues) && isRequiredExtensionsSupported && isSwapChainSuppoted
-            };
-        };
-        ArrayView<VkPhysicalDevice> available = vk::get_available_physical_devices(backend->instance, backend->memoryManager.cpu_allocationBindings);
-        defer(av_destruct(available));
-        for (uSize it = 0; it < available.count; it++)
-        {
-            Tuple<CommandQueues, bool> result = isDeviceSuitable(backend, available[it]);
-            if (get<1>(result))
-            {
-                // @TODO :  log device name and shit
-                // VkPhysicalDeviceProperties deviceProperties;
-                // vkGetPhysicalDeviceProperties(chosenPhysicalDevice, &deviceProperties);
-                return
-                {
-                    get<0>(result),
-                    available[it],
-                };
-            }
-        }
-        return
-        {
-            CommandQueues{ },
-            VK_NULL_HANDLE
-        };
-    }
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug_callback(
                                             VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
