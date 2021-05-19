@@ -13,7 +13,7 @@
 #   define __UNIQUE_NAME(base) __PP_CAT(base, __LINE__)
 #endif
 
-#define defer(cmd) ::al::Defer __UNIQUE_NAME(deferObj)([&]() { cmd; })
+#define defer(...) ::al::Defer __UNIQUE_NAME(deferObj)([&]() { __VA_ARGS__; })
 
 namespace al
 {

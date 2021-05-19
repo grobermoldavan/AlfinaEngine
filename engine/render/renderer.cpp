@@ -10,10 +10,11 @@ namespace al
         // @TODO : validate render configuration
         RendererBackendInitData backendInitData
         {
-            .bindings           = initData->bindings,
-            .applicationName    = "Application Name",
-            .window             = initData->window,
-            .renderProcessDesc  = initData->renderProcessDesc,
+            .bindings               = initData->bindings,
+            .applicationName        = "Application Name",
+            .window                 = initData->window,
+            .renderProcessDesc      = initData->renderProcessDesc,
+            ._shadersSpvBytecode    = initData->_shadersSpvBytecode,
         };
         renderer_backend_construct(&renderer->backend, &backendInitData);
     }
@@ -37,5 +38,4 @@ namespace al
     }
 }
 
-#include "vulkan/vulkan_utils.cpp"
 #include "vulkan/renderer_backend_vulkan.cpp"

@@ -3,6 +3,7 @@
 
 #include "vulkan_base.h"
 #include "vulkan_utils.h"
+#include "spirv_reflection.h"
 #include "engine/render/renderer_backend_core.h"
 
 #include "engine/types.h"
@@ -20,9 +21,9 @@ namespace al::vulkan
         { .position = {  0.5f,  0.5f, 0.1f }, .normal = { }, .uv = { 1.0, 1.0 } },
         { .position = { -0.5f,  0.5f, 0.1f }, .normal = { }, .uv = { 0.0, 1.0 } },
 
-        { .position = {  0.2f, -0.3f, 0.2f }, .normal = { }, .uv = { 0.0, 0.0 } },
+        { .position = {  0.2f, -0.3f, 0.2f }, .normal = { }, .uv = { 0.0, 1.0 } },
         { .position = {  0.7f,  0.7f, 0.2f }, .normal = { }, .uv = { 1.0, 1.0 } },
-        { .position = { -0.3f,  0.7f, 0.2f }, .normal = { }, .uv = { 0.0, 1.0 } },
+        { .position = { -0.3f,  0.7f, 0.2f }, .normal = { }, .uv = { 0.0, 0.0 } },
     };
 
     u32 triangleIndices[] = { 0, 1, 2, 3, 4, 5 };

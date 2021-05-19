@@ -8,6 +8,7 @@
 #endif
 
 #include <vulkan/vulkan.h>
+#include <spirv-headers/spirv.h>
 
 #include <cassert>
 

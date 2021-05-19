@@ -14,6 +14,8 @@ namespace al
         AllocatorBindings           bindings;
         PlatformWindow*             window;
         RenderProcessDescription*   renderProcessDesc;
+        
+        ArrayView<PlatformFile>     _shadersSpvBytecode;
     };
 
     template<typename Backend>

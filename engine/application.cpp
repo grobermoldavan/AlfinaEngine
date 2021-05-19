@@ -100,45 +100,54 @@ namespace al
         platform_input_construct(&application->input);
         {
             AllocatorBindings allocatorBindings = get_allocator_bindings(&application->pool);
-            PlatformFile vertexShader = platform_file_load(allocatorBindings, platform_path("assets", "shaders", "vert.spv"), PlatformFileLoadMode::READ);
-            PlatformFile fragmentShader = platform_file_load(allocatorBindings, platform_path("assets", "shaders", "frag.spv"), PlatformFileLoadMode::READ);
-            defer(platform_file_unload(allocatorBindings, vertexShader));
-            defer(platform_file_unload(allocatorBindings, fragmentShader));
-            AttachmentDescription attachments[] =
+            PlatformFile shaders[] =
             {
-                SCREEN_FRAMEBUFFER_DESC,
+                platform_file_load(allocatorBindings, platform_path("assets", "shaders", "test.spv"), PlatformFileLoadMode::READ),
+                platform_file_load(allocatorBindings, platform_path("assets", "shaders", "vert.spv"), PlatformFileLoadMode::READ),
+                platform_file_load(allocatorBindings, platform_path("assets", "shaders", "frag.spv"), PlatformFileLoadMode::READ),
             };
-            AttachmentDependency outAttachments[] =
-            {
-                {
-                    .attachmentIndex = 0,
-                    .flags = 0
-                }
-            };
-            RenderStageDescription renderStages[] =
-            {
-                {   // This pass takes no input framebuffer and outputs to swap chain framebuffer and it renders all passed geometry
-                    .vertexShader           = vertexShader,
-                    .fragmentShader         = fragmentShader,
-                    .inAttachmentsSize      = 0,
-                    .inAttachments          = nullptr,
-                    .outAttachmentsSize     = array_size(outAttachments),
-                    .outAttachments         = outAttachments,
-                    .flags                  = RenderStageDescription::FLAG_PASS_GEOMETRY
-                },
-            };
-            RenderProcessDescription process
-            {
-                .attachmentsSize    = array_size(attachments),
-                .attachments        = attachments,
-                .renderStagesSize   = array_size(renderStages),
-                .renderStages       = renderStages,
-            };
+            defer(for (uSize it = 0; it < array_size(shaders); it++) platform_file_unload(allocatorBindings, shaders[it]));
+            // AttachmentDescription attachments[] =
+            // {
+            //     SCREEN_FRAMEBUFFER_DESC,
+            // };
+            // AttachmentDependency outAttachments[] =
+            // {
+            //     {
+            //         .attachmentIndex = 0,
+            //         .flags = 0
+            //     }
+            // };
+            // RenderStageDescription renderStages[] =
+            // {
+            //     {   // This pass takes no input framebuffer and outputs to swap chain framebuffer and it renders all passed geometry
+            //         .vertexShader           = vertexShader,
+            //         .fragmentShader         = fragmentShader,
+            //         .inAttachmentsSize      = 0,
+            //         .inAttachments          = nullptr,
+            //         .outAttachmentsSize     = array_size(outAttachments),
+            //         .outAttachments         = outAttachments,
+            //         .flags                  = RenderStageDescription::FLAG_PASS_GEOMETRY
+            //     },
+            // };
+            // RenderProcessDescription process
+            // {
+            //     .attachmentsSize    = array_size(attachments),
+            //     .attachments        = attachments,
+            //     .renderStagesSize   = array_size(renderStages),
+            //     .renderStages       = renderStages,
+            // };
             RendererInitData rendererInitData
             {
                 .bindings           = get_allocator_bindings(&application->pool),
                 .window             = &application->window,
-                .renderProcessDesc  = &process,
+                .renderProcessDesc  = nullptr, //&process,
+                ._shadersSpvBytecode =
+                {
+                    .bindings = { },
+                    .memory = shaders,
+                    .count = array_size(shaders),
+                },
             };
             renderer_construct(&application->renderer, &rendererInitData);
         }

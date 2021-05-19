@@ -22,6 +22,28 @@ namespace al
         using namespace vulkan;
         backend->window = initData->window;
 
+        {
+            ArrayView<SpirvReflection> reflections;
+            av_construct(&reflections, &initData->bindings, initData->_shadersSpvBytecode.count);
+            defer(av_destruct(reflections));
+            for (uSize it = 0; it < reflections.count; it++)
+            {
+                SpirvWord* shaderWords = static_cast<SpirvWord*>(initData->_shadersSpvBytecode[it].memory);
+                uSize numWords = initData->_shadersSpvBytecode[it].sizeBytes / 4;
+                construct_spirv_reflect(initData->bindings, shaderWords, numWords, &reflections[it]);
+            }
+            for (uSize reflectionIt = 0; reflectionIt < reflections.count; reflectionIt++)
+            {
+                SpirvReflection* reflection = &reflections[reflectionIt];
+                al_vk_log_msg("Processing reflection data of shader with type %s :\n", shader_type_to_str(reflection->shaderType));
+                for (uSize inputIt = 0; inputIt < reflection->shaderInputCount; inputIt++)
+                {
+                    SpirvReflection::ShaderInput* input = &reflection->shaderInputs[inputIt];
+                    al_vk_log_msg("    Shader input : name %s, location %d, size bytes %d\n", input->name, input->location, input->sizeBytes);
+                }
+            }
+        }
+
         // This stuff is constructed per renderer instance
         construct_memory_manager            (&backend->memoryManager, initData->bindings);
         construct_instance                  (&backend->instance, &backend->debugMessenger, initData, backend->memoryManager.cpu_allocationBindings, &backend->memoryManager.cpu_allocationCallbacks);
@@ -2175,88 +2197,6 @@ namespace al::vulkan
         vkDestroyDescriptorPool(backend->gpu.logicalHandle, sets->pool, &backend->memoryManager.cpu_allocationCallbacks);
     }
 
-    // void create_test_texture_image(RendererBackend* backend)
-    // {
-    //     copy_cpu_memory_to_buffer(backend, testEpicTexture, &backend->_stagingBuffer, sizeof(testEpicTexture));
-
-    //     VkImageCreateInfo imageCreateInfo
-    //     {
-    //         .sType                  = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-    //         .pNext                  = nullptr,
-    //         .flags                  = 0,
-    //         .imageType              = VK_IMAGE_TYPE_2D,
-    //         .format                 = VK_FORMAT_R8G8B8A8_SRGB,
-    //         .extent                 = { 5, 5, 1 },
-    //         .mipLevels              = 1,
-    //         .arrayLayers            = 1,
-    //         .samples                = VK_SAMPLE_COUNT_1_BIT,
-    //         .tiling                 = VK_IMAGE_TILING_OPTIMAL,
-    //         .usage                  = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-    //         .sharingMode            = VK_SHARING_MODE_EXCLUSIVE,    // @TODO :  fix this. Might need to use concurrent sharing mode
-    //         .queueFamilyIndexCount  = 0,                            // @TODO :  fix this. Might need to use concurrent sharing mode
-    //         .pQueueFamilyIndices    = nullptr,                      // @TODO :  fix this. Might need to use concurrent sharing mode
-    //         .initialLayout          = VK_IMAGE_LAYOUT_UNDEFINED,
-    //     };
-    //     al_vk_check(vkCreateImage(backend->gpu.logicalHandle, &imageCreateInfo, &backend->memoryManager.cpu_allocationCallbacks, &backend->testSampler.image));
-
-    //     VkMemoryRequirements memoryRequirements;
-    //     vkGetImageMemoryRequirements(backend->gpu.logicalHandle, backend->testSampler.image, &memoryRequirements);
-
-    //     u32 memoryTypeIndex;
-    //     bool result = utils::get_memory_type_index(&backend->gpu.memoryProperties, memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &memoryTypeIndex);
-    //     al_vk_assert(result);
-    //     backend->testSampler.memory = gpu_allocate(&backend->memoryManager, backend->gpu.logicalHandle, { .sizeBytes = memoryRequirements.size, .alignment = memoryRequirements.alignment, .memoryTypeIndex = memoryTypeIndex });
-    //     al_vk_check(vkBindImageMemory(backend->gpu.logicalHandle, backend->testSampler.image, backend->testSampler.memory.memory, backend->testSampler.memory.offsetBytes));
-
-    //     /*
-    //     transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-    //         copyBufferToImage(stagingBuffer, textureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
-    //     transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-    //     vkDestroyBuffer(device, stagingBuffer, nullptr);
-    //     vkFreeMemory(device, stagingBufferMemory, nullptr);
-    //     */
-    // }
-
-    // void destroy_test_texture_image(RendererBackend* backend)
-    // {
-
-    // }
-
-    // void transition_image_layout(RendererBackend* backend, VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout)
-    // {
-    //     CommandBuffers* buffers = get_command_buffers(backend);
-
-    // }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug_callback(
                                             VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
                                             VkDebugUtilsMessageTypeFlagsEXT messageType,
@@ -2267,3 +2207,6 @@ namespace al::vulkan
         return VK_FALSE;
     }
 }
+
+#include "vulkan_utils.cpp"
+#include "spirv_reflection.cpp"
