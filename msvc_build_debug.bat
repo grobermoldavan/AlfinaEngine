@@ -10,10 +10,6 @@ kernel32.lib user32.lib Gdi32.lib  Ole32.lib ^
 %VK_SDK_PATH%\Lib\vulkan-1.lib ^
 /link /DEBUG:FULL
 
-call glslangValidator assets\shaders\triangle.vert -o assets\shaders\vert.spv -V -S vert
-call glslangValidator assets\shaders\triangle.frag -o assets\shaders\frag.spv -V -S frag
-call glslangValidator assets\shaders\test.glsl -o assets\shaders\test.spv -V -S frag
-
-call spirv-dis assets\shaders\vert.spv -o assets\shaders\vert.dis
-call spirv-dis assets\shaders\frag.spv -o assets\shaders\frag.dis
-call spirv-dis assets\shaders\test.spv -o assets\shaders\test.dis
+for /r %%f in (*.vert) do glslangValidator %%f -o %%f.spv -V -S vert
+for /r %%f in (*.frag) do glslangValidator %%f -o %%f.spv -V -S frag
+for /r %%f in (*.spv) do spirv-dis %%f -o %%f.dis

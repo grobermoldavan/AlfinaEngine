@@ -100,54 +100,48 @@ namespace al
         platform_input_construct(&application->input);
         {
             AllocatorBindings allocatorBindings = get_allocator_bindings(&application->pool);
-            PlatformFile shaders[] =
+            PlatformFile allShaders[] =
             {
-                platform_file_load(allocatorBindings, platform_path("assets", "shaders", "test.spv"), PlatformFileLoadMode::READ),
-                platform_file_load(allocatorBindings, platform_path("assets", "shaders", "vert.spv"), PlatformFileLoadMode::READ),
-                platform_file_load(allocatorBindings, platform_path("assets", "shaders", "frag.spv"), PlatformFileLoadMode::READ),
+                platform_file_load(allocatorBindings, platform_path("assets", "shaders", "geometry_pass.frag.spv"), PlatformFileLoadMode::READ),
+                platform_file_load(allocatorBindings, platform_path("assets", "shaders", "geometry_pass.vert.spv"), PlatformFileLoadMode::READ),
             };
-            defer(for (uSize it = 0; it < array_size(shaders); it++) platform_file_unload(allocatorBindings, shaders[it]));
-            // AttachmentDescription attachments[] =
-            // {
-            //     SCREEN_FRAMEBUFFER_DESC,
-            // };
-            // AttachmentDependency outAttachments[] =
-            // {
-            //     {
-            //         .attachmentIndex = 0,
-            //         .flags = 0
-            //     }
-            // };
-            // RenderStageDescription renderStages[] =
-            // {
-            //     {   // This pass takes no input framebuffer and outputs to swap chain framebuffer and it renders all passed geometry
-            //         .vertexShader           = vertexShader,
-            //         .fragmentShader         = fragmentShader,
-            //         .inAttachmentsSize      = 0,
-            //         .inAttachments          = nullptr,
-            //         .outAttachmentsSize     = array_size(outAttachments),
-            //         .outAttachments         = outAttachments,
-            //         .flags                  = RenderStageDescription::FLAG_PASS_GEOMETRY
-            //     },
-            // };
-            // RenderProcessDescription process
-            // {
-            //     .attachmentsSize    = array_size(attachments),
-            //     .attachments        = attachments,
-            //     .renderStagesSize   = array_size(renderStages),
-            //     .renderStages       = renderStages,
-            // };
+            defer(for (uSize it = 0; it < array_size(allShaders); it++) platform_file_unload(allocatorBindings, allShaders[it]));
+            ImageAttachment renderProcessAttachments[] =
+            {
+                { .format = ImageAttachment::DEPTH_32F, .width = 0, .height = 0, },
+                { .format = ImageAttachment::RGBA_8,    .width = 0, .height = 0, },
+                { .format = ImageAttachment::RGB_32F,   .width = 0, .height = 0, },
+                { .format = ImageAttachment::RGB_32F,   .width = 0, .height = 0, },
+            };
+            PlatformFile stageShaders[] = { allShaders[0], allShaders[1], };
+            OutputAttachmentReference stageOutputs[] =
+            {
+                { .imageAttachmentIndex = 1, .name = "out_albedo", },
+                { .imageAttachmentIndex = 2, .name = "out_position", },
+                { .imageAttachmentIndex = 3, .name = "out_normal", },
+            };
+            DepthUsageInfo stageDepth { .imageAttachmentIndex = 0, };
+            RenderStage renderProcessStages[] =
+            {
+                {
+                    .shaders            = { .ptr = stageShaders, .size = array_size(stageShaders), },
+                    .sampledAttachments = { .ptr = nullptr, .size = 0, },
+                    .outputAttachments  = { .ptr = stageOutputs, .size = array_size(stageOutputs), },
+                    .depth              = &stageDepth,
+                    .stageDependencies  = { .ptr = nullptr, .size = 0, },
+                },
+            };
+            RenderProcessDescription renderProcessDesccription
+            {
+                .imageAttachments           = { .ptr = renderProcessAttachments, .size = array_size(renderProcessAttachments), },
+                .stages                     = { .ptr = renderProcessStages, .size = array_size(renderProcessStages), },
+                .resultImageAttachmentIndex = 1,
+            };
             RendererInitData rendererInitData
             {
                 .bindings           = get_allocator_bindings(&application->pool),
                 .window             = &application->window,
-                .renderProcessDesc  = nullptr, //&process,
-                ._shadersSpvBytecode =
-                {
-                    .bindings = { },
-                    .memory = shaders,
-                    .count = array_size(shaders),
-                },
+                .renderProcessDesc  = &renderProcessDesccription,
             };
             renderer_construct(&application->renderer, &rendererInitData);
         }

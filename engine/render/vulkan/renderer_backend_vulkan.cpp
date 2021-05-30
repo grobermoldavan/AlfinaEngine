@@ -22,53 +22,53 @@ namespace al
         using namespace vulkan;
         backend->window = initData->window;
 
+        for (uSize stageIt = 0; stageIt < initData->renderProcessDesc->stages.size; stageIt++)
         {
+            RenderStage* stage = &initData->renderProcessDesc->stages.ptr[stageIt];
             ArrayView<SpirvReflection> reflections;
-            av_construct(&reflections, &initData->bindings, initData->_shadersSpvBytecode.count);
-            defer(av_destruct(reflections));
-            for (uSize it = 0; it < reflections.count; it++)
+            av_construct(&reflections, &initData->bindings, stage->shaders.size);
+            for (uSize shaderIt = 0; shaderIt < stage->shaders.size; shaderIt++)
             {
-                SpirvWord* shaderBytecode = static_cast<SpirvWord*>(initData->_shadersSpvBytecode[it].memory);
-                uSize numWords = initData->_shadersSpvBytecode[it].sizeBytes / 4;
-                construct_spirv_reflecttion(&reflections[it], initData->bindings, shaderBytecode, numWords);
+                SpirvWord* shaderBytecode = static_cast<SpirvWord*>(stage->shaders.ptr[shaderIt].memory);
+                uSize numWords = stage->shaders.ptr[shaderIt].sizeBytes / 4;
+                construct_spirv_reflecttion(&reflections[shaderIt], initData->bindings, shaderBytecode, numWords);
             }
             for (uSize reflectionIt = 0; reflectionIt < reflections.count; reflectionIt++)
             {
-                printf("=============================================================\n");
                 SpirvReflection* reflection = &reflections[reflectionIt];
-                al_vk_log_msg("Processing reflection data of shader with type %s :\n", shader_type_to_str(reflection->shaderType));
-                for (uSize inputIt = 0; inputIt < reflection->shaderInputCount; inputIt++)
-                {
-                    SpirvReflection::ShaderInput* input = &reflection->shaderInputs[inputIt];
-                    al_vk_log_msg("    Shader input : name %s, location %d, size bytes %d\n", input->name, input->location, input->sizeBytes);
-                }
+                al_vk_log_msg("Shader type: %s\n", shader_type_to_str(reflection->shaderType));
                 for (uSize uniformIt = 0; uniformIt < reflection->uniformCount; uniformIt++)
                 {
                     SpirvReflection::Uniform* uniform = &reflection->uniforms[uniformIt];
-                    al_vk_log_msg("    Shader uniform set %d and binding %d\n", (int)uniform->set, (int)uniform->binding);
+                    al_vk_log_msg("    Uniform %s at set %d and binding %d:\n", uniform->name, uniform->set, uniform->binding);
                     if (uniform->type == SpirvReflection::Uniform::BUFFER)
                     {
-                        al_vk_log_msg("    Shader uniform buffer\n");
-                        al_vk_log_msg("    Number of uniform buffer struct members is %d\n", (int)uniform->buffer->membersNum);
-                        for (uSize it = 0; it < uniform->buffer->membersNum; it++)
-                        {
-                            al_vk_log_msg("        Member %s size is %d\n", uniform->buffer->members[it].name, (int)uniform->buffer->members[it].sizeBytes);
-                        }
+                        al_vk_log_msg("        Uniform buffer size: %zd\n", get_type_info_size(uniform->buffer));
+                        print_type_info(uniform->buffer, reflection, 2);
                     }
-                    else if (uniform->type == SpirvReflection::Uniform::IMAGE)
+                    else
                     {
-                        al_vk_log_msg("    Shader uniform image\n");
+                        al_vk_log_msg("        Uniform type is image.\n");
                     }
+                }
+                for (uSize inputIt = 0; inputIt < reflection->shaderInputCount; inputIt++)
+                {
+                    SpirvReflection::ShaderIO* input = &reflection->shaderInputs[inputIt];
+                    if (input->flags & (1 << SpirvReflection::ShaderIO::IS_BUILT_IN)) al_vk_log_msg("   BUILD IN!!!! ");
+                    al_vk_log_msg("    Input %s of size %zd at location %d:\n", input->name, get_type_info_size(input->typeInfo), input->location);
+                    print_type_info(input->typeInfo, reflection, 2);
+                }
+                for (uSize outputIt = 0; outputIt < reflection->shaderOutputCount; outputIt++)
+                {
+                    SpirvReflection::ShaderIO* output = &reflection->shaderOutputs[outputIt];
+                    if (output->flags & (1 << SpirvReflection::ShaderIO::IS_BUILT_IN)) al_vk_log_msg("   BUILD IN!!!! ");
+                    al_vk_log_msg("    Output %s of size %zd at location %d:\n", output->name, get_type_info_size(output->typeInfo), output->location);
+                    print_type_info(output->typeInfo, reflection, 2);
                 }
                 if (reflection->pushConstant)
                 {
-                    al_vk_log_msg("\n");
-                    al_vk_log_msg("    Push constant is present in the shader\n");
-                    al_vk_log_msg("    Number of push constant struct members is %d\n", (int)reflection->pushConstant->membersNum);
-                    for (uSize it = 0; it < reflection->pushConstant->membersNum; it++)
-                    {
-                        al_vk_log_msg("        Member %s size is %d\n", reflection->pushConstant->members[it].name, (int)reflection->pushConstant->members[it].sizeBytes);
-                    }
+                    al_vk_log_msg("    Push constant %s of size %zd:\n", reflection->pushConstant->name, get_type_info_size(reflection->pushConstant->typeInfo));
+                    print_type_info(reflection->pushConstant->typeInfo, reflection, 2);
                 }
             }
         }

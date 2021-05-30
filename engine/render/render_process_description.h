@@ -1,71 +1,67 @@
-#ifndef AL_RENDERER_PIPELINE_DESCRIPTION_H
-#define AL_RENDERER_PIPELINE_DESCRIPTION_H
+#ifndef AL_RENDERER_PROCESS_DESCRIPTION_H
+#define AL_RENDERER_PROCESS_DESCRIPTION_H
 
 #include "engine/types.h"
 #include "engine/platform/platform.h"
 
 namespace al
 {
-    struct AttachmentDescription
+    template<typename T>
+    struct PointerWithSize
     {
-        enum Format : u32
-        {
-            FORMAT_RGBA_8,
-            FORMAT_RGBA_32F,
-        };
-        enum Flags : u32
-        {
-            FLAG_FRAMEBUFFER_SIZE_EQUALS_WINDOW_SIZE = 1 << 0,   // Framebuffer will be automatically resized to window size
-            FLAG_SCREEN_FRAMEBUFFER                  = 1 << 1,   // This is window screen
-        };
-        uSize   width;
-        uSize   height;
-        Format  format;
-        u32     flags;
-        // @TODO :  Add an option to use double/triple/n-buffering
+        T* ptr;
+        uSize size;
     };
 
-    constexpr AttachmentDescription SCREEN_FRAMEBUFFER_DESC
+    struct ImageAttachment
     {
-        .width  = { },
-        .height = { },
-        .format = { },
-        .flags  = AttachmentDescription::FLAG_SCREEN_FRAMEBUFFER | AttachmentDescription::FLAG_FRAMEBUFFER_SIZE_EQUALS_WINDOW_SIZE,
+        enum Format
+        {
+            DEPTH_32F,
+            RGBA_8,
+            RGB_32F,
+        };
+        Format format;
+        u32 width;
+        u32 height;
     };
 
-    struct AttachmentDependency
+    struct SampledAttachmentReference
     {
-        enum Flags : u32
-        {
-            FLAG_USE_AS_SAMPLER = 1 << 0,    // Attachment will be used as sampler2d, otherwise it will be used as subpassInput
-        };
-        uSize   attachmentIndex; // idex into RenderConfiguration::framebuffers array
-        u32     flags;
+        uSize imageAttachmentIndex;
+        const char* name; // set and binding will be retrieved from reflection data
     };
 
-    struct RenderStageDescription
+    struct OutputAttachmentReference
     {
-        enum Flags : u32
-        {
-            FLAG_PASS_GEOMETRY   = 1 << 0,   // All geometry submitted for drawing will be passed to vertex shader
-        };
-        PlatformFile            vertexShader;
-        PlatformFile            fragmentShader;
-        uSize                   inAttachmentsSize;
-        AttachmentDependency*   inAttachments;
-        uSize                   outAttachmentsSize;
-        AttachmentDependency*   outAttachments;
-        u32                     flags;
-        // @TODO :  Add an option to filter geometry by some kind of user-defined tag?
-        //          If render pass doesn't need all geometry, but only some specific types of it
+        uSize imageAttachmentIndex;
+        const char* name; // location will be retrieved from reflection data
+    };
+
+    struct DepthUsageInfo
+    {
+        uSize imageAttachmentIndex;
+    };
+
+    struct StageDependency
+    {
+        uSize stageIndex;
+    };
+
+    struct RenderStage
+    {
+        PointerWithSize<PlatformFile> shaders;
+        PointerWithSize<SampledAttachmentReference> sampledAttachments;
+        PointerWithSize<OutputAttachmentReference> outputAttachments;
+        DepthUsageInfo* depth;
+        PointerWithSize<StageDependency> stageDependencies;
     };
 
     struct RenderProcessDescription
     {
-        uSize                   attachmentsSize;
-        AttachmentDescription*  attachments;
-        uSize                   renderStagesSize;
-        RenderStageDescription* renderStages;
+        PointerWithSize<ImageAttachment> imageAttachments;
+        PointerWithSize<RenderStage> stages;
+        uSize resultImageAttachmentIndex;
     };
 }
 

@@ -8,8 +8,6 @@
 #endif
 
 #include <vulkan/vulkan.h>
-#include <spirv-headers/spirv.h>
-
 #include <cassert>
 
 #define al_vk_check(cmd)            do { VkResult result = cmd; assert(result == VK_SUCCESS); } while(0)

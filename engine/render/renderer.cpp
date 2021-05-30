@@ -10,11 +10,10 @@ namespace al
         // @TODO : validate render configuration
         RendererBackendInitData backendInitData
         {
-            .bindings               = initData->bindings,
-            .applicationName        = "Application Name",
-            .window                 = initData->window,
-            .renderProcessDesc      = initData->renderProcessDesc,
-            ._shadersSpvBytecode    = initData->_shadersSpvBytecode,
+            .bindings           = initData->bindings,
+            .applicationName    = "Application Name",
+            .window             = initData->window,
+            .renderProcessDesc  = initData->renderProcessDesc,
         };
         renderer_backend_construct(&renderer->backend, &backendInitData);
     }

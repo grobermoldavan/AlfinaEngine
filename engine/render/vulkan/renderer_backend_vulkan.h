@@ -282,8 +282,8 @@ namespace al::vulkan
 
     struct RendererBackend
     {
-        static constexpr PlatformFilePath VERTEX_SHADER_PATH    = { .memory = "assets" AL_PATH_SEPARATOR "shaders" AL_PATH_SEPARATOR "vert.spv" };
-        static constexpr PlatformFilePath FRAGMENT_SHADER_PATH  = { .memory = "assets" AL_PATH_SEPARATOR "shaders" AL_PATH_SEPARATOR "frag.spv" };
+        static constexpr PlatformFilePath VERTEX_SHADER_PATH    = { .memory = "assets" AL_PATH_SEPARATOR "shaders" AL_PATH_SEPARATOR "triangle.vert.spv" };
+        static constexpr PlatformFilePath FRAGMENT_SHADER_PATH  = { .memory = "assets" AL_PATH_SEPARATOR "shaders" AL_PATH_SEPARATOR "triangle.frag.spv" };
 
         VulkanMemoryManager         memoryManager;
         VkDebugUtilsMessengerEXT    debugMessenger;

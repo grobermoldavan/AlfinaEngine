@@ -21,8 +21,6 @@ namespace al
         const char*                 applicationName;
         PlatformWindow*             window;
         RenderProcessDescription*   renderProcessDesc;
-
-        ArrayView<PlatformFile> _shadersSpvBytecode;
     };
 
     template<typename T> void renderer_backend_construct     (T* backend, RendererBackendInitData* initData)    { /* @TODO :  assert here */ }

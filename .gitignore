@@ -4,4 +4,6 @@
 .vs
 profile.json
 user_application.obj
+*.spv
+*.spv.dis
 *.cap

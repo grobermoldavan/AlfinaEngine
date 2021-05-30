@@ -3,7 +3,26 @@
 
 #include "engine/types.h"
 #include "engine/utilities/utilities.h"
-#include "vulkan_base.h"
+
+#include <spirv-headers/spirv.h>
+
+#ifndef al_srs_printf
+#   include <cstdio>
+#   define al_srs_printf(fmt, ...) std::printf(fmt, __VA_ARGS__)
+#endif
+
+#ifndef al_srs_assert
+#   include <cassert>
+#   define al_srs_assert(condition) assert(condition)
+#endif
+
+#ifndef al_srs_array_size
+#   define al_srs_array_size(array) sizeof(array) / sizeof(array[0])
+#endif
+
+#ifndef al_srs_indent
+#   define al_srs_indent "    "
+#endif
 
 namespace al::vulkan
 {
@@ -17,118 +36,99 @@ namespace al::vulkan
             VERTEX,
             FRAGMENT,
         };
-        struct ShaderInput
+        struct TypeInfo
         {
-            const char* name;
-            u32 location;
-            u32 sizeBytes;
-        };
-        struct ShaderStruct
-        {
-            struct Member
+            enum struct ScalarKind { INTEGER, FLOAT, };
+            enum Kind { SCALAR, VECTOR, MATRIX, STRUCTURE, ARRAY };
+            union
             {
-                const char* name;
-                uSize sizeBytes;
-            };
+                struct
+                {
+                    ScalarKind kind;
+                    u8 bitWidth;
+                    bool isSigned;
+                } scalar;
+                struct
+                {
+                    TypeInfo* componentType;
+                    u8 componentsCount;
+                } vector;
+                struct
+                {
+                    TypeInfo* columnType;
+                    u8 columnsCount;
+                } matrix;
+                struct Structure
+                {
+                    const char* typeName;
+                    TypeInfo** members;
+                    const char** memberNames;
+                    uSize membersCount;
+                } structure;
+                struct Array
+                {
+                    TypeInfo* entryType;
+                    uSize size;
+                } array;
+            } info;
+            Kind kind;
+            TypeInfo* next;
+        };
+        struct ShaderIO
+        {
+            enum Flags { IS_BUILT_IN, };
             const char* name;
-            Member* members;
-            uSize membersNum;
+            TypeInfo* typeInfo;
+            u32 location;
+            u32 flags;
         };
         struct Image
         {
-            enum Flags
-            {
-                IS_SAMPLED,
-                IS_SUBPASS_DEPENDENCY,
-            };
+            enum Flags { IS_SAMPLED, IS_SUBPASS_DEPENDENCY, };
             u32 flags;
         };
         struct Uniform
         {
-            enum Type
-            {
-                IMAGE,
-                BUFFER,
-            };
+            enum Type { IMAGE, BUFFER, };
             const char* name;
             Type type;
             union
             {
-                ShaderStruct* buffer;
-                Image* image;
+                Image image;
+                TypeInfo* buffer;
             };
             u32 set;
             u32 binding;
-            // u32 inputAttachmentIndex; ????
         };
+        struct PushConstant
+        {
+            const char* name;
+            TypeInfo* typeInfo;
+        };
+
         u8 dynamicMemoryBuffer[DYNAMIC_BUFFER_BUFFER_SIZE];
         uSize dynamicMemoryBufferCounter;
+
+        TypeInfo* typeInfos; // stored as linked list
 
         ShaderType shaderType;
         const char* entryPointName;
 
-        ShaderInput* shaderInputs;
+        ShaderIO* shaderInputs;
         uSize shaderInputCount;
+
+        ShaderIO* shaderOutputs;
+        uSize shaderOutputCount;
 
         Uniform* uniforms;
         uSize uniformCount;
 
-        ShaderStruct* pushConstant;
+        PushConstant* pushConstant;
     };
-
-    struct SpirvId
-    {
-        enum Flags
-        {
-            IS_INPUT                = 0,
-            IS_OUTPUT               = 1,
-            IS_PUSH_CONSTANT        = 2,
-            IS_UNIFORM              = 3,
-            HAS_LOCATION_DECORATION = 4,
-            HAS_BINDING_DECORATION  = 5,
-            HAS_SET_DECORATION      = 6,
-        };
-        SpirvWord* declarationLocation;
-        char* name;
-        u32 flags;
-        u32 location;   // decoration
-        u32 binding;    // decoration
-        u32 set;        // decoration
-    };
-
-    struct SpirvStruct
-    {
-        struct Member
-        {
-            SpirvId* id;
-            char* name;
-        };
-        SpirvId* id;
-        uSize membersNum;
-        Member* members;
-    };
-
-    SpirvReflection::ShaderType execution_mode_to_shader_type(SpvExecutionModel model);
-    const char* op_code_to_str(u16 opCode);
-
-    u8*     allocate_data_in_buffer (uSize dataSize, u8* buffer, uSize* bufferPtr, uSize bufferSize);
-    u8*     allocate_data_in_buffer (uSize dataSize, SpirvReflection* reflection);
-    u8*     save_data_to_buffer     (void* data, uSize dataSize, u8* buffer, uSize* bufferPtr, uSize bufferSize);
-    char*   save_string_to_buffer   (char* str, u8* buffer, uSize* bufferPtr, uSize bufferSize);
-    char*   save_string_to_buffer   (char* str, SpirvReflection* reflection);
-
-    uSize get_id_size(SpirvStruct* structs, uSize numStructs, SpirvId* ids, SpirvId* id);
-    void save_runtime_struct_to_result_struct(SpirvStruct* structs, uSize structsNum, SpirvId* ids, SpirvStruct* runtimeStruct, SpirvReflection::ShaderStruct* resultStruct, SpirvReflection* reflection);
-    SpirvStruct* find_struct_by_id(SpirvStruct* structs, uSize numStructs, SpirvId* id);
-
-    void save_runtime_struct_to_result_struct(SpirvStruct* runtimeStruct, SpirvReflection::ShaderStruct* resultStruct, SpirvReflection* reflection);
-
-    void process_shader_input_variable(SpirvStruct* structs, uSize structsNum, SpirvId* ids, SpirvId* inputVariable, SpirvReflection* reflection);
-    void process_shader_push_constant(SpirvStruct* structs, uSize structsNum, SpirvId* ids, SpirvId* pushConstant, SpirvReflection* reflection);
-    void process_shader_uniform_buffer(SpirvStruct* structs, uSize structsNum, SpirvId* ids, SpirvId* uniform, SpirvReflection* reflection);
-    u32 get_storage_class_flags(SpirvWord word);
 
     void construct_spirv_reflecttion(SpirvReflection* reflection, AllocatorBindings bindings, SpirvWord* bytecode, uSize wordCount);
+    void print_type_info(SpirvReflection::TypeInfo* typeInfo, SpirvReflection* reflection, uSize indentationLevel = 0, const char* structMemberName = nullptr);
+    uSize get_type_info_size(SpirvReflection::TypeInfo* typeInfo);
 
     const char* shader_type_to_str(SpirvReflection::ShaderType type);
 }
