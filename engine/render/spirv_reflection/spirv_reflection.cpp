@@ -20,6 +20,8 @@ namespace al::vulkan
             HAS_BINDING_DECORATION  = 5,
             HAS_SET_DECORATION      = 6,
             IS_BUILT_IN             = 7,
+            IS_BLOCK                = 8,
+            IS_BUFFER_BLOCK         = 9,
         };
         SpirvWord* declarationLocation;
         char* name;
@@ -52,38 +54,13 @@ namespace al::vulkan
         return SpirvReflection::ShaderType(0);
     }
 
-    static u8* allocate_data_in_buffer(uSize dataSize, u8* buffer, uSize* bufferPtr, uSize bufferSize)
-    {
-        u8* result = nullptr;
-        al_srs_assert(dataSize < (bufferSize - *bufferPtr) && "Dynamic buffer overflow");
-        result = &buffer[*bufferPtr];
-        *bufferPtr += dataSize;
-        return result;
-    }
-
-    static u8* allocate_data_in_buffer(uSize dataSize, SpirvReflection* reflection)
-    {
-        return allocate_data_in_buffer(dataSize, reflection->dynamicMemoryBuffer, &reflection->dynamicMemoryBufferCounter, SpirvReflection::DYNAMIC_BUFFER_BUFFER_SIZE);
-    }
-
-    static u8* save_data_to_buffer(const void* data, uSize dataSize, u8* buffer, uSize* bufferPtr, uSize bufferSize)
-    {
-        u8* result = allocate_data_in_buffer(dataSize, buffer, bufferPtr, bufferSize);
-        std::memcpy(result, data, dataSize);
-        return result;
-    }
-
-    static char* save_string_to_buffer(const char* str, u8* buffer, uSize* bufferPtr, uSize bufferSize)
-    {
-        uSize length = std::strlen(str);
-        char* result = (char*)save_data_to_buffer(str, length + 1, buffer, bufferPtr, bufferSize);
-        result[length] = 0;
-        return result;
-    }
-
     static char* save_string_to_buffer(const char* str, SpirvReflection* reflection)
     {
-        return save_string_to_buffer(str, reflection->dynamicMemoryBuffer, &reflection->dynamicMemoryBufferCounter, SpirvReflection::DYNAMIC_BUFFER_BUFFER_SIZE);
+        uSize length = std::strlen(str);
+        char* result = fixed_size_buffer_allocate<char>(&reflection->buffer, length + 1);
+        std::memcpy(result, str, length);
+        result[length] = 0;
+        return result;
     }
 
     static SpirvStruct* find_struct_by_id(SpirvStruct* structs, uSize structsCount, SpirvId* id)
@@ -255,8 +232,8 @@ namespace al::vulkan
                 {
                     structure->typeName = save_string_to_buffer(structure->typeName, reflection);
                     structure->membersCount = runtimeStruct->membersCount;
-                    structure->members = (SpirvReflection::TypeInfo**)allocate_data_in_buffer(sizeof(SpirvReflection::TypeInfo*) * structure->membersCount, reflection);
-                    structure->memberNames = (const char**)allocate_data_in_buffer(sizeof(const char*) * structure->membersCount, reflection);
+                    structure->members = fixed_size_buffer_allocate<SpirvReflection::TypeInfo*>(&reflection->buffer, structure->membersCount);
+                    structure->memberNames = fixed_size_buffer_allocate<const char*>(&reflection->buffer, structure->membersCount);
                     for (uSize it = 0; it < structure->membersCount; it++)
                     {
                         structure->members[it] = save_or_get_type_from_reflection(structs, structsCount, ids, runtimeStruct->members[it].id, reflection);
@@ -270,8 +247,19 @@ namespace al::vulkan
                 switch(OPCODE(id->declarationLocation[0]))
                 {
                     case SpvOpTypeRuntimeArray: { array->size = 0; } break;
-                    case SpvOpTypeArray:        { array->size = id->declarationLocation[3]; } break;
-                    default:                    al_srs_assert(!"Unknown array type");
+                    case SpvOpTypeArray:
+                    {
+                        SpirvId* constant = &ids[id->declarationLocation[3]];
+                        SpirvId* constantType = &ids[constant->declarationLocation[1]];
+                        al_srs_assert(OPCODE(constantType->declarationLocation[0]) == SpvOpTypeInt);
+                        SpirvWord arraySizeConstantBitWidth = constantType->declarationLocation[2];
+                        switch (arraySizeConstantBitWidth)
+                        {
+                            case 32: array->size = *((u32*)&constant->declarationLocation[3]); break;
+                            default: al_srs_assert(!"Unsupported array size constat bit width");
+                        };
+                    } break;
+                    default: al_srs_assert(!"Unknown array type");
                 }
                 array->entryType = save_or_get_type_from_reflection(structs, structsCount, ids, &ids[id->declarationLocation[2]], reflection);
                 matchedType = try_match_array_type(&resultType, reflection);
@@ -279,10 +267,10 @@ namespace al::vulkan
         }
         if (!matchedType)
         {
-            matchedType = (SpirvReflection::TypeInfo*)allocate_data_in_buffer(sizeof(SpirvReflection::TypeInfo), reflection);
+            matchedType = fixed_size_buffer_allocate<SpirvReflection::TypeInfo>(&reflection->buffer);
             std::memcpy(matchedType, &resultType, sizeof(resultType));
             SpirvReflection::TypeInfo* lastTypeInfo = get_last_value_type(reflection);
-            if (lastTypeInfo)  { lastTypeInfo->next = matchedType; }
+            if (lastTypeInfo)   { lastTypeInfo->next = matchedType; }
             else                { reflection->typeInfos = matchedType; }
         }
         return matchedType;
@@ -317,7 +305,7 @@ namespace al::vulkan
 
     static void process_shader_push_constant(SpirvStruct* structs, uSize structsCount, SpirvId* ids, SpirvId* pushConstant, SpirvReflection* reflection)
     {
-        reflection->pushConstant = (SpirvReflection::PushConstant*)allocate_data_in_buffer(sizeof(SpirvReflection::PushConstant), reflection);
+        reflection->pushConstant = fixed_size_buffer_allocate<SpirvReflection::PushConstant>(&reflection->buffer);
         reflection->pushConstant->name = save_string_to_buffer(pushConstant->name, reflection);
         // Start from variable declaration
         al_srs_assert(OPCODE(pushConstant->declarationLocation[0]) == SpvOpVariable);
@@ -347,7 +335,15 @@ namespace al::vulkan
         SpirvId* uniformTypeId = &ids[instruction[3]];
         if (OPCODE(uniformTypeId->declarationLocation[0]) == SpvOpTypeStruct)
         {
-            uniform->type = SpirvReflection::Uniform::BUFFER;
+            if (uniformTypeId->flags & (1 << SpirvId::IS_BLOCK))
+            {
+                uniform->type = SpirvReflection::Uniform::UNIFORM_BUFFER;
+            }
+            else
+            {
+                al_vk_assert(uniformTypeId->flags & (1 << SpirvId::IS_BUFFER_BLOCK));
+                uniform->type = SpirvReflection::Uniform::STORAGE_BUFFER;
+            }
             uniform->buffer = save_or_get_type_from_reflection(structs, structsCount, ids, uniformTypeId, reflection);
         }
         else if (OPCODE(uniformTypeId->declarationLocation[0]) == SpvOpTypeSampledImage ||  // Sampler1D, Sampler2D, Sampler3D
@@ -384,16 +380,19 @@ namespace al::vulkan
         return 0;
     }
 
-    void construct_spirv_reflecttion(SpirvReflection* reflection, AllocatorBindings bindings, SpirvWord* bytecode, uSize wordCount)
+    void construct_spirv_reflection(SpirvReflection* reflection, AllocatorBindings bindings, SpirvWord* bytecode, uSize wordCount)
     {
         al_srs_assert(bytecode);
         std::memset(reflection, 0, sizeof(SpirvReflection));
         //
-        // Header validation and info
+        // Basic header validation + retrieving number of unique ids (bound) used in bytecode
         //
         al_srs_assert(bytecode[0] == SpvMagicNumber);
         uSize bound = bytecode[3];
         SpirvWord* instruction = nullptr;
+        //
+        // Allocate SpirvId array which will hols all neccessary information about shaders identifiers
+        //
         SpirvId* ids = nullptr;
         ids = (SpirvId*)allocate(&bindings, sizeof(SpirvId) * bound);
         std::memset(ids, 0, sizeof(SpirvId) * bound);
@@ -427,6 +426,7 @@ namespace al::vulkan
                 case SpvOpTypeVector:   al_srs_assert(instructionWordCount == 4); SAVE_DECLARATION_LOCATION(1); break;
                 case SpvOpTypeMatrix:   al_srs_assert(instructionWordCount == 4); SAVE_DECLARATION_LOCATION(1); break;
                 case SpvOpTypeStruct:   al_srs_assert(instructionWordCount >= 2); SAVE_DECLARATION_LOCATION(1); break;
+                case SpvOpConstant:     al_srs_assert(instructionWordCount >= 3); SAVE_DECLARATION_LOCATION(2); break;
                 case SpvOpTypePointer:
                 {
                     al_srs_assert(instructionWordCount == 4);
@@ -485,12 +485,25 @@ namespace al::vulkan
                     SpvDecoration decoration = SpvDecoration(instruction[2]);
                     switch (decoration)
                     {
+                        case SpvDecorationBlock:
+                        {
+                            al_srs_assert(instructionWordCount == 3);
+                            SpirvWord id = instruction[1];
+                            al_srs_assert(id < bound);
+                            ids[id].flags |= 1 << SpirvId::IS_BLOCK;
+                        } break;
+                        case SpvDecorationBufferBlock:
+                        {
+                            al_srs_assert(instructionWordCount == 3);
+                            SpirvWord id = instruction[1];
+                            al_srs_assert(id < bound);
+                            ids[id].flags |= 1 << SpirvId::IS_BUFFER_BLOCK;
+                        } break;
                         case SpvDecorationBuiltIn:
                         {
                             al_srs_assert(instructionWordCount == 4);
                             SpirvWord id = instruction[1];
                             al_srs_assert(id < bound);
-                            ids[id].location = decltype(ids[id].location)(instruction[3]);
                             ids[id].flags |= 1 << SpirvId::IS_BUILT_IN;
                         } break;
                         case SpvDecorationLocation:
@@ -522,12 +535,15 @@ namespace al::vulkan
             }
             instruction += instructionWordCount;
         }
-        reflection->shaderInputs = (SpirvReflection::ShaderIO*)allocate_data_in_buffer(sizeof(SpirvReflection::ShaderIO) * inputsCount, reflection);
-        reflection->shaderOutputs = (SpirvReflection::ShaderIO*)allocate_data_in_buffer(sizeof(SpirvReflection::ShaderIO) * outputsCount, reflection);
-        reflection->uniforms = (SpirvReflection::Uniform*)allocate_data_in_buffer(sizeof(SpirvReflection::Uniform) * uniformsCount, reflection);
+        reflection->shaderInputs = fixed_size_buffer_allocate<SpirvReflection::ShaderIO>(&reflection->buffer, inputsCount);
+        reflection->shaderOutputs = fixed_size_buffer_allocate<SpirvReflection::ShaderIO>(&reflection->buffer, outputsCount);
+        reflection->uniforms = fixed_size_buffer_allocate<SpirvReflection::Uniform>(&reflection->buffer, uniformsCount);
 #undef SAVE_DECLARATION_LOCATION
         //
         // Step 2. Retrieving information about shader structs
+        //
+        //
+        // Step 2.1. Count number of structs and struct members
         //
         SpirvStruct* structs;
         SpirvStruct::Member* structMembers;
@@ -547,10 +563,16 @@ namespace al::vulkan
             }
             instruction += instructionWordCount;
         }
+        //
+        // Step 2.2. Allocate structs and struct members arrays
+        //
         structs = (SpirvStruct*)allocate(&bindings, sizeof(SpirvStruct) * structsCount);
         defer(deallocate(&bindings, structs, sizeof(SpirvStruct) * structsCount));
         structMembers = (SpirvStruct::Member*)allocate(&bindings, sizeof(SpirvStruct::Member) * structmembersCount);
         defer(deallocate(&bindings, structMembers, sizeof(SpirvStruct::Member) * structmembersCount));
+        //
+        // Step 2.3. Save struct and struct members ids
+        //
         uSize structCounter = 0;
         uSize memberCounter = 0;
         for (instruction = bytecode + 5; instruction < (bytecode + wordCount);)
@@ -575,6 +597,9 @@ namespace al::vulkan
             }
             instruction += instructionWordCount;
         }
+        //
+        // Step 2.4. Save struct members names
+        //
         for (instruction = bytecode + 5; instruction < (bytecode + wordCount);)
         {
             u16 instructionOpCode = OPCODE(instruction[0]);
@@ -683,7 +708,7 @@ namespace al::vulkan
             {
                 if (typeInfo->info.array.size == 0) al_srs_printf("runtime array ");
                 else                                al_srs_printf("array of size %zd ", typeInfo->info.array.size);
-                al_srs_printf("with following entrie type:\n");
+                al_srs_printf("with following entry type:\n");
                 print_type_info(typeInfo->info.array.entryType, reflection, indentationLevel + 1);
             } break;
             default: al_srs_assert(!"Unknown SpirvReflection::TypeInfo::Kind");

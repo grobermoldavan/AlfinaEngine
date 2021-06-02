@@ -4,6 +4,7 @@
 #include "render_process_description.h"
 #include "renderer_backend_core.h"
 #include "vulkan/renderer_backend_vulkan.h"
+#include "spirv_reflection/spirv_reflection.h"
 
 #include "engine/memory/memory.h"
 

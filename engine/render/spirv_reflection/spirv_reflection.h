@@ -89,7 +89,7 @@ namespace al::vulkan
         };
         struct Uniform
         {
-            enum Type { IMAGE, BUFFER, };
+            enum Type { IMAGE, UNIFORM_BUFFER, STORAGE_BUFFER };
             const char* name;
             Type type;
             union
@@ -106,8 +106,7 @@ namespace al::vulkan
             TypeInfo* typeInfo;
         };
 
-        u8 dynamicMemoryBuffer[DYNAMIC_BUFFER_BUFFER_SIZE];
-        uSize dynamicMemoryBufferCounter;
+        FixedSizeBuffer<DYNAMIC_BUFFER_BUFFER_SIZE> buffer;
 
         TypeInfo* typeInfos; // stored as linked list
 
@@ -126,7 +125,7 @@ namespace al::vulkan
         PushConstant* pushConstant;
     };
 
-    void construct_spirv_reflecttion(SpirvReflection* reflection, AllocatorBindings bindings, SpirvWord* bytecode, uSize wordCount);
+    void construct_spirv_reflection(SpirvReflection* reflection, AllocatorBindings bindings, SpirvWord* bytecode, uSize wordCount);
     void print_type_info(SpirvReflection::TypeInfo* typeInfo, SpirvReflection* reflection, uSize indentationLevel = 0, const char* structMemberName = nullptr);
     uSize get_type_info_size(SpirvReflection::TypeInfo* typeInfo);
 

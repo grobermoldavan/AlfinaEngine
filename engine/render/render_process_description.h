@@ -3,17 +3,11 @@
 
 #include "engine/types.h"
 #include "engine/platform/platform.h"
+#include "engine/utilities/utilities.h"
 
 namespace al
 {
-    template<typename T>
-    struct PointerWithSize
-    {
-        T* ptr;
-        uSize size;
-    };
-
-    struct ImageAttachment
+    struct ImageAttachmentDescription
     {
         enum Format
         {
@@ -48,19 +42,20 @@ namespace al
         uSize stageIndex;
     };
 
-    struct RenderStage
+    struct RenderStageDescription
     {
         PointerWithSize<PlatformFile> shaders;
         PointerWithSize<SampledAttachmentReference> sampledAttachments;
         PointerWithSize<OutputAttachmentReference> outputAttachments;
         DepthUsageInfo* depth;
         PointerWithSize<StageDependency> stageDependencies;
+        const char* name;
     };
 
     struct RenderProcessDescription
     {
-        PointerWithSize<ImageAttachment> imageAttachments;
-        PointerWithSize<RenderStage> stages;
+        PointerWithSize<ImageAttachmentDescription> imageAttachments;
+        PointerWithSize<RenderStageDescription> stages;
         uSize resultImageAttachmentIndex;
     };
 }

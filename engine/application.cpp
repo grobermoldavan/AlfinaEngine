@@ -106,12 +106,12 @@ namespace al
                 platform_file_load(allocatorBindings, platform_path("assets", "shaders", "geometry_pass.vert.spv"), PlatformFileLoadMode::READ),
             };
             defer(for (uSize it = 0; it < array_size(allShaders); it++) platform_file_unload(allocatorBindings, allShaders[it]));
-            ImageAttachment renderProcessAttachments[] =
+            ImageAttachmentDescription renderProcessAttachments[] =
             {
-                { .format = ImageAttachment::DEPTH_32F, .width = 0, .height = 0, },
-                { .format = ImageAttachment::RGBA_8,    .width = 0, .height = 0, },
-                { .format = ImageAttachment::RGB_32F,   .width = 0, .height = 0, },
-                { .format = ImageAttachment::RGB_32F,   .width = 0, .height = 0, },
+                { .format = ImageAttachmentDescription::DEPTH_32F, .width = 0, .height = 0, },
+                { .format = ImageAttachmentDescription::RGBA_8,    .width = 0, .height = 0, },
+                { .format = ImageAttachmentDescription::RGB_32F,   .width = 0, .height = 0, },
+                { .format = ImageAttachmentDescription::RGB_32F,   .width = 0, .height = 0, },
             };
             PlatformFile stageShaders[] = { allShaders[0], allShaders[1], };
             OutputAttachmentReference stageOutputs[] =
@@ -121,7 +121,7 @@ namespace al
                 { .imageAttachmentIndex = 3, .name = "out_normal", },
             };
             DepthUsageInfo stageDepth { .imageAttachmentIndex = 0, };
-            RenderStage renderProcessStages[] =
+            RenderStageDescription renderProcessStages[] =
             {
                 {
                     .shaders            = { .ptr = stageShaders, .size = array_size(stageShaders), },
@@ -129,6 +129,7 @@ namespace al
                     .outputAttachments  = { .ptr = stageOutputs, .size = array_size(stageOutputs), },
                     .depth              = &stageDepth,
                     .stageDependencies  = { .ptr = nullptr, .size = 0, },
+                    .name               = "deffered pass",
                 },
             };
             RenderProcessDescription renderProcessDesccription

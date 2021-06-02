@@ -38,3 +38,4 @@ namespace al
 }
 
 #include "vulkan/renderer_backend_vulkan.cpp"
+#include "spirv_reflection/spirv_reflection.cpp"

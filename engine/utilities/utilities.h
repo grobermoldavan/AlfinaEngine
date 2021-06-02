@@ -9,5 +9,7 @@
 #include "defer.h"
 #include "array_view.h"
 #include "tuple.h"
+#include "fixed_size_buffer.h"
+#include "thread_local_storage.h"
 
 #endif

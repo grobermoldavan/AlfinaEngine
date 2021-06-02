@@ -22,56 +22,8 @@ namespace al
         using namespace vulkan;
         backend->window = initData->window;
 
-        for (uSize stageIt = 0; stageIt < initData->renderProcessDesc->stages.size; stageIt++)
-        {
-            RenderStage* stage = &initData->renderProcessDesc->stages.ptr[stageIt];
-            ArrayView<SpirvReflection> reflections;
-            av_construct(&reflections, &initData->bindings, stage->shaders.size);
-            for (uSize shaderIt = 0; shaderIt < stage->shaders.size; shaderIt++)
-            {
-                SpirvWord* shaderBytecode = static_cast<SpirvWord*>(stage->shaders.ptr[shaderIt].memory);
-                uSize numWords = stage->shaders.ptr[shaderIt].sizeBytes / 4;
-                construct_spirv_reflecttion(&reflections[shaderIt], initData->bindings, shaderBytecode, numWords);
-            }
-            for (uSize reflectionIt = 0; reflectionIt < reflections.count; reflectionIt++)
-            {
-                SpirvReflection* reflection = &reflections[reflectionIt];
-                al_vk_log_msg("Shader type: %s\n", shader_type_to_str(reflection->shaderType));
-                for (uSize uniformIt = 0; uniformIt < reflection->uniformCount; uniformIt++)
-                {
-                    SpirvReflection::Uniform* uniform = &reflection->uniforms[uniformIt];
-                    al_vk_log_msg("    Uniform %s at set %d and binding %d:\n", uniform->name, uniform->set, uniform->binding);
-                    if (uniform->type == SpirvReflection::Uniform::BUFFER)
-                    {
-                        al_vk_log_msg("        Uniform buffer size: %zd\n", get_type_info_size(uniform->buffer));
-                        print_type_info(uniform->buffer, reflection, 2);
-                    }
-                    else
-                    {
-                        al_vk_log_msg("        Uniform type is image.\n");
-                    }
-                }
-                for (uSize inputIt = 0; inputIt < reflection->shaderInputCount; inputIt++)
-                {
-                    SpirvReflection::ShaderIO* input = &reflection->shaderInputs[inputIt];
-                    if (input->flags & (1 << SpirvReflection::ShaderIO::IS_BUILT_IN)) al_vk_log_msg("   BUILD IN!!!! ");
-                    al_vk_log_msg("    Input %s of size %zd at location %d:\n", input->name, get_type_info_size(input->typeInfo), input->location);
-                    print_type_info(input->typeInfo, reflection, 2);
-                }
-                for (uSize outputIt = 0; outputIt < reflection->shaderOutputCount; outputIt++)
-                {
-                    SpirvReflection::ShaderIO* output = &reflection->shaderOutputs[outputIt];
-                    if (output->flags & (1 << SpirvReflection::ShaderIO::IS_BUILT_IN)) al_vk_log_msg("   BUILD IN!!!! ");
-                    al_vk_log_msg("    Output %s of size %zd at location %d:\n", output->name, get_type_info_size(output->typeInfo), output->location);
-                    print_type_info(output->typeInfo, reflection, 2);
-                }
-                if (reflection->pushConstant)
-                {
-                    al_vk_log_msg("    Push constant %s of size %zd:\n", reflection->pushConstant->name, get_type_info_size(reflection->pushConstant->typeInfo));
-                    print_type_info(reflection->pushConstant->typeInfo, reflection, 2);
-                }
-            }
-        }
+        VulkanRenderGraph graph{};
+        construct_vulkan_render_graph(&graph, initData->renderProcessDesc, initData->bindings);
 
         // This stuff is constructed per renderer instance
         construct_memory_manager            (&backend->memoryManager, initData->bindings);
@@ -1970,52 +1922,7 @@ namespace al::vulkan
 
 
     
-    template<typename T>
-    void tls_construct(ThreadLocalStorage<T>* storage, AllocatorBindings bindings)
-    {
-        storage->bindings = bindings;
-        storage->capacity = ThreadLocalStorage<T>::DEFAULT_CAPACITY;
-        storage->size = 0;
-        storage->memory = static_cast<T*>(allocate(&storage->bindings, storage->capacity * sizeof(T)));
-        std::memset(storage->memory, 0, storage->capacity * sizeof(T));
-        storage->threadIds = static_cast<PlatformThreadId*>(allocate(&storage->bindings, storage->capacity * sizeof(PlatformThreadId)));
-    }
-
-    template<typename T>
-    void tls_destroy(ThreadLocalStorage<T>* storage)
-    {
-        deallocate(&storage->bindings, storage->memory, storage->capacity * sizeof(T));
-    }
-
-    template<typename T>
-    T* tls_access(ThreadLocalStorage<T>* storage)
-    {
-        PlatformThreadId currentThreadId = platform_get_current_thread_id();
-        for (uSize it = 0; it < storage->size; it++)
-        {
-            if (storage->threadIds[it] == currentThreadId)
-            {
-                return &storage->memory[it];
-            }
-        }
-        if (storage->size == storage->capacity)
-        {
-            uSize newCapacity = storage->capacity * 2;
-            T* newMemory = static_cast<T*>(allocate(&storage->bindings, newCapacity * sizeof(T)));
-            PlatformThreadId* newThreadIds = static_cast<PlatformThreadId*>(allocate(&storage->bindings, newCapacity * sizeof(PlatformThreadId)));
-            std::memcpy(newThreadIds, storage->threadIds, storage->capacity * sizeof(PlatformThreadId));
-            std::memcpy(newMemory, storage->memory, storage->capacity * sizeof(T));
-            std::memset(newMemory + storage->capacity, 0, (newCapacity - storage->capacity) * sizeof(T));
-            deallocate(&storage->bindings, storage->memory, storage->capacity * sizeof(T));
-            deallocate(&storage->bindings, storage->threadIds, storage->capacity * sizeof(PlatformThreadId));
-            storage->capacity = newCapacity;
-            storage->memory = newMemory;
-            storage->threadIds = newThreadIds;
-        }
-        uSize newPosition = storage->size++;
-        storage->threadIds[newPosition] = currentThreadId;
-        return &storage->memory[newPosition];
-    }
+    
 
     void construct_command_pools(RendererBackend* backend, CommandPools* pools)
     {
@@ -2238,4 +2145,4 @@ namespace al::vulkan
 }
 
 #include "vulkan_utils.cpp"
-#include "spirv_reflection.cpp"
+#include "vulkan_render_graph.cpp"

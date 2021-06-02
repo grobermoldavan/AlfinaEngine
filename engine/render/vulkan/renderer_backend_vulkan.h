@@ -3,8 +3,9 @@
 
 #include "vulkan_base.h"
 #include "vulkan_utils.h"
-#include "spirv_reflection.h"
-#include "engine/render/renderer_backend_core.h"
+#include "vulkan_render_graph.h"
+#include "../spirv_reflection/spirv_reflection.h"
+#include "../renderer_backend_core.h"
 
 #include "engine/types.h"
 #include "engine/platform/platform.h"
@@ -185,21 +186,6 @@ namespace al::vulkan
     void destroy_image_attachment(ImageAttachment* attachment, GPU* gpu, VulkanMemoryManager* memoryManager);
 
     void transition_image_layout(GPU* gpu, struct CommandBuffers* buffers, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
-
-    template<typename T>
-    struct ThreadLocalStorage
-    {
-        static constexpr uSize DEFAULT_CAPACITY = 8;
-        AllocatorBindings bindings;
-        PlatformThreadId* threadIds;
-        T* memory;
-        uSize size;
-        uSize capacity;
-    };
-
-    template<typename T> void tls_construct(ThreadLocalStorage<T>* storage, AllocatorBindings bindings);
-    template<typename T> void tls_destroy(ThreadLocalStorage<T>* storage);
-    template<typename T> T* tls_access(ThreadLocalStorage<T>* storage);
 
     struct CommandPools
     {

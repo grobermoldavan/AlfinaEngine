@@ -19,7 +19,7 @@ layout(set = 0, binding = 0) uniform al_ViewProjection
 
 layout(set = 1, binding = 0) readonly buffer al_InputGeometry
 {
-    al_InputGeometryVertex vertices[10];
+    al_InputGeometryVertex vertices[];
 } al_inputGeometry;
 
 layout(set = 1, binding = 1) readonly buffer al_InputInstances

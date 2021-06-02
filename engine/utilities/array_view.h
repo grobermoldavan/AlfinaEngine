@@ -7,6 +7,20 @@
 namespace al
 {
     template<typename T>
+    struct PointerWithSize
+    {
+        T* ptr;
+        uSize size;
+        T& operator [] (uSize index);
+    };
+
+    template<typename T>
+    T& PointerWithSize<T>::operator [] (uSize index)
+    {
+        return ptr[index];
+    }
+
+    template<typename T>
     struct ArrayView
     {
         AllocatorBindings   bindings;
