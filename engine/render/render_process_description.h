@@ -42,9 +42,14 @@ namespace al
         uSize stageIndex;
     };
 
+    struct StageShaderReference
+    {
+        uSize shaderIndex;
+    };
+
     struct RenderStageDescription
     {
-        PointerWithSize<PlatformFile> shaders;
+        PointerWithSize<StageShaderReference> shaders;
         PointerWithSize<SampledAttachmentReference> sampledAttachments;
         PointerWithSize<OutputAttachmentReference> outputAttachments;
         DepthUsageInfo* depth;
@@ -54,6 +59,7 @@ namespace al
 
     struct RenderProcessDescription
     {
+        PointerWithSize<PlatformFile> shaders;
         PointerWithSize<ImageAttachmentDescription> imageAttachments;
         PointerWithSize<RenderStageDescription> stages;
         uSize resultImageAttachmentIndex;

@@ -15,10 +15,6 @@ namespace al::vulkan
     struct VulkanRenderGraph
     {
         static constexpr uSize BUFFER_SIZE = 4096;
-        //
-        // VulkanRenderGraph::ImageAttachment struct must have all information
-        // neccessary for vulkan backend to create actual vkImages and other stuff
-        //
         struct ImageAttachment
         {
             VkExtent3D extent;
@@ -27,30 +23,45 @@ namespace al::vulkan
             VkImageUsageFlags usage;
             VkImageType type;
         };
-        //
-        // VulkanRenderGraph::DescriptorSet struct must have all information
-        // neccessary for vulkan backend to create all descriptor sets used in a
-        // given RenderStage. Currently all descriptor sets are unoptimized -
-        // if some shaders of RenderStage use same data at same set and same location
-        // it will still be duplicated.
-        //
+        struct DescriptorSetBinding
+        {
+            uSize binding;
+            uSize sizeBytes;
+            VkDescriptorType descriptorType;
+            VkShaderStageFlags stageFlags;
+        };
         struct DescriptorSet
         {
-            struct Binding
-            {
-                VkDescriptorSetLayoutBinding vkDescription;
-            };
             uSize set;
-            PointerWithSize<Binding> bindings;
+            PointerWithSize<DescriptorSetBinding> bindings;
         };
-
+        //
+        // VulkanRenderGraph::RenderPass basically contains all struff required
+        // for vkCreateRenderPass call
+        //
         struct RenderPass
         {
-            struct Attachment
-            {
-
-            };
+            PointerWithSize<VkAttachmentDescription> attachmentDescriptions;
+            PointerWithSize<VkAttachmentReference> colorAttachmentReferences;
+            VkAttachmentReference* depthAttachmentReference;
+            VkSubpassDescription subpassDescription;
+            VkSubpassDependency subpassDependencies[2];
             VkRenderPassCreateInfo createInfo;
+        };
+        struct Framebuffer
+        {
+            PointerWithSize<uSize> imageAttachmentReferences;
+        };
+        struct RenderPipelineShaderStage
+        {
+            PlatformFile bytecode;
+            VkShaderStageFlagBits stage;
+            const char* entryPoint;
+        };
+        struct RenderPipeline
+        {
+            PointerWithSize<RenderPipelineShaderStage> shaderStages;
+            PointerWithSize<VkPushConstantRange> pushConstants;
         };
         //
         // VulkanRenderGraph::RenderStage struct must have all information
@@ -62,6 +73,9 @@ namespace al::vulkan
         {
             PointerWithSize<DescriptorSet> descriptorSets;
             RenderPass renderPass;
+            Framebuffer framebuffer;
+            RenderPipeline renderPipeline;
+            PointerWithSize<uSize> stageDependencies;
         };
         FixedSizeBuffer<BUFFER_SIZE> buffer;
         //

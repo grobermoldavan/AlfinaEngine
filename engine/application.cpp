@@ -100,12 +100,12 @@ namespace al
         platform_input_construct(&application->input);
         {
             AllocatorBindings allocatorBindings = get_allocator_bindings(&application->pool);
-            PlatformFile allShaders[] =
+            PlatformFile processShaders[] =
             {
                 platform_file_load(allocatorBindings, platform_path("assets", "shaders", "geometry_pass.frag.spv"), PlatformFileLoadMode::READ),
                 platform_file_load(allocatorBindings, platform_path("assets", "shaders", "geometry_pass.vert.spv"), PlatformFileLoadMode::READ),
             };
-            defer(for (uSize it = 0; it < array_size(allShaders); it++) platform_file_unload(allocatorBindings, allShaders[it]));
+            defer(for (uSize it = 0; it < array_size(processShaders); it++) platform_file_unload(allocatorBindings, processShaders[it]));
             ImageAttachmentDescription renderProcessAttachments[] =
             {
                 { .format = ImageAttachmentDescription::DEPTH_32F, .width = 0, .height = 0, },
@@ -113,7 +113,11 @@ namespace al
                 { .format = ImageAttachmentDescription::RGB_32F,   .width = 0, .height = 0, },
                 { .format = ImageAttachmentDescription::RGB_32F,   .width = 0, .height = 0, },
             };
-            PlatformFile stageShaders[] = { allShaders[0], allShaders[1], };
+            StageShaderReference stageShaders[] =
+            {
+                { .shaderIndex = 0, },
+                { .shaderIndex = 1, },
+            };
             OutputAttachmentReference stageOutputs[] =
             {
                 { .imageAttachmentIndex = 1, .name = "out_albedo", },
@@ -134,6 +138,7 @@ namespace al
             };
             RenderProcessDescription renderProcessDesccription
             {
+                .shaders                    = { .ptr = processShaders, .size = array_size(processShaders) },
                 .imageAttachments           = { .ptr = renderProcessAttachments, .size = array_size(renderProcessAttachments), },
                 .stages                     = { .ptr = renderProcessStages, .size = array_size(renderProcessStages), },
                 .resultImageAttachmentIndex = 1,
