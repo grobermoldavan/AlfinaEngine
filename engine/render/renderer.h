@@ -1,32 +1,36 @@
 #ifndef AL_RENDERER_H
 #define AL_RENDERER_H
 
-#include "render_process_description.h"
-#include "renderer_backend_core.h"
-#include "vulkan/renderer_backend_vulkan.h"
-#include "spirv_reflection/spirv_reflection.h"
-
 #include "engine/memory/memory.h"
+#include "engine/utilities/utilities.h"
+#include "backend/renderer_backend_types.h"
+#include "backend/renderer_backend_core.h"
+#include "backend/vulkan/renderer_backend_vulkan.h"
 
 namespace al
 {
     struct RendererInitData
     {
-        AllocatorBindings           bindings;
-        PlatformWindow*             window;
-        RenderProcessDescription*   renderProcessDesc;
+        AllocatorBindings bindings;
+        PlatformWindow* window;
+        RendererBackendType backendType;
     };
 
-    template<typename Backend>
     struct Renderer
     {
-        Backend backend;
+        RendererBackendVtable vt;
+        RendererBackend* backend;
+
+        ShaderProgram* vertexShader;
+        ShaderProgram* fragmentShader;
+        Array<Framebuffer*> framebuffers;
+        RenderStage* stage;
     };
 
-    template<typename Backend> void renderer_construct      (Renderer<Backend>* renderer, RendererInitData* initData);
-    template<typename Backend> void renderer_destruct       (Renderer<Backend>* renderer);
-    template<typename Backend> void renderer_render         (Renderer<Backend>* renderer);
-    template<typename Backend> void renderer_handle_resize  (Renderer<Backend>* renderer);
+    void renderer_construct      (Renderer* renderer, RendererInitData* initData);
+    void renderer_destroy        (Renderer* renderer);
+    void renderer_render         (Renderer* renderer);
+    void renderer_handle_resize  (Renderer* renderer);
 }
 
 #endif

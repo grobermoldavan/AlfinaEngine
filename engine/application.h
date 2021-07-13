@@ -1,29 +1,20 @@
 #ifndef AL_APPLICATION_H
 #define AL_APPLICATION_H
 
-#include <type_traits>  // for std::false_type, std::true_type
-
 #include "engine/memory/memory.h"
 #include "engine/platform/platform.h"
 #include "engine/render/renderer.h"
-
-#define HAS_CHECK_DECLARATION(functionName)                                                     \
-    template <typename T, typename = int>                                                       \
-    struct __has##functionName : std::false_type { };                                           \
-    template <typename T>                                                                       \
-    struct __has##functionName <T, decltype((void) T::functionName, 0)> : std::true_type { };
-
-#define HAS_CHECK(bindings, functionName) __has##functionName<bindings>::value
+#include "engine/utilities/utilities.h"
 
 namespace al
 {
-    HAS_CHECK_DECLARATION(create);
-    HAS_CHECK_DECLARATION(destroy);
-    HAS_CHECK_DECLARATION(update);
-    HAS_CHECK_DECLARATION(render);
-    HAS_CHECK_DECLARATION(should_quit);
-    HAS_CHECK_DECLARATION(handle_window_resize);
-    HAS_CHECK_DECLARATION(get_creation_data);
+    AL_HAS_CHECK_DECLARATION(create);
+    AL_HAS_CHECK_DECLARATION(destroy);
+    AL_HAS_CHECK_DECLARATION(update);
+    AL_HAS_CHECK_DECLARATION(render);
+    AL_HAS_CHECK_DECLARATION(should_quit);
+    AL_HAS_CHECK_DECLARATION(handle_window_resize);
+    AL_HAS_CHECK_DECLARATION(get_creation_data);
 
     struct CommandLineArgs
     {
@@ -34,12 +25,12 @@ namespace al
     template<typename Bindings>
     struct Application
     {
-        StackAllocator          stack;
-        PoolAllocator           pool;
-        PlatformWindow          window;
-        PlatformInput           input;
-        Renderer<vulkan::RendererBackend> renderer;
-        Bindings                bindings;
+        StackAllocator  stack;
+        PoolAllocator   pool;
+        PlatformWindow  window;
+        PlatformInput   input;
+        Renderer        renderer;
+        Bindings        bindings;
     };
 
     struct ApplicationCreationData

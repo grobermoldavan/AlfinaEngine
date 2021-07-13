@@ -4,6 +4,8 @@
 #include <cstddef>
 #include <cstdint>
 
+#include <limits>
+
 namespace al
 {
     using u8    = uint8_t;
@@ -21,6 +23,11 @@ namespace al
 
     using uSize = std::size_t;
     using uPtr  = uintptr_t;
+
+    template<typename T, typename U = T> constexpr U max_value() { return U(std::numeric_limits<T>::max()); }
+    template<typename T, typename U = T> constexpr U min_value() { return U(std::numeric_limits<T>::min()); }
+    template<typename T, typename U = T> constexpr U is_signed() { return U(std::numeric_limits<T>::is_signed); }
+    template<typename T, typename U = T> constexpr U is_integer() { return U(std::numeric_limits<T>::is_integer); }
 }
 
 #endif

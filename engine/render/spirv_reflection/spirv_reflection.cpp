@@ -380,7 +380,7 @@ namespace al::vulkan
         return 0;
     }
 
-    void construct_spirv_reflection(SpirvReflection* reflection, AllocatorBindings bindings, SpirvWord* bytecode, uSize wordCount)
+    void construct_spirv_reflection(SpirvReflection* reflection, AllocatorBindings* bindings, SpirvWord* bytecode, uSize wordCount)
     {
         al_srs_assert(bytecode);
         std::memset(reflection, 0, sizeof(SpirvReflection));
@@ -394,9 +394,9 @@ namespace al::vulkan
         // Allocate SpirvId array which will hols all neccessary information about shaders identifiers
         //
         SpirvId* ids = nullptr;
-        ids = (SpirvId*)allocate(&bindings, sizeof(SpirvId) * bound);
+        ids = (SpirvId*)allocate(bindings, sizeof(SpirvId) * bound);
         std::memset(ids, 0, sizeof(SpirvId) * bound);
-        defer(deallocate(&bindings, ids, sizeof(SpirvId) * bound));
+        defer(deallocate(bindings, ids, sizeof(SpirvId) * bound));
         //
         // Step 1. Filling ids array + some general shader info
         //
@@ -566,10 +566,10 @@ namespace al::vulkan
         //
         // Step 2.2. Allocate structs and struct members arrays
         //
-        structs = (SpirvStruct*)allocate(&bindings, sizeof(SpirvStruct) * structsCount);
-        defer(deallocate(&bindings, structs, sizeof(SpirvStruct) * structsCount));
-        structMembers = (SpirvStruct::Member*)allocate(&bindings, sizeof(SpirvStruct::Member) * structmembersCount);
-        defer(deallocate(&bindings, structMembers, sizeof(SpirvStruct::Member) * structmembersCount));
+        structs = (SpirvStruct*)allocate(bindings, sizeof(SpirvStruct) * structsCount);
+        defer(deallocate(bindings, structs, sizeof(SpirvStruct) * structsCount));
+        structMembers = (SpirvStruct::Member*)allocate(bindings, sizeof(SpirvStruct::Member) * structmembersCount);
+        defer(deallocate(bindings, structMembers, sizeof(SpirvStruct::Member) * structmembersCount));
         //
         // Step 2.3. Save struct and struct members ids
         //

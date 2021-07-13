@@ -20,7 +20,7 @@ namespace al
     class Defer
     {
     public:
-        Defer(const al::Function<void(void)>& func)
+        Defer(const Function<void(void)>& func)
             : function{ func }
         { }
 
@@ -30,7 +30,7 @@ namespace al
         }
 
     private:
-        al::Function<void(void)> function;
+        Function<void(void)> function;
     };
 }
 

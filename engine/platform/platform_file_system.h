@@ -29,8 +29,8 @@ namespace al
     template<typename ... Args>
     PlatformFilePath platform_path(Args ... args);
 
-    PlatformFile platform_file_load(AllocatorBindings bindings, const PlatformFilePath& path, PlatformFileLoadMode loadMode);
-    void platform_file_unload(AllocatorBindings bindings, PlatformFile file);
+    PlatformFile platform_file_load(AllocatorBindings* bindings, const PlatformFilePath& path, PlatformFileLoadMode loadMode);
+    void platform_file_unload(AllocatorBindings* bindings, PlatformFile file);
 }
 
 #endif

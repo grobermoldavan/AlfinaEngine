@@ -8,13 +8,13 @@
 namespace al
 {
     template<typename T>
-    T* align_pointer(T* ptr)
+    T* align_pointer(T* ptr, uSize alignment)
     {
         uPtr uintPtr = reinterpret_cast<uPtr>(ptr);
-        u64 diff = uintPtr & (EngineConfig::DEFAULT_MEMORY_ALIGNMENT - 1);
+        u64 diff = uintPtr & (alignment - 1);
         if (diff != 0)
         {
-            diff = EngineConfig::DEFAULT_MEMORY_ALIGNMENT - diff;
+            diff = alignment - diff;
         }
         u8* alignedPtr = reinterpret_cast<u8*>(ptr) + diff;
         return reinterpret_cast<T*>(alignedPtr);
@@ -24,26 +24,43 @@ namespace al
     {
         return
         {
-            .allocate = [](void* allocator, uSize size){ return std::malloc(size); },
-            .deallocate = [](void* allocator, void* ptr, uSize size){ std::free(ptr); },
+            .allocate = [](void* allocator, uSize size, uSize alignment){ return al_aligned_system_malloc(size, alignment); },
+            .deallocate = [](void* allocator, void* ptr, uSize size){ al_aligned_system_free(ptr); },
             .allocator = nullptr
         };
     }
 
-    void* allocate(AllocatorBindings* bindings, uSize memorySizeBytes)
+    template<typename T>
+    T* allocate(AllocatorBindings* bindings, uSize amount, uSize alignment)
     {
-        return bindings->allocate(bindings->allocator, memorySizeBytes);
+        al_check_alignment(alignment);
+        if constexpr (std::is_same_v<T, void>)
+        {
+            return bindings->allocate(bindings->allocator, amount, alignment);
+        }
+        else
+        {
+            return (T*)allocate<void>(bindings, amount * sizeof(T));
+        }
     }
 
-    void deallocate(AllocatorBindings* bindings, void* ptr, uSize memorySizeBytes)
+    template<typename T>
+    void deallocate(AllocatorBindings* bindings, T* ptr, uSize amount)
     {
-        bindings->deallocate(bindings->allocator, ptr, memorySizeBytes);
+        if constexpr (std::is_same_v<T, void>)
+        {
+            bindings->deallocate(bindings->allocator, ptr, amount);
+        }
+        else
+        {
+            deallocate<void>(bindings, ptr, amount * sizeof(T));
+        }
     }
 
-    void construct(StackAllocator* stack, uSize memorySizeBytes, AllocatorBindings bindings)
+    void construct(StackAllocator* stack, uSize memorySizeBytes, AllocatorBindings* bindings)
     {
-        stack->bindings = bindings;
-        stack->memory = bindings.allocate(bindings.allocator, memorySizeBytes);
+        stack->bindings = *bindings;
+        stack->memory = allocate(bindings, memorySizeBytes, EngineConfig::MAX_MEMORY_ALIGNMENT);
         stack->memoryLimit = static_cast<u8*>(stack->memory) + memorySizeBytes;
         stack->top = stack->memory;
     }
@@ -54,16 +71,16 @@ namespace al
         stack->bindings.deallocate(stack->bindings.allocator, stack->memory, stackSize);
     }
 
-    void* allocate(StackAllocator* stack, uSize memorySizeBytes)
+    void* allocate(StackAllocator* stack, uSize memorySizeBytes, uSize alignment)
     {
-        
+        al_check_alignment(alignment);
         // @TODO :  add platform atomic operations
 #if 0
         void* result = nullptr;
         while (true)
         {
             void* currentTop = std::atomic_load_explicit(&stack->top, std::memory_order_relaxed);
-            u8* currentTopAligned = align_pointer(static_cast<u8*>(currentTop));
+            u8* currentTopAligned = align_pointer(static_cast<u8*>(currentTop), alignment);
             if ((static_cast<u8*>(stack->memoryLimit) - currentTopAligned) < memorySizeBytes)
             {
                 break;
@@ -78,7 +95,7 @@ namespace al
         }
         return result;
 #else
-        u8* currentTopAligned = align_pointer(static_cast<u8*>(stack->top));
+        u8* currentTopAligned = align_pointer(static_cast<u8*>(stack->top), alignment);
         if ((static_cast<u8*>(stack->memoryLimit) - currentTopAligned) < memorySizeBytes)
         {
             return nullptr;
@@ -96,7 +113,7 @@ namespace al
     {
         return
         {
-            .allocate = [](void* allocator, uSize size){ return allocate(static_cast<StackAllocator*>(allocator), size); },
+            .allocate = [](void* allocator, uSize size, uSize alignment){ return allocate(static_cast<StackAllocator*>(allocator), size, alignment); },
             .deallocate = [](void* allocator, void* ptr, uSize size){ deallocate(static_cast<StackAllocator*>(allocator), ptr, size); },
             .allocator = stack
         };
@@ -107,28 +124,29 @@ namespace al
         return { blockSizeBytes, memorySizeBytes / blockSizeBytes };
     }
 
-    void memory_bucket_construct(PoolAllocatorMemoryBucket* bucket, uSize blockSizeBytes, uSize blockCount, AllocatorBindings bindings)
+    void memory_bucket_construct(PoolAllocatorMemoryBucket* bucket, uSize blockSizeBytes, uSize blockCount, AllocatorBindings* bindings)
     {
         bucket->blockSizeBytes  = blockSizeBytes;
         bucket->blockCount      = blockCount;
         bucket->memorySizeBytes = blockSizeBytes * blockCount;
         bucket->ledgerSizeBytes = 1 + ((blockCount - 1) / 8);
-        bucket->memory          = bindings.allocate(bindings.allocator, bucket->memorySizeBytes);
-        bucket->ledger          = bindings.allocate(bindings.allocator, bucket->ledgerSizeBytes);
+        bucket->memory          = allocate(bindings, bucket->memorySizeBytes, EngineConfig::MAX_MEMORY_ALIGNMENT);
+        bucket->ledger          = allocate(bindings, bucket->ledgerSizeBytes);
         std::memset(bucket->ledger, 0, bucket->ledgerSizeBytes);
     }
 
-    void memory_bucket_destruct(PoolAllocatorMemoryBucket* bucket, AllocatorBindings bindings)
+    void memory_bucket_destruct(PoolAllocatorMemoryBucket* bucket, AllocatorBindings* bindings)
     {
-        bindings.deallocate(bindings.allocator, bucket->memory, bucket->memorySizeBytes);
-        bindings.deallocate(bindings.allocator, bucket->ledger, bucket->ledgerSizeBytes);
+        deallocate(bindings, bucket->memory, bucket->memorySizeBytes);
+        deallocate(bindings, bucket->ledger, bucket->ledgerSizeBytes);
     }
 
-    void* memory_bucket_allocate(PoolAllocatorMemoryBucket* bucket, uSize memorySizeBytes)
+    void* memory_bucket_allocate(PoolAllocatorMemoryBucket* bucket, uSize memorySizeBytes, uSize alignment)
     {
+        al_check_alignment(alignment);
         // std::lock_guard<std::mutex> lock{ bucket->memoryMutex };
         uSize blockNum = 1 + ((memorySizeBytes - 1) / bucket->blockSizeBytes);
-        uSize blockId = memory_bucket_find_contiguous_blocks(bucket, blockNum);
+        uSize blockId = memory_bucket_find_contiguous_blocks(bucket, blockNum, alignment);
         if (blockId == bucket->blockCount)
         {
             return nullptr;
@@ -152,12 +170,9 @@ namespace al
         return (bytePtr >= byteMem) && (bytePtr < (byteMem + bucket->memorySizeBytes));
     }
 
-    uSize memory_bucket_find_contiguous_blocks(PoolAllocatorMemoryBucket* bucket, uSize number)
+    uSize memory_bucket_find_contiguous_blocks(PoolAllocatorMemoryBucket* bucket, uSize number, uSize alignment)
     {
-        auto isBitSet = [](u8 value, uSize bit) -> u8
-        {
-            return (((value >> bit) & 1) == 1);
-        };
+        auto isBitSet = [](u8 value, uSize bit) -> u8 { return ((value >> bit) & 1) == 1; };
         uSize blockCounter = 0;   // contains the number of contiguous free blocks
         uSize currentBlockId = 0; // contains id of current block
         uSize firstBlockId = 0;   // contains id of the first block in the group of contiguous free blocks
@@ -166,8 +181,7 @@ namespace al
             u8 ledgerByte = *(static_cast<u8*>(bucket->ledger) + it);
             if (ledgerByte == 255)
             {
-                // @NOTE :  small optimization.
-                //          We don't need to check byte if is already full.
+                // Small optimization. We don't need to check byte if is already full.
                 blockCounter = 0;
                 currentBlockId += 8;
                 continue;
@@ -182,9 +196,18 @@ namespace al
                 {
                     if (blockCounter == 0)
                     {
-                        firstBlockId = currentBlockId;
+                        uPtr currentBlockAddress = reinterpret_cast<uPtr>(bucket->memory) + (it * 8 + byteIt) * bucket->blockSizeBytes;
+                        bool isCorrectFirstBlock = (currentBlockAddress % alignment) == 0;
+                        if (isCorrectFirstBlock)
+                        {
+                            firstBlockId = currentBlockId;
+                            blockCounter++;
+                        }
                     }
-                    blockCounter++;
+                    else
+                    {
+                        blockCounter++;
+                    }
                 }
                 currentBlockId++;
                 if (blockCounter == number)
@@ -234,9 +257,9 @@ namespace al
         return (one.memoryWasted == other.memoryWasted) ? one.blocksUsed < other.blocksUsed : one.memoryWasted < other.memoryWasted;
     }
 
-    void construct(PoolAllocator* allocator, const PoolAllocatorBucketDescription bucketDescriptions[EngineConfig::POOL_ALLOCATOR_MAX_BUCKETS], AllocatorBindings bindings)
+    void construct(PoolAllocator* allocator, const PoolAllocatorBucketDescription bucketDescriptions[EngineConfig::POOL_ALLOCATOR_MAX_BUCKETS], AllocatorBindings* bindings)
     {
-        allocator->bindings = bindings;
+        allocator->bindings = *bindings;
         std::memset(&allocator->buckets, 0, sizeof(decltype(allocator->buckets)));
         for (uSize it = 0; it < EngineConfig::POOL_ALLOCATOR_MAX_BUCKETS; it++)
         {
@@ -259,15 +282,16 @@ namespace al
             {
                 break;
             }
-            memory_bucket_destruct(bucket, allocator->bindings);
+            memory_bucket_destruct(bucket, &allocator->bindings);
         }
     }
 
-    void* allocate(PoolAllocator* allocator, uSize memorySizeBytes)
+    void* allocate(PoolAllocator* allocator, uSize memorySizeBytes, uSize alignment)
     {
-        PoolAllocatorBucketCompareInfo compareInfos[EngineConfig::POOL_ALLOCATOR_MAX_BUCKETS];
-        std::memset(compareInfos, 0, sizeof(decltype(compareInfos)));
+        al_check_alignment(alignment);
+        PoolAllocatorBucketCompareInfo compareInfos[EngineConfig::POOL_ALLOCATOR_MAX_BUCKETS] = {};
         uSize it;
+        // @NOTE :  this bucket comparison doesn't take into account an alignment of allocation
         for (it = 0; it < EngineConfig::POOL_ALLOCATOR_MAX_BUCKETS; it++)
         {
             PoolAllocatorMemoryBucket* bucket = &allocator->buckets[it];
@@ -299,7 +323,7 @@ namespace al
             {
                 break;
             }
-            result = memory_bucket_allocate(&allocator->buckets[info->bucketId], memorySizeBytes);
+            result = memory_bucket_allocate(&allocator->buckets[info->bucketId], memorySizeBytes, alignment);
             if (result)
             {
                 break;
@@ -329,7 +353,7 @@ namespace al
     {
         return
         {
-            .allocate = [](void* allocator, uSize size){ return allocate(static_cast<PoolAllocator*>(allocator), size); },
+            .allocate = [](void* allocator, uSize size, uSize alignment){ return allocate(static_cast<PoolAllocator*>(allocator), size, alignment); },
             .deallocate = [](void* allocator, void* ptr, uSize size){ deallocate(static_cast<PoolAllocator*>(allocator), ptr, size); },
             .allocator = pool
         };

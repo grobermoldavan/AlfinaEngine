@@ -43,7 +43,7 @@ namespace al
         return result;
     }
 
-    PlatformFile platform_file_load(AllocatorBindings bindings, const PlatformFilePath& path, PlatformFileLoadMode loadMode)
+    PlatformFile platform_file_load(AllocatorBindings* bindings, const PlatformFilePath& path, PlatformFileLoadMode loadMode)
     {
         static const char* LOAD_MODE_TO_STR[] =
         {
@@ -54,7 +54,7 @@ namespace al
         std::fseek(file, 0, SEEK_END);
         uSize fileSize = std::ftell(file);
         std::fseek(file, 0, SEEK_SET);
-        void* memory = allocate(&bindings, fileSize + 1);
+        void* memory = allocate(bindings, fileSize + 1);
         std::memset(memory, 0, fileSize + 1);
         // al_assert(memory);
         uSize readSize = std::fread(memory, sizeof(u8), fileSize, file);
@@ -67,8 +67,8 @@ namespace al
         };
     }
 
-    void platform_file_unload(AllocatorBindings bindings, PlatformFile file)
+    void platform_file_unload(AllocatorBindings* bindings, PlatformFile file)
     {
-        deallocate(&bindings, file.memory, file.sizeBytes);
+        deallocate(bindings, file.memory, file.sizeBytes);
     }
 }

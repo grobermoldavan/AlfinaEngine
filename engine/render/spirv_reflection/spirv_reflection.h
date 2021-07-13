@@ -125,7 +125,7 @@ namespace al::vulkan
         PushConstant* pushConstant;
     };
 
-    void construct_spirv_reflection(SpirvReflection* reflection, AllocatorBindings bindings, SpirvWord* bytecode, uSize wordCount);
+    void construct_spirv_reflection(SpirvReflection* reflection, AllocatorBindings* bindings, SpirvWord* bytecode, uSize wordCount);
     void print_type_info(SpirvReflection::TypeInfo* typeInfo, SpirvReflection* reflection, uSize indentationLevel = 0, const char* structMemberName = nullptr);
     uSize get_type_info_size(SpirvReflection::TypeInfo* typeInfo);
 
