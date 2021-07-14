@@ -8,6 +8,7 @@
 namespace al
 {
     struct VulkanGpu;
+    struct VulkanRendererBackend;
 
     struct VulkanTexture : Texture
     {
@@ -35,6 +36,8 @@ namespace al
     void vulkan_texture_destroy(RendererBackend* backend, Texture* texture);
     u32_3 vulkan_texture_get_size(Texture* texture);
 
+    void vulkan_texture_destroy_internal(VulkanGpu* gpu, VulkanMemoryManager* memoryManager, VulkanTexture* texture);
+    void vulkan_swap_chain_texture_construct(VulkanTexture* result, VkImageView view, VkExtent2D extent, VkFormat format, VkFormat depthStencilFormat);
     VkFormat vulkan_get_vk_format(TextureFormat format);
     bool vulkan_is_depth_image_format(TextureFormat format);
 }

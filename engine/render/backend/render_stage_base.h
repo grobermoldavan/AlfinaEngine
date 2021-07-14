@@ -9,6 +9,7 @@ namespace al
 {
     struct RendererBackend;
     struct FramebufferDescription;
+    struct Framebuffer;
 
     struct ShaderProgram
     {
@@ -84,7 +85,6 @@ namespace al
                 ShaderProgram* vertexShader;
                 ShaderProgram* fragmentShader;
                 FramebufferDescription* framebufferDescription;
-                bool hasDepthStencilAttachment;
             } graphics;
         };
     };
@@ -93,7 +93,7 @@ namespace al
     {
         RenderStage* (*create)(RendererBackend* backend, RenderStageCreateInfo* createInfo);
         void (*destroy)(RendererBackend* backend, RenderStage* stage);
-        void (*bind)(RendererBackend* backend, RenderStage* stage);
+        void (*bind)(RendererBackend* backend, RenderStage* stage, Framebuffer* framebuffer);
     };
 }
 

@@ -1,5 +1,6 @@
 
 #include "render_stage_vulkan.h"
+#include "framebuffer_vulkan.h"
 #include "renderer_backend_vulkan.h"
 #include "vulkan_utils.h"
 
@@ -26,7 +27,7 @@ namespace al
     RenderStage* vulkan_render_stage_create(RendererBackend* _backend, RenderStageCreateInfo* createInfo)
     {
         VulkanRendererBackend* backend = (VulkanRendererBackend*)_backend;
-        VulkanRenderStage* renderStage = data_block_storage_add(&backend->shaderStages);
+        VulkanRenderStage* renderStage = data_block_storage_add(&backend->renderStages);
         const bool hasStencil = backend->gpu.flags & VulkanGpu::HAS_STENCIL;
         {
             Array<VkAttachmentDescription> attachments;
@@ -349,6 +350,23 @@ namespace al
             };
             al_vk_check(vkCreateGraphicsPipelines(backend->gpu.logicalHandle, VK_NULL_HANDLE, 1, &pipelineInfo, &backend->memoryManager.cpu_allocationCallbacks, &renderStage->pipeline));
         }
+        {
+            renderStage->bindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+            array_construct(&renderStage->clearValues, &backend->memoryManager.cpu_allocationBindings, createInfo->graphics.framebufferDescription->attachmentDescriptions.size);
+            for (auto it = create_iterator(&renderStage->clearValues); !is_finished(&it); advance(&it))
+            {
+                FramebufferDescription* desc = createInfo->graphics.framebufferDescription;
+                FramebufferDescription::AttachmentDescription* attachment = &desc->attachmentDescriptions[to_index(it)];
+                if (attachment->format == TextureFormat::DEPTH_STENCIL)
+                {
+                    *get(it) = VkClearValue{ .depthStencil = { 1.0f, 0 }, };
+                }
+                else
+                {
+                    *get(it) = VkClearValue{ .color = { /*all zeros*/ }, };
+                }
+            }
+        }
         return (RenderStage*)renderStage;
     }
 
@@ -359,5 +377,50 @@ namespace al
         vkDestroyRenderPass(backend->gpu.logicalHandle, stage->renderPass, &backend->memoryManager.cpu_allocationCallbacks);
         vkDestroyPipeline(backend->gpu.logicalHandle, stage->pipeline, &backend->memoryManager.cpu_allocationCallbacks);
         vkDestroyPipelineLayout(backend->gpu.logicalHandle, stage->pipelineLayout, &backend->memoryManager.cpu_allocationCallbacks);
+        array_destruct(&stage->clearValues);
+    }
+
+    void vulkan_render_stage_bind(RendererBackend* _backend, RenderStage* _stage, Framebuffer* _framebuffer)
+    {
+        VulkanRendererBackend* backend = (VulkanRendererBackend*)_backend;
+        VulkanRenderStage* stage = (VulkanRenderStage*)(_stage);
+        VulkanFramebuffer* framebuffer = (VulkanFramebuffer*)(_framebuffer);
+        VkCommandBuffer commandBuffer = backend->graphicsBuffers[backend->activeSwapChainImageIndex];
+        if (backend->activeRenderStage)
+        {
+            vkCmdEndRenderPass(commandBuffer);
+        }
+        VkRenderPassBeginInfo renderPassInfo
+        {
+            .sType              = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+            .pNext              = nullptr,
+            .renderPass         = stage->renderPass,
+            .framebuffer        = framebuffer->handle,
+            .renderArea         = { .offset = { 0, 0 }, .extent = backend->swapChain.extent },
+            .clearValueCount    = u32(stage->clearValues.size),
+            .pClearValues       = stage->clearValues.memory,
+        };
+        vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBindPipeline(commandBuffer, stage->bindPoint, stage->pipeline);
+        {   // @NOTE :  set dynamic state values
+            VkViewport viewport
+            {
+                .x          = 0.0f,
+                .y          = 0.0f,
+                .width      = static_cast<float>(backend->swapChain.extent.width),
+                .height     = static_cast<float>(backend->swapChain.extent.height),
+                .minDepth   = 0.0f,
+                .maxDepth   = 1.0f,
+            };
+            VkRect2D scissor
+            {
+                .offset = { 0, 0 },
+                .extent = backend->swapChain.extent ,
+            };
+            vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+            vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+        }
+        vkCmdDraw(commandBuffer, 3, 1, 0 ,0);
+        backend->activeRenderStage = stage;
     }
 }

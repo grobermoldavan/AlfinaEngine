@@ -25,8 +25,8 @@ namespace al
     void fill_swap_chain_sharing_mode(VkSharingMode* resultMode, u32* resultCount, PointerWithSize<u32> resultFamilyIndices, VulkanGpu* gpu);
     void construct_swap_chain(SwapChain* swapChain, VkSurfaceKHR surface, VulkanGpu* gpu, PlatformWindow* window, AllocatorBindings* bindings, VkAllocationCallbacks* callbacks);
     void destroy_swap_chain(SwapChain* swapChain, VulkanGpu* gpu, VkAllocationCallbacks* callbacks);
-    void construct_swap_chain_images(SwapChain* swapChain, VulkanGpu* gpu, AllocatorBindings* bindings, VkAllocationCallbacks* callbacks);
-    void destroy_swap_chain_images(SwapChain* swapChain, VulkanGpu* gpu, VkAllocationCallbacks* callbacks);
+    void construct_swap_chain_images(SwapChain* swapChain, VulkanGpu* gpu, AllocatorBindings* bindings, VkAllocationCallbacks* callbacks, VulkanRendererBackend::TextureStorage* textureStorage);
+    void destroy_swap_chain_images(SwapChain* swapChain, VulkanGpu* gpu, VulkanMemoryManager* memoryManager);
     //
     // Command pools
     //
@@ -54,6 +54,8 @@ namespace al
         table->handle_resize = vulkan_backend_handle_resize;
         table->begin_frame = vulkan_backend_begin_frame;
         table->end_frame = vulkan_backend_end_frame;
+        table->get_swap_chain_textures = vulkan_backend_get_swap_chain_textures;
+        table->get_active_swap_chain_texture_index = vulkan_backend_get_active_swap_chain_texture_index;
         table->texture.create = vulkan_texture_create;
         table->texture.destroy = vulkan_texture_destroy;
         table->framebuffer.create = vulkan_framebuffer_create;
@@ -62,6 +64,7 @@ namespace al
         table->shaderProgram.destroy = vulkan_shader_program_destroy;
         table->renderStage.create = vulkan_render_stage_create;
         table->renderStage.destroy = vulkan_render_stage_destroy;
+        table->renderStage.bind = vulkan_render_stage_bind;
     }
 
     RendererBackend* vulkan_backend_create(RendererBackendCreateInfo* createInfo)
@@ -70,11 +73,17 @@ namespace al
         al_vk_memset(backend, 0, sizeof(VulkanRendererBackend));
         backend->window = createInfo->window;
         construct_memory_manager(&backend->memoryManager, &createInfo->bindings);
+
+        data_block_storage_construct(&backend->shaderPrograms, &backend->memoryManager.cpu_allocationBindings);
+        data_block_storage_construct(&backend->renderStages, &backend->memoryManager.cpu_allocationBindings);
+        data_block_storage_construct(&backend->textures, &backend->memoryManager.cpu_allocationBindings);
+        data_block_storage_construct(&backend->framebuffers, &backend->memoryManager.cpu_allocationBindings);
+
         construct_instance(&backend->instance, &backend->debugMessenger, createInfo, &backend->memoryManager.cpu_allocationBindings, &backend->memoryManager.cpu_allocationCallbacks);
         construct_surface(&backend->surface, backend->window, backend->instance, &backend->memoryManager.cpu_allocationCallbacks);
         construct_gpu(&backend->gpu, backend->instance, backend->surface, &backend->memoryManager.cpu_allocationBindings, &backend->memoryManager.cpu_allocationCallbacks);
         construct_swap_chain(&backend->swapChain, backend->surface, &backend->gpu, backend->window, &backend->memoryManager.cpu_allocationBindings, &backend->memoryManager.cpu_allocationCallbacks);
-        construct_swap_chain_images(&backend->swapChain, &backend->gpu, &backend->memoryManager.cpu_allocationBindings, &backend->memoryManager.cpu_allocationCallbacks);
+        construct_swap_chain_images(&backend->swapChain, &backend->gpu, &backend->memoryManager.cpu_allocationBindings, &backend->memoryManager.cpu_allocationCallbacks, &backend->textures);
         construct_command_pools(&backend->commandPools, &backend->gpu, &backend->memoryManager.cpu_allocationBindings, &backend->memoryManager.cpu_allocationCallbacks);
         construct_command_buffers(&backend->graphicsBuffers, &backend->transferBuffer, &backend->swapChain, &backend->gpu, &backend->commandPools, &backend->memoryManager.cpu_allocationBindings);
         {
@@ -104,20 +113,12 @@ namespace al
                 al_vk_check(vkCreateFence(backend->gpu.logicalHandle, &fenceCreateInfo, &backend->memoryManager.cpu_allocationCallbacks, get(it)));
             }
         }
-        data_block_storage_construct(&backend->shaderPrograms, &backend->memoryManager.cpu_allocationBindings);
-        data_block_storage_construct(&backend->shaderStages, &backend->memoryManager.cpu_allocationBindings);
-        data_block_storage_construct(&backend->textures, &backend->memoryManager.cpu_allocationBindings);
-        data_block_storage_construct(&backend->framebuffers, &backend->memoryManager.cpu_allocationBindings);
         return (RendererBackend*)backend;
     }
 
     void vulkan_backend_destroy(RendererBackend* _backend)
     {
         VulkanRendererBackend* backend = (VulkanRendererBackend*)_backend;
-        data_block_storage_destruct(&backend->shaderPrograms);
-        data_block_storage_destruct(&backend->shaderStages);
-        data_block_storage_destruct(&backend->textures);
-        data_block_storage_destruct(&backend->framebuffers);
         {
             //
             // Destroy semaphores
@@ -146,8 +147,14 @@ namespace al
 
         destroy_command_buffers(&backend->graphicsBuffers, &backend->transferBuffer);
         destroy_command_pools(&backend->commandPools, &backend->gpu, &backend->memoryManager.cpu_allocationCallbacks);
-        destroy_swap_chain_images(&backend->swapChain, &backend->gpu, &backend->memoryManager.cpu_allocationCallbacks);
+        destroy_swap_chain_images(&backend->swapChain, &backend->gpu, &backend->memoryManager);
         destroy_swap_chain(&backend->swapChain, &backend->gpu, &backend->memoryManager.cpu_allocationCallbacks);
+
+        data_block_storage_destruct(&backend->shaderPrograms);
+        data_block_storage_destruct(&backend->renderStages);
+        data_block_storage_destruct(&backend->textures);
+        data_block_storage_destruct(&backend->framebuffers);
+
         destroy_memory_manager(&backend->memoryManager, backend->gpu.logicalHandle);
         destroy_gpu(&backend->gpu, &backend->memoryManager.cpu_allocationCallbacks);
         destroy_surface(backend->surface, backend->instance, &backend->memoryManager.cpu_allocationCallbacks);
@@ -189,12 +196,14 @@ namespace al
         VkCommandBuffer commandBuffer = backend->graphicsBuffers[backend->activeSwapChainImageIndex];
         VkCommandBufferBeginInfo beginInfo = utils::initializers::command_buffer_begin_info();
         al_vk_check(vkBeginCommandBuffer(commandBuffer, &beginInfo));
+        backend->activeRenderStage = nullptr;
     }
 
     void vulkan_backend_end_frame(RendererBackend* _backend)
     {
         VulkanRendererBackend* backend = (VulkanRendererBackend*)_backend;
         VkCommandBuffer commandBuffer = backend->graphicsBuffers[backend->activeSwapChainImageIndex];
+        vkCmdEndRenderPass(commandBuffer);
         al_vk_check(vkEndCommandBuffer(commandBuffer));
         // Queue gets processed only after swap chain image gets available
         VkSemaphore waitSemaphores[] =
@@ -226,7 +235,7 @@ namespace al
         vkQueueSubmit(get_command_queue(&backend->gpu, VulkanGpu::CommandQueue::GRAPHICS)->handle, 1, &submitInfo, backend->inFlightFences[backend->activeRenderFrame]);
         VkSwapchainKHR swapChains[] =
         {
-            backend->swapChain.handle
+            backend->swapChain.handle,
         };
         VkPresentInfoKHR presentInfo
         {
@@ -244,6 +253,18 @@ namespace al
         //          command buffer gets implicitly reset when calling vkBeginCommandBuffer
         //          https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkCommandPoolCreateFlagBits.html
         // al_vk_check(vkResetCommandBuffer(commandBuffer, 0));
+    }
+
+    PointerWithSize<Texture*> vulkan_backend_get_swap_chain_textures(RendererBackend* _backend)
+    {
+        VulkanRendererBackend* backend = (VulkanRendererBackend*)_backend;
+        return { .ptr = backend->swapChain.images.memory, .size = backend->swapChain.images.size, };
+    }
+
+    uSize vulkan_backend_get_active_swap_chain_texture_index(RendererBackend* _backend)
+    {
+        VulkanRendererBackend* backend = (VulkanRendererBackend*)_backend;
+        return backend->activeSwapChainImageIndex;
     }
 
     // ==================================================================================================================
@@ -469,16 +490,16 @@ namespace al
         vkDestroySwapchainKHR(gpu->logicalHandle, swapChain->handle, callbacks);
     }
 
-    void construct_swap_chain_images(SwapChain* swapChain, VulkanGpu* gpu, AllocatorBindings* bindings, VkAllocationCallbacks* callbacks)
+    void construct_swap_chain_images(SwapChain* swapChain, VulkanGpu* gpu, AllocatorBindings* bindings, VkAllocationCallbacks* callbacks, VulkanRendererBackend::TextureStorage* textureStorage)
     {
         u32 swapChainImageCount;
         al_vk_check(vkGetSwapchainImagesKHR(gpu->logicalHandle, swapChain->handle, &swapChainImageCount, nullptr));
         array_construct(&swapChain->images, bindings, swapChainImageCount);
-        Array<VkImage> images;
-        array_construct(&images, bindings, swapChainImageCount);
-        defer(array_destruct(&images));
+        Array<VkImage> swapChainImages;
+        array_construct(&swapChainImages, bindings, swapChainImageCount);
+        defer(array_destruct(&swapChainImages));
         // It seems like this vkGetSwapchainImagesKHR call leaks memory
-        al_vk_check(vkGetSwapchainImagesKHR(gpu->logicalHandle, swapChain->handle, &swapChainImageCount, images.memory));
+        al_vk_check(vkGetSwapchainImagesKHR(gpu->logicalHandle, swapChain->handle, &swapChainImageCount, swapChainImages.memory));
         for (u32 it = 0; it < swapChainImageCount; it++)
         {
             VkImageView view = VK_NULL_HANDLE;
@@ -487,7 +508,7 @@ namespace al
                 .sType              = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
                 .pNext              = nullptr,
                 .flags              = 0,
-                .image              = images[it],
+                .image              = swapChainImages[it],
                 .viewType           = VK_IMAGE_VIEW_TYPE_2D,
                 .format             = swapChain->surfaceFormat.format,
                 .components         = 
@@ -507,19 +528,17 @@ namespace al
                 }
             };
             al_vk_check(vkCreateImageView(gpu->logicalHandle, &createInfo, callbacks, &view));
-            swapChain->images[it] =
-            {
-                .handle = images[it],
-                .view   = view,
-            };
+            VulkanTexture* texture = data_block_storage_add(textureStorage);
+            vulkan_swap_chain_texture_construct(texture, view, swapChain->extent, swapChain->surfaceFormat.format, gpu->depthStencilFormat);
+            swapChain->images[it] = texture;
         }
     }
 
-    void destroy_swap_chain_images(SwapChain* swapChain, VulkanGpu* gpu, VkAllocationCallbacks* callbacks)
+    void destroy_swap_chain_images(SwapChain* swapChain, VulkanGpu* gpu, VulkanMemoryManager* memoryManager)
     {
         for (auto it = create_iterator(&swapChain->images); !is_finished(&it); advance(&it))
         {
-            vkDestroyImageView(gpu->logicalHandle, get(it)->view, callbacks);
+            vulkan_texture_destroy_internal(gpu, memoryManager, (VulkanTexture*)*get(it));
         }
         array_destruct(&swapChain->images);
     }

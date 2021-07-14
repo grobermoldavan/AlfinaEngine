@@ -55,6 +55,7 @@ namespace al
 
     void construct_memory_manager(VulkanMemoryManager* memoryManager, AllocatorBindings* bindings);
     void destroy_memory_manager(VulkanMemoryManager* memoryManager, VkDevice device);
+    bool gpu_is_valid_memory(VulkanMemoryManager::Memory memory);
     VulkanMemoryManager::Memory gpu_allocate(VulkanMemoryManager* memoryManager, VkDevice device, VulkanMemoryManager::GpuAllocationRequest request);
     void gpu_deallocate(VulkanMemoryManager* memoryManager, VkDevice device, VulkanMemoryManager::Memory allocation);
 }

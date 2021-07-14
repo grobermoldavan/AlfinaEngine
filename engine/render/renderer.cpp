@@ -66,18 +66,36 @@ namespace al
                         // .depthFailOp    = StencilOp::KEEP,
                         // .compareOp      = CompareOp::ALWAYS,
                     },
-                    .vertexShader               = renderer->vertexShader,
-                    .fragmentShader             = renderer->fragmentShader,
-                    .framebufferDescription     = &framebufferDescription,
-                    .hasDepthStencilAttachment  = true,
+                    .vertexShader           = renderer->vertexShader,
+                    .fragmentShader         = renderer->fragmentShader,
+                    .framebufferDescription = &framebufferDescription,
                 },
             };
             renderer->stage = renderer->vt.renderStage.create(renderer->backend, &stageCreateInfo);
+            PointerWithSize<Texture*> swapChainTextures = renderer->vt.get_swap_chain_textures(renderer->backend);
+            array_construct(&renderer->framebuffers, &initData->bindings, swapChainTextures.size);
+            for (auto it = create_iterator(&renderer->framebuffers); !is_finished(&it); advance(&it))
+            {
+                Texture* textures[] = { swapChainTextures[to_index(it)], };
+                const u32_3 size = swapChainTextures[to_index(it)]->size;
+                FramebufferCreateInfo createInfo
+                {
+                    .stage = renderer->stage,
+                    .textures = { .ptr = textures, .size = array_size(textures), },
+                    .size = { size.x, size.y },
+                };
+                *get(it) = renderer->vt.framebuffer.create(renderer->backend, &createInfo);
+            }
         }
     }
 
     void renderer_destruct(Renderer* renderer)
     {
+        for (auto it = create_iterator(&renderer->framebuffers); !is_finished(&it); advance(&it))
+        {
+            renderer->vt.framebuffer.destroy(renderer->backend, *get(it));
+        }
+        array_destruct(&renderer->framebuffers);
         renderer->vt.renderStage.destroy(renderer->backend, renderer->stage);
         renderer->vt.shaderProgram.destroy(renderer->backend, renderer->vertexShader);
         renderer->vt.shaderProgram.destroy(renderer->backend, renderer->fragmentShader);
@@ -86,8 +104,9 @@ namespace al
 
     void renderer_render(Renderer* renderer)
     {
-        // renderer->vt.begin_frame(renderer->backend);
-        // renderer->vt.end_frame(renderer->backend);
+        renderer->vt.begin_frame(renderer->backend);
+        renderer->vt.renderStage.bind(renderer->backend, renderer->stage, renderer->framebuffers[renderer->vt.get_active_swap_chain_texture_index(renderer->backend)]);
+        renderer->vt.end_frame(renderer->backend);
     }
 
     void renderer_handle_resize(Renderer* renderer)

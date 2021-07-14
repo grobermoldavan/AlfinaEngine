@@ -13,9 +13,11 @@ namespace al
 
     struct VulkanRenderStage : RenderStage
     {
+        Array<VkClearValue> clearValues;
         VkRenderPass renderPass;
         VkPipelineLayout pipelineLayout;
         VkPipeline pipeline;
+        VkPipelineBindPoint bindPoint;
     };
 
     ShaderProgram* vulkan_shader_program_create(RendererBackend* backend, PlatformFile bytecode);
@@ -23,6 +25,7 @@ namespace al
 
     RenderStage* vulkan_render_stage_create(RendererBackend* backend, RenderStageCreateInfo* createInfo);
     void vulkan_render_stage_destroy(RendererBackend* backend, RenderStage* stage);
+    void vulkan_render_stage_bind(RendererBackend* backend, RenderStage* stage, Framebuffer* framebuffer);
 }
 
 #endif

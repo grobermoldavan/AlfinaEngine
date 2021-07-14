@@ -11,6 +11,7 @@ namespace al::utils::converters
 {
     VkExtent3D to_extent(u32_3 vec);
     VkFormat to_vk_format(TextureFormat textureFormat);
+    TextureFormat to_texture_format(VkFormat vkFormat);
     VkStencilOpState to_vk_stencil_op_state(RenderStageCreateInfo::StencilOpState* stencilOpState);
 }
 

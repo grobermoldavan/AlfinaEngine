@@ -86,6 +86,11 @@ namespace al
         array_destruct(&memoryManager->gpu_ledgers);
     }
 
+    bool gpu_is_valid_memory(VulkanMemoryManager::Memory memory)
+    {
+        return memory.memory != VK_NULL_HANDLE;
+    }
+
     uSize memory_chunk_find_aligned_free_space(VulkanMemoryManager::GpuMemoryChunk* chunk, uSize requiredNumberOfBlocks, uSize alignment)
     {
         uSize freeCount = 0;

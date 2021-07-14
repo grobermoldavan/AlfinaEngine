@@ -22,15 +22,10 @@ namespace al
 {
     struct SwapChain
     {
-        struct Image
-        {
-            VkImage handle;
-            VkImageView view;
-        };
         VkSwapchainKHR handle;
         VkSurfaceFormatKHR surfaceFormat;
         VkExtent2D extent;
-        Array<Image> images;
+        Array<Texture*> images;
     };
 
     struct CommandPool
@@ -47,6 +42,11 @@ namespace al
 
     struct VulkanRendererBackend
     {
+        using ShaderProgramStorage = DataBlockStorage<VulkanShaderProgram, 8>;
+        using RenderStageStorage = DataBlockStorage<VulkanRenderStage, 8>;
+        using TextureStorage = DataBlockStorage<VulkanTexture, 8>;
+        using FramebufferStorage = DataBlockStorage<VulkanFramebuffer, 8>;
+
         PlatformWindow* window;
         VulkanMemoryManager memoryManager;
         VkInstance instance;
@@ -65,11 +65,12 @@ namespace al
 
         u32 activeRenderFrame;
         u32 activeSwapChainImageIndex;
+        VulkanRenderStage* activeRenderStage;
 
-        DataBlockStorage<VulkanShaderProgram, 8> shaderPrograms;
-        DataBlockStorage<VulkanRenderStage, 8> shaderStages;
-        DataBlockStorage<VulkanTexture, 8> textures;
-        DataBlockStorage<VulkanFramebuffer, 8> framebuffers;
+        ShaderProgramStorage shaderPrograms;
+        RenderStageStorage renderStages;
+        TextureStorage textures;
+        FramebufferStorage framebuffers;
 
         // DataBlockStorage<RenderPipeline, 8> renderPipelines;
     };
@@ -81,6 +82,8 @@ namespace al
     void vulkan_backend_handle_resize(RendererBackend* backend);
     void vulkan_backend_begin_frame(RendererBackend* backend);
     void vulkan_backend_end_frame(RendererBackend* backend);
+    PointerWithSize<Texture*> vulkan_backend_get_swap_chain_textures(RendererBackend* backend);
+    uSize vulkan_backend_get_active_swap_chain_texture_index(RendererBackend* backend);
 }
 
 #endif

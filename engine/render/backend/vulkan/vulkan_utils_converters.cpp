@@ -25,6 +25,18 @@ namespace al::utils::converters
         return VkFormat(0);
     }
 
+    TextureFormat to_texture_format(VkFormat vkFormat)
+    {
+        switch (vkFormat)
+        {
+            case VK_FORMAT_R8G8B8A8_SRGB: return TextureFormat::RGBA_8;
+            case VK_FORMAT_B8G8R8A8_SRGB: return TextureFormat::RGBA_8; // is this correct ?
+            case VK_FORMAT_R32G32B32A32_SFLOAT: return TextureFormat::RGBA_32F;
+        }
+        al_vk_assert(!"Unsupported VkFormat");
+        return TextureFormat(0);
+    }
+
     VkStencilOpState to_vk_stencil_op_state(RenderStageCreateInfo::StencilOpState* stencilOpState)
     {
         auto toVkStencilOp = [](StencilOp op) -> VkStencilOp { return static_cast<VkStencilOp>(op); };

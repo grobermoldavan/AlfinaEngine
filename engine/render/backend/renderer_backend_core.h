@@ -41,6 +41,8 @@ namespace al
         void (*handle_resize)(RendererBackend* backend);
         void (*begin_frame)(RendererBackend* backend);
         void (*end_frame)(RendererBackend* backend);
+        PointerWithSize<Texture*> (*get_swap_chain_textures)(RendererBackend* backend);
+        uSize (*get_active_swap_chain_texture_index)(RendererBackend* backend);
         TextureVtable texture;
         FramebufferVtable framebuffer;
         ShaderProgramVtable shaderProgram;

@@ -14,10 +14,10 @@
 namespace al
 {
     void vulkan_fill_image_attachment_sharing_mode(VkSharingMode* resultMode, u32* resultCount, PointerWithSize<u32> resultFamilyIndices, VulkanGpu* gpu);
-    void vulkan_construct_image_attachment(VulkanTexture* image, VulkanTextureCreateInfo* createInfo);
+    void vulkan_construct_image_attachment(VulkanTexture* texture, VulkanTextureCreateInfo* createInfo);
     VkImageUsageFlags vulkan_get_image_usage(TextureFormat format);
     VkImageAspectFlags vulkan_get_image_aspect(TextureFormat format, bool hasStencil);
-    void vulkan_copy_data_to_image(VulkanGpu* gpu, VulkanMemoryManager* memoryManager, VkCommandBuffer commandBuffer, void* data, VulkanTexture* image, uSize dataSize);
+    void vulkan_copy_data_to_image(VulkanGpu* gpu, VulkanMemoryManager* memoryManager, VkCommandBuffer commandBuffer, void* data, VulkanTexture* texture, uSize dataSize);
     void vulkan_transition_image_layout(VulkanGpu* gpu, VkCommandBuffer commandBuffer, VkImage image, VkFormat vkFormat, VkImageLayout oldLayout, VkImageLayout newLayout);
 
     // Texture* texture_create(RendererBackend* _backend, const char* path)
@@ -75,14 +75,37 @@ namespace al
         al_vk_memcpy((void*)&result->format, &createInfo->format, sizeof(createInfo->format));
         return (Texture*)result;
     }
-    
-    void vulkan_texture_destroy(RendererBackend* _backend, Texture* _image)
+
+    void vulkan_texture_destroy(RendererBackend* _backend, Texture* _texture)
     {
         VulkanRendererBackend* backend = (VulkanRendererBackend*)_backend;
-        VulkanTexture* image = (VulkanTexture*)_image;
-        vkDestroyImageView(backend->gpu.logicalHandle, image->view, &backend->memoryManager.cpu_allocationCallbacks);
-        vkDestroyImage(backend->gpu.logicalHandle, image->handle, &backend->memoryManager.cpu_allocationCallbacks);
-        gpu_deallocate(&backend->memoryManager, backend->gpu.logicalHandle, image->memory);
+        VulkanTexture* texture = (VulkanTexture*)_texture;
+        vulkan_texture_destroy_internal(&backend->gpu, &backend->memoryManager, texture);
+    }
+
+    void vulkan_texture_destroy_internal(VulkanGpu* gpu, VulkanMemoryManager* memoryManager, VulkanTexture* texture)
+    {
+        vkDestroyImageView(gpu->logicalHandle, texture->view, &memoryManager->cpu_allocationCallbacks);
+        if (texture->handle) vkDestroyImage(gpu->logicalHandle, texture->handle, &memoryManager->cpu_allocationCallbacks);
+        if (gpu_is_valid_memory(texture->memory)) gpu_deallocate(memoryManager, gpu->logicalHandle, texture->memory);
+    }
+
+    //
+    // This function is used by vulkan renderer backend internally to create texture handles to swap chain images
+    //
+    void vulkan_swap_chain_texture_construct(VulkanTexture* result, VkImageView view, VkExtent2D extent, VkFormat format, VkFormat depthStencilFormat)
+    {
+        const u32_3 textureSize = { extent.width, extent.height, 1 };
+        const TextureType textureType = TextureType::_2D;
+        const TextureFormat textureFormat = format == depthStencilFormat ? TextureFormat::DEPTH_STENCIL : utils::converters::to_texture_format(format);
+        result->memory     = {};
+        result->handle     = VK_NULL_HANDLE;
+        result->view       = view;
+        result->vkFormat   = format;
+        result->extent     = utils::converters::to_extent(textureSize);
+        al_vk_memcpy((void*)&result->size, &textureSize, sizeof(result->size));
+        al_vk_memcpy((void*)&result->type, &textureType, sizeof(result->type));
+        al_vk_memcpy((void*)&result->format, &textureFormat, sizeof(result->format));
     }
 
     void vulkan_fill_image_attachment_sharing_mode(VkSharingMode* resultMode, u32* resultCount, PointerWithSize<u32> resultFamilyIndices, VulkanGpu* gpu)
@@ -104,9 +127,9 @@ namespace al
         }
     }
 
-    void vulkan_construct_image_attachment(VulkanTexture* image, VulkanTextureCreateInfo* createInfo)
+    void vulkan_construct_image_attachment(VulkanTexture* texture, VulkanTextureCreateInfo* createInfo)
     {
-        image->vkFormat = createInfo->vkFormat;
+        texture->vkFormat = createInfo->vkFormat;
         {
             u32 queueFamiliesIndices[VulkanGpu::MAX_UNIQUE_COMMAND_QUEUES];
             VkImageCreateInfo vkImageCreateInfo
@@ -128,21 +151,21 @@ namespace al
                 .initialLayout          = VK_IMAGE_LAYOUT_UNDEFINED,
             };
             vulkan_fill_image_attachment_sharing_mode(&vkImageCreateInfo.sharingMode, &vkImageCreateInfo.queueFamilyIndexCount, { .ptr = queueFamiliesIndices, .size = array_size(queueFamiliesIndices) }, createInfo->gpu);
-            al_vk_check(vkCreateImage(createInfo->gpu->logicalHandle, &vkImageCreateInfo, &createInfo->memoryManager->cpu_allocationCallbacks, &image->handle));
+            al_vk_check(vkCreateImage(createInfo->gpu->logicalHandle, &vkImageCreateInfo, &createInfo->memoryManager->cpu_allocationCallbacks, &texture->handle));
         }
         VkMemoryRequirements memoryRequirements;
-        vkGetImageMemoryRequirements(createInfo->gpu->logicalHandle, image->handle, &memoryRequirements);
+        vkGetImageMemoryRequirements(createInfo->gpu->logicalHandle, texture->handle, &memoryRequirements);
         u32 memoryTypeIndex;
         bool result = utils::get_memory_type_index(&createInfo->gpu->memoryProperties, memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &memoryTypeIndex);
         al_vk_assert(result);
-        image->memory = gpu_allocate(createInfo->memoryManager, createInfo->gpu->logicalHandle, { .sizeBytes = memoryRequirements.size, .alignment = memoryRequirements.alignment, .memoryTypeIndex = memoryTypeIndex });
-        al_vk_check(vkBindImageMemory(createInfo->gpu->logicalHandle, image->handle, image->memory.memory, image->memory.offsetBytes));
+        texture->memory = gpu_allocate(createInfo->memoryManager, createInfo->gpu->logicalHandle, { .sizeBytes = memoryRequirements.size, .alignment = memoryRequirements.alignment, .memoryTypeIndex = memoryTypeIndex });
+        al_vk_check(vkBindImageMemory(createInfo->gpu->logicalHandle, texture->handle, texture->memory.memory, texture->memory.offsetBytes));
         VkImageViewCreateInfo vkImageViewCreateInfo
         {
             .sType              = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
             .pNext              = nullptr,
             .flags              = 0,
-            .image              = image->handle,
+            .image              = texture->handle,
             .viewType           = createInfo->viewType,
             .format             = createInfo->vkFormat,
             .components         = { VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY },
@@ -155,7 +178,7 @@ namespace al
                 .layerCount     = 1,
             },
         };
-        al_vk_check(vkCreateImageView(createInfo->gpu->logicalHandle, &vkImageViewCreateInfo, &createInfo->memoryManager->cpu_allocationCallbacks, &image->view));
+        al_vk_check(vkCreateImageView(createInfo->gpu->logicalHandle, &vkImageViewCreateInfo, &createInfo->memoryManager->cpu_allocationCallbacks, &texture->view));
     }
 
     VkImageUsageFlags vulkan_get_image_usage(TextureFormat format)
@@ -172,14 +195,14 @@ namespace al
                 VK_IMAGE_ASPECT_COLOR_BIT;
     }
 
-    void vulkan_copy_data_to_image(VulkanGpu* gpu, VulkanMemoryManager* memoryManager, VkCommandBuffer commandBuffer, void* data, VulkanTexture* image, uSize dataSize)
+    void vulkan_copy_data_to_image(VulkanGpu* gpu, VulkanMemoryManager* memoryManager, VkCommandBuffer commandBuffer, void* data, VulkanTexture* texture, uSize dataSize)
     {
-        vulkan_transition_image_layout(gpu, commandBuffer, image->handle, image->vkFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        vulkan_transition_image_layout(gpu, commandBuffer, texture->handle, texture->vkFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
         VulkanMemoryBuffer stagingBuffer = vulkan_staging_buffer_create(gpu, memoryManager, dataSize);
         defer(vulkan_memory_buffer_destroy(&stagingBuffer, gpu, memoryManager));
         vulkan_copy_cpu_memory_to_buffer(gpu->logicalHandle, data, &stagingBuffer, dataSize);
-        vulkan_copy_buffer_to_image(gpu, commandBuffer, &stagingBuffer, image->handle, utils::converters::to_extent(image->size));
-        vulkan_transition_image_layout(gpu, commandBuffer, image->handle, image->vkFormat, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        vulkan_copy_buffer_to_image(gpu, commandBuffer, &stagingBuffer, texture->handle, utils::converters::to_extent(texture->size));
+        vulkan_transition_image_layout(gpu, commandBuffer, texture->handle, texture->vkFormat, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     }
 
     void vulkan_transition_image_layout(VulkanGpu* gpu, VkCommandBuffer commandBuffer, VkImage image, VkFormat vkFormat, VkImageLayout oldLayout, VkImageLayout newLayout)

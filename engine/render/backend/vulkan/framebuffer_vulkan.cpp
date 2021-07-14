@@ -15,7 +15,7 @@ namespace al
         defer(array_destruct(&attachments));
         for (auto it = create_iterator(&createInfo->textures); !is_finished(&it); advance(&it))
         {
-            VulkanTexture* texture = (VulkanTexture*)get(it);
+            VulkanTexture* texture = (VulkanTexture*)*get(it);
             attachments[to_index(it)] = texture->view;
         }
         VkFramebufferCreateInfo framebufferInfo
