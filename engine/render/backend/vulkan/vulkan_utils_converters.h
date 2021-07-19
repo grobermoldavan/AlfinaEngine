@@ -13,6 +13,9 @@ namespace al::utils::converters
     VkFormat to_vk_format(TextureFormat textureFormat);
     TextureFormat to_texture_format(VkFormat vkFormat);
     VkStencilOpState to_vk_stencil_op_state(RenderStageCreateInfo::StencilOpState* stencilOpState);
+    VkQueueFlags pipeline_stage_to_queue_flags(VkPipelineStageFlags stage);
+    VkAccessFlags image_layout_to_access_flags(VkImageLayout layout);
+    VkPipelineStageFlags image_layout_to_pipeline_stage_flags(VkImageLayout layout);
 }
 
 #endif

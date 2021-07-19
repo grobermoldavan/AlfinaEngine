@@ -104,8 +104,9 @@ namespace al
 
     void renderer_render(Renderer* renderer)
     {
+        uSize swapChainImageIndex = renderer->vt.get_active_swap_chain_texture_index(renderer->backend);
         renderer->vt.begin_frame(renderer->backend);
-        renderer->vt.renderStage.bind(renderer->backend, renderer->stage, renderer->framebuffers[renderer->vt.get_active_swap_chain_texture_index(renderer->backend)]);
+        renderer->vt.renderStage.bind(renderer->backend, renderer->stage, renderer->framebuffers[swapChainImageIndex]);
         renderer->vt.end_frame(renderer->backend);
     }
 

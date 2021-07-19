@@ -9,6 +9,7 @@ namespace al
 {
     struct VulkanGpu;
     struct VulkanRendererBackend;
+    struct VulkanCommandBufferSet;
 
     struct VulkanTexture : Texture
     {
@@ -17,6 +18,8 @@ namespace al
         VkImageView view;
         VkFormat vkFormat;
         VkExtent3D extent;
+        VkImageLayout currentLayout;
+        VkImageSubresourceRange subresourceRange;
     };
 
     struct VulkanTextureCreateInfo // for inner use
@@ -40,6 +43,7 @@ namespace al
     void vulkan_swap_chain_texture_construct(VulkanTexture* result, VkImageView view, VkExtent2D extent, VkFormat format, VkFormat depthStencilFormat);
     VkFormat vulkan_get_vk_format(TextureFormat format);
     bool vulkan_is_depth_image_format(TextureFormat format);
+    void vulkan_transition_image_layout(VulkanGpu* gpu, VulkanCommandBufferSet* commandBufferSet, VkImage image, VkImageSubresourceRange* subresourceRange, VkImageLayout oldLayout, VkImageLayout newLayout);
 }
 
 #endif

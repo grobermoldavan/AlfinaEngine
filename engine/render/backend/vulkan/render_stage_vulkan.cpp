@@ -385,10 +385,20 @@ namespace al
         VulkanRendererBackend* backend = (VulkanRendererBackend*)_backend;
         VulkanRenderStage* stage = (VulkanRenderStage*)(_stage);
         VulkanFramebuffer* framebuffer = (VulkanFramebuffer*)(_framebuffer);
-        VkCommandBuffer commandBuffer = backend->graphicsBuffers[backend->activeSwapChainImageIndex];
+        VulkanCommandBufferSet* commandBufferSet = &backend->commandBufferSets[backend->activeSwapChainImageIndex];
+        VkCommandBuffer commandBuffer = vulkan_get_command_buffer(commandBufferSet, VK_QUEUE_GRAPHICS_BIT)->handle;
         if (backend->activeRenderStage)
         {
             vkCmdEndRenderPass(commandBuffer);
+            // vkQueueSubmit(get_command_queue(&backend->gpu, VulkanGpu::CommandQueue::GRAPHICS)->handle, 1, &submitInfo, backend->inFlightFences[backend->activeRenderFrame]);
+        }
+        for (auto it = create_iterator(&framebuffer->textures); !is_finished(&it); advance(&it))
+        {
+            VulkanTexture* texture = *get(it);
+            if (texture->currentLayout != VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
+            {
+                vulkan_transition_image_layout(&backend->gpu, commandBufferSet, texture->handle, &texture->subresourceRange, texture->currentLayout, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+            }
         }
         VkRenderPassBeginInfo renderPassInfo
         {
@@ -402,24 +412,22 @@ namespace al
         };
         vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
         vkCmdBindPipeline(commandBuffer, stage->bindPoint, stage->pipeline);
-        {   // @NOTE :  set dynamic state values
-            VkViewport viewport
-            {
-                .x          = 0.0f,
-                .y          = 0.0f,
-                .width      = static_cast<float>(backend->swapChain.extent.width),
-                .height     = static_cast<float>(backend->swapChain.extent.height),
-                .minDepth   = 0.0f,
-                .maxDepth   = 1.0f,
-            };
-            VkRect2D scissor
-            {
-                .offset = { 0, 0 },
-                .extent = backend->swapChain.extent ,
-            };
-            vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-            vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-        }
+        VkViewport viewport
+        {
+            .x          = 0.0f,
+            .y          = 0.0f,
+            .width      = static_cast<float>(backend->swapChain.extent.width),
+            .height     = static_cast<float>(backend->swapChain.extent.height),
+            .minDepth   = 0.0f,
+            .maxDepth   = 1.0f,
+        };
+        VkRect2D scissor
+        {
+            .offset = { 0, 0 },
+            .extent = backend->swapChain.extent ,
+        };
+        vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+        vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
         vkCmdDraw(commandBuffer, 3, 1, 0 ,0);
         backend->activeRenderStage = stage;
     }

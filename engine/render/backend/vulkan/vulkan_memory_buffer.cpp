@@ -155,14 +155,14 @@ namespace al
 
     void vulkan_copy_buffer_to_image(VulkanGpu* gpu, VkCommandBuffer commandBuffer, VulkanMemoryBuffer* src, VkImage dst, VkExtent3D extent)
     {
-        VkCommandBufferBeginInfo beginInfo
-        {
-            .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-            .pNext              = nullptr,
-            .flags              = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-            .pInheritanceInfo   = nullptr,
-        };
-        vkBeginCommandBuffer(commandBuffer, &beginInfo);
+        // VkCommandBufferBeginInfo beginInfo
+        // {
+        //     .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        //     .pNext              = nullptr,
+        //     .flags              = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+        //     .pInheritanceInfo   = nullptr,
+        // };
+        // vkBeginCommandBuffer(commandBuffer, &beginInfo);
         VkBufferImageCopy imageCopy
         {
             .bufferOffset       = 0,
@@ -179,21 +179,21 @@ namespace al
             .imageExtent        = extent,
         };
         vkCmdCopyBufferToImage(commandBuffer, src->handle, dst, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &imageCopy);
-        vkEndCommandBuffer(commandBuffer);
-        VkSubmitInfo submitInfo
-        {
-            .sType                  = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-            .pNext                  = nullptr,
-            .waitSemaphoreCount     = 0,
-            .pWaitSemaphores        = nullptr,
-            .pWaitDstStageMask      = 0,
-            .commandBufferCount     = 1,
-            .pCommandBuffers        = &commandBuffer,
-            .signalSemaphoreCount   = 0,
-            .pSignalSemaphores      = nullptr,
-        };
-        VkQueue queue = get_command_queue(gpu, VulkanGpu::CommandQueue::TRANSFER)->handle;
-        vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
-        vkQueueWaitIdle(queue);
+        // vkEndCommandBuffer(commandBuffer);
+        // VkSubmitInfo submitInfo
+        // {
+        //     .sType                  = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        //     .pNext                  = nullptr,
+        //     .waitSemaphoreCount     = 0,
+        //     .pWaitSemaphores        = nullptr,
+        //     .pWaitDstStageMask      = 0,
+        //     .commandBufferCount     = 1,
+        //     .pCommandBuffers        = &commandBuffer,
+        //     .signalSemaphoreCount   = 0,
+        //     .pSignalSemaphores      = nullptr,
+        // };
+        // VkQueue queue = get_command_queue(gpu, VulkanGpu::CommandQueue::TRANSFER)->handle;
+        // vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
+        // vkQueueWaitIdle(queue);
     }
 }

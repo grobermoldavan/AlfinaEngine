@@ -23,14 +23,30 @@ namespace al::utils::initializers
         };
     }
 
-    VkCommandBufferBeginInfo command_buffer_begin_info()
+    VkCommandBufferBeginInfo command_buffer_begin_info(VkCommandBufferUsageFlags flags)
     {
         return
         {
             .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
             .pNext              = nullptr,
-            .flags              = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+            .flags              = flags,
             .pInheritanceInfo   = nullptr,
+        };
+    }
+
+    VkSubmitInfo submit_info(VkCommandBuffer* buffers, u32 buffersCount)
+    {
+        return
+        {
+            .sType                  = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            .pNext                  = nullptr,
+            .waitSemaphoreCount     = 0,
+            .pWaitSemaphores        = nullptr,
+            .pWaitDstStageMask      = 0,
+            .commandBufferCount     = buffersCount,
+            .pCommandBuffers        = buffers,
+            .signalSemaphoreCount   = 0,
+            .pSignalSemaphores      = nullptr,
         };
     }
 }

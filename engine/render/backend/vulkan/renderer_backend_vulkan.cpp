@@ -27,17 +27,17 @@ namespace al
     void destroy_swap_chain(SwapChain* swapChain, VulkanGpu* gpu, VkAllocationCallbacks* callbacks);
     void construct_swap_chain_images(SwapChain* swapChain, VulkanGpu* gpu, AllocatorBindings* bindings, VkAllocationCallbacks* callbacks, VulkanRendererBackend::TextureStorage* textureStorage);
     void destroy_swap_chain_images(SwapChain* swapChain, VulkanGpu* gpu, VulkanMemoryManager* memoryManager);
-    //
-    // Command pools
-    //
-    void construct_command_pools(Array<CommandPool>* pools, VulkanGpu* gpu, AllocatorBindings* bindings, VkAllocationCallbacks* callbacks);
-    void destroy_command_pools(Array<CommandPool>* pools, VulkanGpu* gpu, VkAllocationCallbacks* callbacks);
-    CommandPool* get_command_pool(Array<CommandPool>* pools, CommandPool::FlagsT flags);
-    //
-    // Command buffers
-    //
-    void construct_command_buffers(Array<VkCommandBuffer>* graphicsBufffers, VkCommandBuffer* transferBuffer, SwapChain* swapChain, VulkanGpu* gpu, Array<CommandPool>* pools, AllocatorBindings* bindings);
-    void destroy_command_buffers(Array<VkCommandBuffer>* graphicsBufffers, VkCommandBuffer* transferBuffer);
+    // //
+    // // Command pools
+    // //
+    // void construct_command_pools(Array<CommandPool>* pools, VulkanGpu* gpu, AllocatorBindings* bindings, VkAllocationCallbacks* callbacks);
+    // void destroy_command_pools(Array<CommandPool>* pools, VulkanGpu* gpu, VkAllocationCallbacks* callbacks);
+    // CommandPool* get_command_pool(Array<CommandPool>* pools, VkQueueFlags queueFlags);
+    // //
+    // // Command buffers
+    // //
+    // void construct_command_buffers(Array<VkCommandBuffer>* graphicsBufffers, VkCommandBuffer* transferBuffer, SwapChain* swapChain, VulkanGpu* gpu, Array<CommandPool>* pools, AllocatorBindings* bindings);
+    // void destroy_command_buffers(Array<VkCommandBuffer>* graphicsBufffers, VkCommandBuffer* transferBuffer);
 
     // ==================================================================================================================
     //
@@ -84,8 +84,17 @@ namespace al
         construct_gpu(&backend->gpu, backend->instance, backend->surface, &backend->memoryManager.cpu_allocationBindings, &backend->memoryManager.cpu_allocationCallbacks);
         construct_swap_chain(&backend->swapChain, backend->surface, &backend->gpu, backend->window, &backend->memoryManager.cpu_allocationBindings, &backend->memoryManager.cpu_allocationCallbacks);
         construct_swap_chain_images(&backend->swapChain, &backend->gpu, &backend->memoryManager.cpu_allocationBindings, &backend->memoryManager.cpu_allocationCallbacks, &backend->textures);
-        construct_command_pools(&backend->commandPools, &backend->gpu, &backend->memoryManager.cpu_allocationBindings, &backend->memoryManager.cpu_allocationCallbacks);
-        construct_command_buffers(&backend->graphicsBuffers, &backend->transferBuffer, &backend->swapChain, &backend->gpu, &backend->commandPools, &backend->memoryManager.cpu_allocationBindings);
+        // construct_command_pools(&backend->commandPools, &backend->gpu, &backend->memoryManager.cpu_allocationBindings, &backend->memoryManager.cpu_allocationCallbacks);
+        // construct_command_buffers(&backend->graphicsBuffers, &backend->transferBuffer, &backend->swapChain, &backend->gpu, &backend->commandPools, &backend->memoryManager.cpu_allocationBindings);
+        {
+            array_construct(&backend->commandPoolSets, &backend->memoryManager.cpu_allocationBindings, backend->swapChain.images.size);
+            array_construct(&backend->commandBufferSets, &backend->memoryManager.cpu_allocationBindings, backend->swapChain.images.size);
+            for (uSize it = 0; it < backend->swapChain.images.size; it++)
+            {
+                backend->commandPoolSets[it] = vulkan_command_pool_set_create(&backend->gpu, &backend->memoryManager);
+                backend->commandBufferSets[it] = vulkan_command_buffer_set_create(&backend->commandPoolSets[it], &backend->gpu, &backend->memoryManager);
+            }
+        }
         {
             //
             // Create semaphores
@@ -145,8 +154,8 @@ namespace al
             array_destruct(&backend->imageInFlightFencesRef);
         }
 
-        destroy_command_buffers(&backend->graphicsBuffers, &backend->transferBuffer);
-        destroy_command_pools(&backend->commandPools, &backend->gpu, &backend->memoryManager.cpu_allocationCallbacks);
+        // destroy_command_buffers(&backend->graphicsBuffers, &backend->transferBuffer);
+        // destroy_command_pools(&backend->commandPools, &backend->gpu, &backend->memoryManager.cpu_allocationCallbacks);
         destroy_swap_chain_images(&backend->swapChain, &backend->gpu, &backend->memoryManager);
         destroy_swap_chain(&backend->swapChain, &backend->gpu, &backend->memoryManager.cpu_allocationCallbacks);
 
@@ -193,7 +202,7 @@ namespace al
         }
         // Mark this image as used by this render frame
         backend->imageInFlightFencesRef[backend->activeSwapChainImageIndex] = backend->inFlightFences[backend->activeRenderFrame];
-        VkCommandBuffer commandBuffer = backend->graphicsBuffers[backend->activeSwapChainImageIndex];
+        VkCommandBuffer commandBuffer = vulkan_get_command_buffer(&backend->commandBufferSets[backend->activeSwapChainImageIndex], VK_QUEUE_GRAPHICS_BIT)->handle;
         VkCommandBufferBeginInfo beginInfo = utils::initializers::command_buffer_begin_info();
         al_vk_check(vkBeginCommandBuffer(commandBuffer, &beginInfo));
         backend->activeRenderStage = nullptr;
@@ -202,7 +211,7 @@ namespace al
     void vulkan_backend_end_frame(RendererBackend* _backend)
     {
         VulkanRendererBackend* backend = (VulkanRendererBackend*)_backend;
-        VkCommandBuffer commandBuffer = backend->graphicsBuffers[backend->activeSwapChainImageIndex];
+        VkCommandBuffer commandBuffer = vulkan_get_command_buffer(&backend->commandBufferSets[backend->activeSwapChainImageIndex], VK_QUEUE_GRAPHICS_BIT)->handle;
         vkCmdEndRenderPass(commandBuffer);
         al_vk_check(vkEndCommandBuffer(commandBuffer));
         // Queue gets processed only after swap chain image gets available
@@ -543,90 +552,90 @@ namespace al
         array_destruct(&swapChain->images);
     }
 
-    // ==================================================================================================================
-    //
-    //
-    // Command pools
-    //
-    //
-    // ==================================================================================================================
+    // // ==================================================================================================================
+    // //
+    // //
+    // // Command pools
+    // //
+    // //
+    // // ==================================================================================================================
 
-    void construct_command_pools(Array<CommandPool>* pools, VulkanGpu* gpu, AllocatorBindings* bindings, VkAllocationCallbacks* callbacks)
-    {
-        constexpr VkCommandPoolCreateFlags POOL_FLAGS = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-        VulkanGpu::CommandQueue* graphicsQueue = get_command_queue(gpu, VulkanGpu::CommandQueue::GRAPHICS);
-        VulkanGpu::CommandQueue* transferQueue = get_command_queue(gpu, VulkanGpu::CommandQueue::TRANSFER);
-        if (graphicsQueue->queueFamilyIndex == transferQueue->queueFamilyIndex)
-        {
-            array_construct(pools, bindings, 1);
-            (*pools)[0] = 
-            {
-                .handle = utils::create_command_pool(gpu->logicalHandle, graphicsQueue->queueFamilyIndex, callbacks, POOL_FLAGS),
-                .flags = CommandPool::GRAPHICS | CommandPool::TRANSFER,
-            };
-        }
-        else
-        {
-            array_construct(pools, bindings, 2);
-            (*pools)[0] =
-            {
-                .handle = utils::create_command_pool(gpu->logicalHandle, graphicsQueue->queueFamilyIndex, callbacks, POOL_FLAGS),
-                .flags = CommandPool::GRAPHICS,
-            };
-            (*pools)[1] =
-            {
-                .handle = utils::create_command_pool(gpu->logicalHandle, transferQueue->queueFamilyIndex, callbacks, POOL_FLAGS),
-                .flags = CommandPool::TRANSFER,
-            };
-        }
-    }
+    // void construct_command_pools(Array<CommandPool>* pools, VulkanGpu* gpu, AllocatorBindings* bindings, VkAllocationCallbacks* callbacks)
+    // {
+    //     constexpr VkCommandPoolCreateFlags POOL_FLAGS = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    //     VulkanGpu::CommandQueue* graphicsQueue = get_command_queue(gpu, VulkanGpu::CommandQueue::GRAPHICS);
+    //     VulkanGpu::CommandQueue* transferQueue = get_command_queue(gpu, VulkanGpu::CommandQueue::TRANSFER);
+    //     if (graphicsQueue->queueFamilyIndex == transferQueue->queueFamilyIndex)
+    //     {
+    //         array_construct(pools, bindings, 1);
+    //         (*pools)[0] = 
+    //         {
+    //             .handle = utils::create_command_pool(gpu->logicalHandle, graphicsQueue->queueFamilyIndex, callbacks, POOL_FLAGS),
+    //             .queueFlags = VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_TRANSFER_BIT,
+    //         };
+    //     }
+    //     else
+    //     {
+    //         array_construct(pools, bindings, 2);
+    //         (*pools)[0] =
+    //         {
+    //             .handle = utils::create_command_pool(gpu->logicalHandle, graphicsQueue->queueFamilyIndex, callbacks, POOL_FLAGS),
+    //             .queueFlags = VK_QUEUE_GRAPHICS_BIT,
+    //         };
+    //         (*pools)[1] =
+    //         {
+    //             .handle = utils::create_command_pool(gpu->logicalHandle, transferQueue->queueFamilyIndex, callbacks, POOL_FLAGS),
+    //             .queueFlags = VK_QUEUE_TRANSFER_BIT,
+    //         };
+    //     }
+    // }
 
-    void destroy_command_pools(Array<CommandPool>* pools, VulkanGpu* gpu, VkAllocationCallbacks* callbacks)
-    {
-        for (auto it = create_iterator(pools); !is_finished(&it); advance(&it))
-        {
-            utils::destroy_command_pool(get(it)->handle, gpu->logicalHandle, callbacks);
-        }
-        array_destruct(pools);
-    }
+    // void destroy_command_pools(Array<CommandPool>* pools, VulkanGpu* gpu, VkAllocationCallbacks* callbacks)
+    // {
+    //     for (auto it = create_iterator(pools); !is_finished(&it); advance(&it))
+    //     {
+    //         utils::destroy_command_pool(get(it)->handle, gpu->logicalHandle, callbacks);
+    //     }
+    //     array_destruct(pools);
+    // }
 
-    CommandPool* get_command_pool(Array<CommandPool>* pools, CommandPool::FlagsT flags)
-    {
-        for (auto it = create_iterator(pools); !is_finished(&it); advance(&it))
-        {
-            CommandPool* pool = get(it);
-            if (pool->flags & flags)
-            {
-                return pool;
-            }
-        }
-        return nullptr;
-    }
+    // CommandPool* get_command_pool(Array<CommandPool>* pools, VkQueueFlags queueFlags)
+    // {
+    //     for (auto it = create_iterator(pools); !is_finished(&it); advance(&it))
+    //     {
+    //         CommandPool* pool = get(it);
+    //         if (pool->queueFlags & queueFlags)
+    //         {
+    //             return pool;
+    //         }
+    //     }
+    //     return nullptr;
+    // }
 
-    // ==================================================================================================================
-    //
-    //
-    // Command buffers
-    //
-    //
-    // ==================================================================================================================
+    // // ==================================================================================================================
+    // //
+    // //
+    // // Command buffers
+    // //
+    // //
+    // // ==================================================================================================================
 
-    void construct_command_buffers(Array<VkCommandBuffer>* graphicsBufffers, VkCommandBuffer* transferBuffer, SwapChain* swapChain, VulkanGpu* gpu, Array<CommandPool>* pools, AllocatorBindings* bindings)
-    {
-        array_construct(graphicsBufffers, bindings, swapChain->images.size);
-        VkCommandPool graphicsPool = get_command_pool(pools, CommandPool::GRAPHICS)->handle;
-        for (auto it = create_iterator(graphicsBufffers); !is_finished(&it); advance(&it))
-        {
-            // @TODO :  create command buffers for each possible thread
-            *get(it) = utils::create_command_buffer(gpu->logicalHandle, graphicsPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY);
-        }
-        *transferBuffer = utils::create_command_buffer(gpu->logicalHandle, get_command_pool(pools, CommandPool::TRANSFER)->handle, VK_COMMAND_BUFFER_LEVEL_PRIMARY);
-    }
+    // void construct_command_buffers(Array<VkCommandBuffer>* graphicsBufffers, VkCommandBuffer* transferBuffer, SwapChain* swapChain, VulkanGpu* gpu, Array<CommandPool>* pools, AllocatorBindings* bindings)
+    // {
+    //     array_construct(graphicsBufffers, bindings, swapChain->images.size);
+    //     VkCommandPool graphicsPool = get_command_pool(pools, VK_QUEUE_GRAPHICS_BIT)->handle;
+    //     for (auto it = create_iterator(graphicsBufffers); !is_finished(&it); advance(&it))
+    //     {
+    //         // @TODO :  create command buffers for each possible thread
+    //         *get(it) = utils::create_command_buffer(gpu->logicalHandle, graphicsPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY);
+    //     }
+    //     *transferBuffer = utils::create_command_buffer(gpu->logicalHandle, get_command_pool(pools, VK_QUEUE_TRANSFER_BIT)->handle, VK_COMMAND_BUFFER_LEVEL_PRIMARY);
+    // }
 
-    void destroy_command_buffers(Array<VkCommandBuffer>* graphicsBufffers, VkCommandBuffer* transferBuffer)
-    {
-        array_destruct(graphicsBufffers);
-    }
+    // void destroy_command_buffers(Array<VkCommandBuffer>* graphicsBufffers, VkCommandBuffer* transferBuffer)
+    // {
+    //     array_destruct(graphicsBufffers);
+    // }
 }
 
 #include "vulkan_utils.cpp"
@@ -634,6 +643,7 @@ namespace al
 #include "vulkan_utils_converters.cpp"
 #include "vulkan_memory_manager.cpp"
 #include "vulkan_gpu.cpp"
+#include "vulkan_command_buffers.cpp"
 #include "vulkan_memory_buffer.cpp"
 
 #include "texture_vulkan.cpp"

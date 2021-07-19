@@ -11,6 +11,7 @@
 #include "vulkan_utils_converters.h"
 #include "vulkan_memory_manager.h"
 #include "vulkan_gpu.h"
+#include "vulkan_command_buffers.h"
 #include "vulkan_memory_buffer.h"
 
 #include "../renderer_backend_core.h"
@@ -30,14 +31,14 @@ namespace al
 
     struct CommandPool
     {
-        using FlagsT = u32;
-        enum Flags : FlagsT
-        {
-            GRAPHICS = FlagsT(1) << 0,
-            TRANSFER = FlagsT(1) << 1,
-        };
         VkCommandPool handle;
-        FlagsT flags;
+        VkQueueFlags queueFlags;
+    };
+
+    struct CommandBuffer
+    {
+        VkCommandBuffer handle;
+        VkQueueFlags queueFlags;
     };
 
     struct VulkanRendererBackend
@@ -54,9 +55,8 @@ namespace al
         VkSurfaceKHR surface;
         VulkanGpu gpu;
         SwapChain swapChain;
-        Array<CommandPool> commandPools;
-        Array<VkCommandBuffer> graphicsBuffers;
-        VkCommandBuffer transferBuffer;
+        Array<VulkanCommandPoolSet> commandPoolSets;
+        Array<VulkanCommandBufferSet> commandBufferSets;
 
         StaticPointerWithSize<VkSemaphore, utils::MAX_IMAGES_IN_FLIGHT> imageAvailableSemaphores;
         StaticPointerWithSize<VkSemaphore, utils::MAX_IMAGES_IN_FLIGHT> renderFinishedSemaphores;
@@ -76,7 +76,6 @@ namespace al
     };
 
     void vulkan_backend_fill_vtable(RendererBackendVtable* table);
-    
     RendererBackend* vulkan_backend_create(RendererBackendCreateInfo* createInfo);
     void vulkan_backend_destroy(RendererBackend* backend);
     void vulkan_backend_handle_resize(RendererBackend* backend);

@@ -10,6 +10,7 @@ namespace al
         VulkanRendererBackend* backend = (VulkanRendererBackend*)_backend;
         VulkanFramebuffer* framebuffer = data_block_storage_add(&backend->framebuffers);
         VulkanRenderStage* stage = (VulkanRenderStage*)createInfo->stage;
+        array_construct(&framebuffer->textures, &backend->memoryManager.cpu_allocationBindings, createInfo->textures.size);
         Array<VkImageView> attachments;
         array_construct(&attachments, &backend->memoryManager.cpu_allocationBindings, createInfo->textures.size);
         defer(array_destruct(&attachments));
@@ -17,6 +18,7 @@ namespace al
         {
             VulkanTexture* texture = (VulkanTexture*)*get(it);
             attachments[to_index(it)] = texture->view;
+            framebuffer->textures[to_index(it)] = texture;
         }
         VkFramebufferCreateInfo framebufferInfo
         {
@@ -39,5 +41,6 @@ namespace al
         VulkanRendererBackend* backend = (VulkanRendererBackend*)_backend;
         VulkanFramebuffer* framebuffer = (VulkanFramebuffer*)_framebuffer;
         vkDestroyFramebuffer(backend->gpu.logicalHandle, framebuffer->handle, &backend->memoryManager.cpu_allocationCallbacks);
+        array_destruct(&framebuffer->textures);
     }
 }

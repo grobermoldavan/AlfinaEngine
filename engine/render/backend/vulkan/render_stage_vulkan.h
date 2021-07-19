@@ -18,6 +18,7 @@ namespace al
         VkPipelineLayout pipelineLayout;
         VkPipeline pipeline;
         VkPipelineBindPoint bindPoint;
+        VkSemaphore stageFinishedSemaphore;
     };
 
     ShaderProgram* vulkan_shader_program_create(RendererBackend* backend, PlatformFile bytecode);
