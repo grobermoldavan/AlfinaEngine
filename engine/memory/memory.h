@@ -49,6 +49,13 @@ namespace al
 #endif
     };
 
+    template<uSize SizeBytes>
+    struct InplaceStackAllocator
+    {
+        u8 memory[SizeBytes];
+        uSize top;
+    };
+
     // ===============================================================================================
     // Pool allocator data
     // ===============================================================================================
@@ -98,16 +105,21 @@ namespace al
     template<typename T = void> T*      allocate    (AllocatorBindings* bindings, uSize amount = 1, uSize alignment = EngineConfig::DEFAULT_MEMORY_ALIGNMENT);
     template<typename T = void> void    deallocate  (AllocatorBindings* bindings, T* ptr, uSize amount = 1);
 
+    template<typename Allocator>
+    AllocatorBindings get_allocator_bindings(Allocator* allocator);
+
     // ===============================================================================================
     // Stack allocator interface
     // ===============================================================================================
+
+    void stack_alloactor_reset(StackAllocator* stack);
 
     void    construct   (StackAllocator* stack, uSize memorySizeBytes, AllocatorBindings* bindings);
     void    destruct    (StackAllocator* stack);
     void*   allocate    (StackAllocator* stack, uSize memorySizeBytes, uSize alignment);
     void    deallocate  (StackAllocator* stack, void* ptr, uSize memorySizeBytes);
-
-    AllocatorBindings get_allocator_bindings(StackAllocator* stack);
+    template<uSize SizeBytes> void*   allocate    (InplaceStackAllocator<SizeBytes>* stack, uSize memorySizeBytes, uSize alignment);
+    template<uSize SizeBytes> void    deallocate  (InplaceStackAllocator<SizeBytes>* stack, void* ptr, uSize memorySizeBytes);
 
     // ===============================================================================================
     // Pool allocator interface
@@ -128,8 +140,6 @@ namespace al
     void    destruct    (PoolAllocator* allocator);
     void*   allocate    (PoolAllocator* allocator, uSize memorySizeBytes, uSize alignment);
     void    deallocate  (PoolAllocator* allocator, void* ptr, uSize memorySizeBytes);
-
-    AllocatorBindings get_allocator_bindings(PoolAllocator* pool);
 }
 
 #endif

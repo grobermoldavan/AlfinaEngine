@@ -57,6 +57,35 @@ namespace al
         }
     }
 
+    template<typename Allocator>
+    AllocatorBindings get_allocator_bindings(Allocator* _allocator)
+    {
+        if constexpr (std::is_same_v<Allocator, StackAllocator>)
+        {
+            return
+            {
+                .allocate = [](void* allocator, uSize size, uSize alignment){ return allocate(static_cast<StackAllocator*>(allocator), size, alignment); },
+                .deallocate = [](void* allocator, void* ptr, uSize size){ deallocate(static_cast<StackAllocator*>(allocator), ptr, size); },
+                .allocator = _allocator
+            };
+        }
+        else
+        {
+            return
+            {
+                .allocate = [](void* allocator, uSize size, uSize alignment){ return allocate(static_cast<PoolAllocator*>(allocator), size, alignment); },
+                .deallocate = [](void* allocator, void* ptr, uSize size){ deallocate(static_cast<PoolAllocator*>(allocator), ptr, size); },
+                .allocator = _allocator
+            };
+        }
+    }
+
+    void stack_alloactor_reset(StackAllocator* stack)
+    {
+        // @TODO : make this thread-safe
+        stack->top = stack->memory;
+    }
+
     void construct(StackAllocator* stack, uSize memorySizeBytes, AllocatorBindings* bindings)
     {
         stack->bindings = *bindings;
@@ -100,7 +129,8 @@ namespace al
         {
             return nullptr;
         }
-        return currentTopAligned + memorySizeBytes;
+        stack->top = currentTopAligned + memorySizeBytes;
+        return currentTopAligned;
 #endif
     }
 
@@ -109,14 +139,28 @@ namespace al
         // nothing
     }
 
-    AllocatorBindings get_allocator_bindings(StackAllocator* stack)
+    template<uSize SizeBytes>
+    void* allocate(InplaceStackAllocator<SizeBytes>* stack, uSize memorySizeBytes, uSize alignment)
     {
-        return
+        al_check_alignment(alignment);
+#if 0
+        // @TODO :  add platform atomic operations
+#else
+        u8* currentTopAligned = align_pointer(static_cast<u8*>(stack->memory + stack->top), alignment);
+        uSize alignedTopOffset = currentTopAligned - stack->memory;
+        if ((SizeBytes - alignedTopOffset) < memorySizeBytes)
         {
-            .allocate = [](void* allocator, uSize size, uSize alignment){ return allocate(static_cast<StackAllocator*>(allocator), size, alignment); },
-            .deallocate = [](void* allocator, void* ptr, uSize size){ deallocate(static_cast<StackAllocator*>(allocator), ptr, size); },
-            .allocator = stack
-        };
+            return nullptr;
+        }
+        stack->top = alignedTopOffset + memorySizeBytes;
+        return currentTopAligned;
+#endif
+    }
+
+    template<uSize SizeBytes>
+    void deallocate(InplaceStackAllocator<SizeBytes>* stack, void* ptr, uSize memorySizeBytes)
+    {
+
     }
 
     constexpr PoolAllocatorBucketDescription memory_bucket_desc(uSize blockSizeBytes, uSize memorySizeBytes)
@@ -347,15 +391,5 @@ namespace al
                 break;
             }
         }
-    }
-
-    AllocatorBindings get_allocator_bindings(PoolAllocator* pool)
-    {
-        return
-        {
-            .allocate = [](void* allocator, uSize size, uSize alignment){ return allocate(static_cast<PoolAllocator*>(allocator), size, alignment); },
-            .deallocate = [](void* allocator, void* ptr, uSize size){ deallocate(static_cast<PoolAllocator*>(allocator), ptr, size); },
-            .allocator = pool
-        };
     }
 }

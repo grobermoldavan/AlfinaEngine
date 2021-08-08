@@ -3,117 +3,121 @@
 
 namespace al
 {
-    /*
-    @TODO : 
-    1. finish creating nessesary rendering primitives (stage, framebuffer, textures and buffers)
-    2. setup basic rendering process with a single colored window as a result
-    3. need to create swap chain interface for renderer. We will need to iterate over each swap chain image on
-       a renderer level. This is needed so we can create framebuffers for each swap chain image.
-    4. after we created all render stages (one in the simplest case) and all framebuffers (1 * numberOfSwapChainImages
-       in the simplest case) we need to bind them each frame and process binded render stage (draw stuff to the framebuffer)
-    5. Cleanup code
-    6. Finish stencil testing support (renderer GPU interface is required so we can check if stencil is supported on a user's machine)
-       (this can look like this : bool isSupported = renderer->gpu.is_stencil_supported(renderer->backend);)
-    */
     void renderer_construct(Renderer* renderer, RendererInitData* initData)
     {
-        RendererBackendCreateInfo createInfo
+        render_api_vtable_fill(&renderer->vt, initData->renderApi);
+        RenderDeviceCreateInfo deviceCreateInfo
         {
-            .bindings           = initData->bindings,
-            .applicationName    = "Application Name",
-            .window             = initData->window,
-            .flags              = RendererBackendCreateInfo::IS_DEBUG,
+            .flags                  = RenderDeviceCreateInfo::IS_DEBUG,
+            .window                 = initData->window,
+            .persistentAllocator    = &initData->persistentAllocator,
+            .frameAllocator         = &initData->frameAllocator,
         };
-        switch (initData->backendType)
+        renderer->device = renderer->vt.device_create(&deviceCreateInfo);
         {
-            case RendererBackendType::VULKAN: vulkan_backend_fill_vtable(&renderer->vt); break;
+            PlatformFile vertexShader = platform_file_load(&initData->frameAllocator, platform_path("assets", "shaders", "simple.vert.spv"), PlatformFileLoadMode::READ);
+            defer(platform_file_unload(&initData->frameAllocator, vertexShader));
+            RenderProgramCreateInfo programCreateInfo
+            {
+                .device = renderer->device,
+                .bytecode = (u32*)vertexShader.memory,
+                .codeSizeBytes = vertexShader.sizeBytes,
+            };
+            renderer->vs = renderer->vt.program_create(&programCreateInfo);
         }
-        renderer->backend = renderer->vt.create(&createInfo);
         {
-            PlatformFile vertexShader = platform_file_load(&initData->bindings, platform_path("assets", "shaders", "simple.vert.spv"), PlatformFileLoadMode::READ);
-            PlatformFile fragmentShader = platform_file_load(&initData->bindings, platform_path("assets", "shaders", "simple.frag.spv"), PlatformFileLoadMode::READ);
-            defer(platform_file_unload(&initData->bindings, vertexShader));
-            defer(platform_file_unload(&initData->bindings, fragmentShader));
-            renderer->vertexShader = renderer->vt.shaderProgram.create(renderer->backend, vertexShader);
-            renderer->fragmentShader = renderer->vt.shaderProgram.create(renderer->backend, fragmentShader);
-            FramebufferDescription::AttachmentDescription framebufferAttachmentDescriptions[] =
+            PlatformFile fragmentShader = platform_file_load(&initData->frameAllocator, platform_path("assets", "shaders", "simple.frag.spv"), PlatformFileLoadMode::READ);
+            defer(platform_file_unload(&initData->frameAllocator, fragmentShader));
+            RenderProgramCreateInfo programCreateInfo
+            {
+                .device = renderer->device,
+                .bytecode = (u32*)fragmentShader.memory,
+                .codeSizeBytes = fragmentShader.sizeBytes,
+            };
+            renderer->fs = renderer->vt.program_create(&programCreateInfo);
+        }
+        {
+            RenderPassCreateInfo::Subpass subpasses[] =
             {
                 {
-                    .format = { /*whatever*/ },
-                    .flags = FramebufferDescription::AttachmentDescription::SWAP_CHAIN_ATTACHMENT,
+                    .colorRefs      = u32(1) << 0,
+                    .inputRefs      = 0,
+                    .resolveRefs    = 0,
+                    .depthOp        = RenderPassCreateInfo::DepthOp::NOTHING, //RenderPassCreateInfo::DepthOp::READ_WRITE,
                 },
                 // {
-                //     .format = TextureFormat::DEPTH_STENCIL,
-                //     .flags = 0,
+                //     .colorRefs      = u32(1) << 1,
+                //     .inputRefs      = u32(1) << 0,
+                //     .resolveRefs    = 0,
+                //     .depthOp        = RenderPassCreateInfo::DepthOp::NOTHING,
                 // },
             };
-            FramebufferDescription framebufferDescription
+            RenderPassCreateInfo::Attachment colorAttachments[] =
             {
-                .attachmentDescriptions = { .ptr = framebufferAttachmentDescriptions, .size = array_size(framebufferAttachmentDescriptions), },
+                // { TextureFormat::RGBA_8, AttachmentLoadOp::CLEAR, AttachmentStoreOp::STORE, },
+                { TextureFormat::SWAP_CHAIN, AttachmentLoadOp::CLEAR, AttachmentStoreOp::STORE, },
             };
-            RenderStageCreateInfo stageCreateInfo
+            RenderPassCreateInfo::Attachment depthStencilAttachment
             {
-                .type = RenderStageCreateInfo::GRAPHICS,
-                .graphics =
-                {
-                    .stencilOpState =
-                    {
-                        // .compareMask    = 0xFF,
-                        // .writeMask      = 0xFF,
-                        // .reference      = 1,
-                        // .failOp         = StencilOp::KEEP,
-                        // .passOp         = StencilOp::REPLACE,
-                        // .depthFailOp    = StencilOp::KEEP,
-                        // .compareOp      = CompareOp::ALWAYS,
-                    },
-                    .vertexShader           = renderer->vertexShader,
-                    .fragmentShader         = renderer->fragmentShader,
-                    .framebufferDescription = &framebufferDescription,
-                },
+                .format = TextureFormat::DEPTH_STENCIL,
+                .loadOp = AttachmentLoadOp::CLEAR,
+                .storeOp = AttachmentStoreOp::STORE,
             };
-            renderer->stage = renderer->vt.renderStage.create(renderer->backend, &stageCreateInfo);
-            PointerWithSize<Texture*> swapChainTextures = renderer->vt.get_swap_chain_textures(renderer->backend);
-            array_construct(&renderer->framebuffers, &initData->bindings, swapChainTextures.size);
-            for (auto it = create_iterator(&renderer->framebuffers); !is_finished(&it); advance(&it))
+            RenderPassCreateInfo renderPassCreateInfo
             {
-                Texture* textures[] = { swapChainTextures[to_index(it)], };
-                const u32_3 size = swapChainTextures[to_index(it)]->size;
-                FramebufferCreateInfo createInfo
-                {
-                    .stage = renderer->stage,
-                    .textures = { .ptr = textures, .size = array_size(textures), },
-                    .size = { size.x, size.y },
-                };
-                *get(it) = renderer->vt.framebuffer.create(renderer->backend, &createInfo);
+                .subpasses              = { subpasses, array_size(subpasses) },
+                .colorAttachments       = { colorAttachments, array_size(colorAttachments) },
+                .depthStencilAttachment = nullptr, //&depthStencilAttachment,
+                .device                 = renderer->device,
+            };
+            renderer->renderPass = renderer->vt.render_pass_create(&renderPassCreateInfo);
+        }
+        {
+            uSize numSwapChainTextures = renderer->vt.get_swap_chain_textures_num(renderer->device);
+            array_construct(&renderer->swapChainTextures, &initData->persistentAllocator, numSwapChainTextures);
+            for (al_iterator(it, renderer->swapChainTextures))
+            {
+                *get(it) = renderer->vt.get_swap_chain_texture(renderer->device, to_index(it));
             }
+        }
+        {
+            array_construct(&renderer->swapChainFramebuffers, &initData->persistentAllocator, renderer->swapChainTextures.size);
+            for (al_iterator(it, renderer->swapChainFramebuffers))
+            {
+                Texture* attachments[] = { renderer->swapChainTextures[to_index(it)] };
+                FramebufferCreateInfo framebufferCreateInfo
+                {
+                    .attachments    = { attachments, array_size(attachments) },
+                    .pass           = renderer->renderPass,
+                    .device         = renderer->device,
+                };
+                *get(it) = renderer->vt.framebuffer_create(&framebufferCreateInfo);
+            }
+        }
+        {
+            
         }
     }
 
     void renderer_destruct(Renderer* renderer)
     {
-        for (auto it = create_iterator(&renderer->framebuffers); !is_finished(&it); advance(&it))
-        {
-            renderer->vt.framebuffer.destroy(renderer->backend, *get(it));
-        }
-        array_destruct(&renderer->framebuffers);
-        renderer->vt.renderStage.destroy(renderer->backend, renderer->stage);
-        renderer->vt.shaderProgram.destroy(renderer->backend, renderer->vertexShader);
-        renderer->vt.shaderProgram.destroy(renderer->backend, renderer->fragmentShader);
-        renderer->vt.destroy(renderer->backend);
+        for (al_iterator(it, renderer->swapChainFramebuffers)) { renderer->vt.framebuffer_destroy(*get(it)); }
+        for (al_iterator(it, renderer->swapChainTextures)) { renderer->vt.texture_destroy(*get(it)); }
+        array_destruct(&renderer->swapChainFramebuffers);
+        array_destruct(&renderer->swapChainTextures);
+        renderer->vt.render_pass_destroy(renderer->renderPass);
+        renderer->vt.program_destroy(renderer->vs);
+        renderer->vt.program_destroy(renderer->fs);
+        renderer->vt.device_destroy(renderer->device);
     }
 
     void renderer_render(Renderer* renderer)
     {
-        uSize swapChainImageIndex = renderer->vt.get_active_swap_chain_texture_index(renderer->backend);
-        renderer->vt.begin_frame(renderer->backend);
-        renderer->vt.renderStage.bind(renderer->backend, renderer->stage, renderer->framebuffers[swapChainImageIndex]);
-        renderer->vt.end_frame(renderer->backend);
     }
 
     void renderer_handle_resize(Renderer* renderer)
     {
-        renderer->vt.handle_resize(renderer->backend);
     }
 }
 
-#include "backend/vulkan/renderer_backend_vulkan.cpp"
+#include "render_api_abstraction_layer/render_api_abstraction_layer.cpp"

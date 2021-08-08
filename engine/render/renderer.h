@@ -3,28 +3,33 @@
 
 #include "engine/memory/memory.h"
 #include "engine/utilities/utilities.h"
-#include "backend/renderer_backend_types.h"
-#include "backend/renderer_backend_core.h"
-#include "backend/vulkan/renderer_backend_vulkan.h"
+#include "render_api_abstraction_layer/render_api_abstraction_layer.h"
 
 namespace al
 {
     struct RendererInitData
     {
-        AllocatorBindings bindings;
+        AllocatorBindings persistentAllocator;
+        AllocatorBindings frameAllocator;
         PlatformWindow* window;
-        RendererBackendType backendType;
+        RenderApi renderApi;
     };
 
     struct Renderer
     {
-        RendererBackendVtable vt;
-        RendererBackend* backend;
+        RenderApiVtable vt;
+        RenderDevice* device;
 
-        ShaderProgram* vertexShader;
-        ShaderProgram* fragmentShader;
-        Array<Framebuffer*> framebuffers;
-        RenderStage* stage;
+        RenderProgram* vs;
+        RenderProgram* fs;
+        RenderPass* renderPass;
+        Array<Texture*> swapChainTextures;
+        Array<Framebuffer*> swapChainFramebuffers;
+        // FramebufferDescription* fbDescription;
+        // RenderStage* stage;
+        // Array<Framebuffer*> stageFramebuffers;
+
+        RenderCommandBuffer* commandBuffer;
     };
 
     void renderer_construct      (Renderer* renderer, RendererInitData* initData);

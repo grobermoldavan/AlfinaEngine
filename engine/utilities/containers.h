@@ -4,6 +4,8 @@
 #include "engine/types.h"
 #include "engine/memory/memory.h"
 
+#define al_iterator(itName, container) auto itName = create_iterator(&container); !is_finished(&itName); advance(&itName)
+
 namespace al
 {
     //
@@ -265,6 +267,19 @@ namespace al
     template<typename T> bool is_finished(ArrayIterator<T>* iterator) { return iterator->index >= iterator->storage->size; }
     template<typename T> T* get(ArrayIterator<T> iterator) { return &(*iterator.storage)[iterator.index]; }
     template<typename T> uSize to_index(ArrayIterator<T> iterator) { return iterator.index; }
+
+    template<typename T, uSize Size>
+    struct DefaultArrayIterator
+    {
+        T* storage;
+        uSize index;
+    };
+
+    template<typename T, uSize Size> DefaultArrayIterator<T, Size> create_iterator(T (*storage)[Size]) { return { *storage, 0, }; }
+    template<typename T, uSize Size> void advance(DefaultArrayIterator<T, Size>* iterator) { iterator->index += 1; }
+    template<typename T, uSize Size> bool is_finished(DefaultArrayIterator<T, Size>* iterator) { return iterator->index >= Size; }
+    template<typename T, uSize Size> T* get(DefaultArrayIterator<T, Size> iterator) { return &iterator.storage[iterator.index]; }
+    template<typename T, uSize Size> uSize to_index(DefaultArrayIterator<T, Size> iterator) { return iterator.index; }
 }
 
 #endif

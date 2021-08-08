@@ -27,6 +27,8 @@ namespace al
     {
         StackAllocator  stack;
         PoolAllocator   pool;
+        StackAllocator  frameAllocator;
+
         PlatformWindow  window;
         PlatformInput   input;
         Renderer        renderer;

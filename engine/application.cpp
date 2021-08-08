@@ -47,6 +47,7 @@ namespace al
                     application->bindings.render(application);
                 }
             }
+            stack_alloactor_reset(&application->frameAllocator);
         }
         application_default_destroy(application);
         if constexpr (AL_HAS_CHECK(Bindings, destroy))
@@ -90,6 +91,7 @@ namespace al
             memory_bucket_desc(8, EngineConfig::POOL_ALLOCATOR_MEMORY_SIZE),
         };
         construct(&application->pool, bucketDescriptions, &systemAllocatorBindings);
+        construct(&application->frameAllocator, EngineConfig::FRAME_ALLOCATOR_MEMORY_SIZE, &systemAllocatorBindings);
         platform_window_construct(&application->window, creationData.windowInitData);
         platform_window_set_resize_callback(&application->window, [application](){
             renderer_handle_resize(&application->renderer);
@@ -101,9 +103,10 @@ namespace al
         platform_input_construct(&application->input);
         RendererInitData rendererInitData
         {
-            .bindings       = get_allocator_bindings(&application->pool),
-            .window         = &application->window,
-            .backendType    = RendererBackendType::VULKAN,
+            .persistentAllocator    = get_allocator_bindings(&application->pool),
+            .frameAllocator         = get_allocator_bindings(&application->frameAllocator),
+            .window                 = &application->window,
+            .renderApi              = RenderApi::VULKAN,
         };
         renderer_construct(&application->renderer, &rendererInitData);
     }
@@ -116,6 +119,7 @@ namespace al
         platform_window_destruct(&application->window);
         destruct(&application->pool);
         destruct(&application->stack);
+        destruct(&application->frameAllocator);
     }
 
     template<typename Bindings>

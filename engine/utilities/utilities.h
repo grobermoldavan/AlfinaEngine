@@ -18,6 +18,7 @@
 #include "function.h"
 #include "defer.h"
 #include "containers.h"
+#include "hash_map.h"
 #include "tuple.h"
 #include "thread_local_storage.h"
 #include "allocations_tracker.h"

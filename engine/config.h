@@ -13,6 +13,7 @@ namespace al
         static constexpr uSize POOL_ALLOCATOR_MAX_BUCKETS   = 8;
         static constexpr uSize STACK_ALLOCATOR_MEMORY_SIZE  = 16 * 1024 * 1024; // 16 MB
         static constexpr uSize POOL_ALLOCATOR_MEMORY_SIZE   = 64 * 1024 * 1024; // 64 MB
+        static constexpr uSize FRAME_ALLOCATOR_MEMORY_SIZE  = 16 * 1024 * 1024; // 16 MB
         static constexpr uSize PLATFORM_FILE_PATH_SIZE      = 64;
     };
 }
