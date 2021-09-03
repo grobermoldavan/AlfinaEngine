@@ -1,6 +1,10 @@
 #ifndef AL_RENDER_PASS_H
 #define AL_RENDER_PASS_H
 
+/*
+    Render pass consists of one or more subpasses, attachment descriptions and attachment utilization infos for each subpass.
+*/
+
 #include "engine/types.h"
 #include "enums.h"
 
@@ -15,7 +19,8 @@ namespace al
 
     struct RenderPassCreateInfo
     {
-        static constexpr uSize MAX_COLOR_ATTACHMENTS = 32;
+        static constexpr u32 UNUSED_ATTACHMENT = ~u32(0);
+        static constexpr uSize MAX_ATTACHMENTS = 32;
         enum struct DepthOp : u32
         {
             NOTHING,
@@ -27,14 +32,14 @@ namespace al
             TextureFormat format;
             AttachmentLoadOp loadOp;
             AttachmentStoreOp storeOp;
-            u8 padding;
+            MultisamplingType samples;
         };
         struct Subpass
         {
-            u32 colorRefs;   // Bitmask. Each bit references attachment from colorAttachments array
-            u32 inputRefs;   // Bitmask. Each bit references attachment from colorAttachments array
-            u32 resolveRefs; // Bitmask. Each bit references attachment from colorAttachments array
-            DepthOp depthOp; // DepthOp::NOTHING is depth attachment is not used in subpass
+            PointerWithSize<u32> colorRefs;     // each value references colorAttachments array
+            PointerWithSize<u32> inputRefs;     // each value references colorAttachments array
+            PointerWithSize<u32> resolveRefs;   // each value references colorAttachments array
+            DepthOp depthOp;                    // DepthOp::NOTHING is depth attachment is not used in subpass
         };
         PointerWithSize<Subpass> subpasses;
         PointerWithSize<Attachment> colorAttachments;

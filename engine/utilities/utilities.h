@@ -22,5 +22,6 @@
 #include "tuple.h"
 #include "thread_local_storage.h"
 #include "allocations_tracker.h"
+#include "bits.h"
 
 #endif

@@ -14,12 +14,12 @@ namespace al
     struct TextureCreateInfo;
     struct RenderPass;
     struct RenderPassCreateInfo;
+    struct RenderPipeline;
+    struct GraphicsRenderPipelineCreateInfo;
     struct Framebuffer;
     struct FramebufferCreateInfo;
-    // struct RenderStage;
-    // struct GraphicsRenderStageCreateInfo;
-    struct RenderCommandBuffer;
-    struct RenderCommandBufferCreateInfo;
+    // struct RenderCommandBuffer;
+    // struct RenderCommandBufferCreateInfo;
 
     struct RenderApiVtable
     {
@@ -33,16 +33,16 @@ namespace al
         void                    (*texture_destroy)                  (Texture* texture);
         RenderPass*             (*render_pass_create)               (RenderPassCreateInfo* createInfo);
         void                    (*render_pass_destroy)              (RenderPass* pass);
+        RenderPipeline*         (*render_pipeline_graphics_create)  (GraphicsRenderPipelineCreateInfo* createInfo);
+        void                    (*render_pipeline_destroy)          (RenderPipeline* piepline);
         Framebuffer*            (*framebuffer_create)               (FramebufferCreateInfo* createInfo);
         void                    (*framebuffer_destroy)              (Framebuffer* framebuffer);
-        // RenderStage*            (*stage_graphics_create)            (GraphicsRenderStageCreateInfo* createInfo);
-        // void                    (*stage_destroy)                    (RenderStage* stage);
-        RenderCommandBuffer*    (*command_buffer_create)            (RenderCommandBufferCreateInfo* createInfo);
-        void                    (*command_buffer_destroy)           (RenderCommandBuffer* buffer);
-        void                    (*command_buffer_begin)             (RenderCommandBuffer* buffer);
-        void                    (*command_buffer_submit)            (RenderCommandBuffer* buffer);
+        // RenderCommandBuffer*    (*command_buffer_create)            (RenderCommandBufferCreateInfo* createInfo);
+        // void                    (*command_buffer_destroy)           (RenderCommandBuffer* buffer);
+        // void                    (*command_buffer_begin)             (RenderCommandBuffer* buffer);
+        // void                    (*command_buffer_submit)            (RenderCommandBuffer* buffer);
         // void                    (*cmd_bind_stage)                   (RenderCommandBuffer* buffer, RenderStage* stage);
-        void                    (*cmd_draw)                         (RenderCommandBuffer* buffer, uSize numVertices);
+        // void                    (*cmd_draw)                         (RenderCommandBuffer* buffer, uSize numVertices);
     };
 }
 

@@ -3,6 +3,7 @@
 
 #include "vulkan_base.h"
 #include "../base/enums.h"
+#include "../base/spirv_reflection/spirv_reflection.h"
 
 namespace al::utils
 {
@@ -11,6 +12,12 @@ namespace al::utils
         VkSurfaceCapabilitiesKHR    capabilities;
         Array<VkSurfaceFormatKHR>   formats;
         Array<VkPresentModeKHR>     presentModes;
+    };
+
+    struct ViewportScissor
+    {
+        VkViewport viewport;
+        VkRect2D scissor;
     };
 
     PointerWithSize<const char*> get_required_validation_layers();
@@ -39,7 +46,7 @@ namespace al::utils
     Tuple<bool, u32> pick_transfer_queue(Array<VkQueueFamilyProperties> familyProperties);
 
     template<uSize Size>
-    Array<VkDeviceQueueCreateInfo> get_queue_create_infos(StaticPointerWithSize<Tuple<bool, u32>, Size> queues, AllocatorBindings* bindings);
+    Array<VkDeviceQueueCreateInfo> get_queue_create_infos(Tuple<bool, u32> (&queues)[Size], AllocatorBindings* bindings);
 
     bool pick_depth_stencil_format(VkPhysicalDevice physicalDevice, VkFormat* result);
     Array<VkPhysicalDevice> get_available_physical_devices(VkInstance instance, AllocatorBindings* bindings);
@@ -60,6 +67,26 @@ namespace al::utils
     VkFormat to_vk_format(TextureFormat format);
     VkAttachmentLoadOp to_vk_load_op(AttachmentLoadOp loadOp);
     VkAttachmentStoreOp to_vk_store_op(AttachmentStoreOp storeOp);
+    VkPolygonMode to_vk_polygon_mode(PipelinePoligonMode mode);
+    VkCullModeFlags to_vk_cull_mode(PipelineCullMode mode);
+    VkFrontFace to_vk_front_face(PipelineFrontFace frontFace);
+    VkSampleCountFlagBits to_vk_sample_count(MultisamplingType multisample);
+    VkSampleCountFlagBits pick_sample_count(VkSampleCountFlags desired, VkSampleCountFlags supported);
+    VkStencilOp to_vk_stencil_op(StencilOp op);
+    VkCompareOp to_vk_compare_op(CompareOp op);
+    VkBool32 to_vk_bool(bool value);
+    VkDescriptorType to_vk_descriptor_type(SpirvReflection::Uniform::Type type);
+    VkShaderStageFlags to_vk_stage_flags(ProgramStageFlags stages);
+
+    VkPipelineShaderStageCreateInfo shader_stage_create_info(VkShaderStageFlagBits stage, VkShaderModule module, const char* pName);
+    VkPipelineVertexInputStateCreateInfo vertex_input_state_create_info(u32 bindingsCount = 0, const VkVertexInputBindingDescription* bindingDescs = nullptr, u32 attrCount = 0, const VkVertexInputAttributeDescription* attrDescs = nullptr);
+    VkPipelineInputAssemblyStateCreateInfo input_assembly_state_create_info(VkPrimitiveTopology topology, VkBool32 primitiveRestartEnable = VK_FALSE);
+    ViewportScissor default_viewport_scissor(u32 width, u32 height);
+    VkPipelineViewportStateCreateInfo viewport_state_create_info(VkViewport* viewport, VkRect2D* scissor);
+    VkPipelineRasterizationStateCreateInfo rasterization_state_create_info(VkPolygonMode polygonMode, VkCullModeFlags cullMode, VkFrontFace frontFace);
+    VkPipelineMultisampleStateCreateInfo multisample_state_create_info(VkSampleCountFlagBits resterizationSamples = VK_SAMPLE_COUNT_1_BIT);
+    VkPipelineColorBlendStateCreateInfo color_blending_create_info(PointerWithSize<VkPipelineColorBlendAttachmentState> colorBlendAttachmentStates);
+    VkPipelineDynamicStateCreateInfo dynamic_state_default_create_info();
 }
 
 #endif

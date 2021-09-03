@@ -8,10 +8,26 @@ namespace al
 {
     struct RenderDeviceVulkan;
 
+    using RenderPassAttachmentRefBitMask = u32;
+
+    struct VulkanSubpassInfo
+    {
+        RenderPassAttachmentRefBitMask inputAttachmentRefs;
+        RenderPassAttachmentRefBitMask colorAttachmentRefs;
+    };
+
+    struct VulkanRenderPassAttachmentInfo
+    {
+        VkImageLayout initialLayout;
+        VkImageLayout finalLayout;
+    };
+
     struct RenderPassVulkan : RenderPass
     {
         RenderDeviceVulkan* device;
-        VkRenderPass renderPass;
+        VkRenderPass handle;
+        Array<VulkanSubpassInfo> subpassInfos;
+        Array<VulkanRenderPassAttachmentInfo> attachmentInfos;
     };
 
     RenderPass* vulkan_render_pass_create(RenderPassCreateInfo* createInfo);

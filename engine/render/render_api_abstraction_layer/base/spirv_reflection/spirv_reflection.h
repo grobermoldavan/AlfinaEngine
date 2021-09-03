@@ -45,13 +45,18 @@ namespace al
         };
         enum ShaderType : u64
         {
-            VERTEX,
-            FRAGMENT,
+            Vertex,
+            Fragment,
         };
         struct TypeInfo
         {
-            enum struct ScalarKind { INTEGER, FLOAT, };
-            enum Kind { SCALAR, VECTOR, MATRIX, STRUCTURE, ARRAY };
+            enum Kind : u64 { Scalar, Vector, Matrix, Structure, Sampler, Image, Array };
+            enum struct ScalarKind : u16 { Integer, Float, };
+            enum struct ArrayKind : u64 { RuntimeArray, Array, };
+            enum struct ImageKind : u8 { SampledImage, Image, };
+            enum struct ImageDim : u8 { _1D, _2D, _3D, Cube, Rect, Buffer, SubpassData };
+            enum struct ImageDepthParameters : u8 { DepthImage, NotDepthImage, Unknown };
+            enum struct ImageSampleParameters : u8 { UsedWithSampler, NotUsedWithSampler, Unknown };
             union
             {
                 struct
@@ -77,10 +82,25 @@ namespace al
                     const char** memberNames;
                     uSize membersCount;
                 } structure;
+                struct Sampler
+                {
+                    // Nothing (?)
+                } sampler;
+                struct Image
+                {
+                    TypeInfo* sampledType;
+                    ImageKind kind;
+                    ImageDim dim;
+                    ImageDepthParameters depthParameters;
+                    bool isArrayed;
+                    bool isMultisampled;
+                    ImageSampleParameters sampleParameters;
+                } image;
                 struct Array
                 {
                     TypeInfo* entryType;
                     uSize size;
+                    ArrayKind kind;
                 } array;
             } info;
             Kind kind;
@@ -88,29 +108,33 @@ namespace al
         };
         struct ShaderIO
         {
-            enum Flags { IS_BUILT_IN, };
+            enum Flags : u32 { IsBuiltIn = u32(1) << 0, };
             const char* name;
             TypeInfo* typeInfo;
             u32 location;
             u32 flags;
         };
-        struct Image
-        {
-            enum Flags { IS_SAMPLED, IS_SUBPASS_DEPENDENCY, };
-            u32 flags;
-        };
         struct Uniform
         {
-            enum Type { IMAGE, UNIFORM_BUFFER, STORAGE_BUFFER };
-            const char* name;
-            Type type;
-            union
+            enum Type : u32
             {
-                Image image;
-                TypeInfo* buffer;
+                Sampler,
+                SampledImage,
+                StorageImage,
+                CombinedImageSampler,
+                UniformTexelBuffer,
+                StorageTexelBuffer,
+                UniformBuffer,
+                StorageBuffer,
+                InputAttachment,
+                AccelerationStructure,
             };
+            const char* name;
+            TypeInfo* typeInfo;
+            Type type;
             u32 set;
             u32 binding;
+            u32 inputAttachmentIndex;
         };
         struct PushConstant
         {

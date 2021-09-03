@@ -5,259 +5,6 @@
 
 namespace al
 {
-    void vulkan_memory_manager_construct(VulkanMemoryManager* memoryManager, VulkanMemoryManagerCreateInfo* createInfo)
-    {
-        memoryManager->cpu_persistentAllocator = *createInfo->persistentAllocator;
-        memoryManager->cpu_frameAllocator = *createInfo->frameAllocator;
-        memoryManager->cpu_allocationCallbacks =
-        {
-            .pUserData = memoryManager,
-            .pfnAllocation = 
-                [](void* pUserData, uSize size, uSize alignment, VkSystemAllocationScope allocationScope)
-                {
-                    VulkanMemoryManager* manager = static_cast<VulkanMemoryManager*>(pUserData);
-                    void* result = allocate(&manager->cpu_persistentAllocator, size);
-                    al_vk_assert(manager->cpu_currentNumberOfAllocations < VulkanMemoryManager::MAX_CPU_ALLOCATIONS);
-                    manager->cpu_allocations[manager->cpu_currentNumberOfAllocations++] =
-                    {
-                        .ptr = result,
-                        .size = size,
-                    };
-                    return result;
-                },
-            .pfnReallocation =
-                [](void* pUserData, void* pOriginal, uSize size, uSize alignment, VkSystemAllocationScope allocationScope)
-                {
-                    VulkanMemoryManager* manager = static_cast<VulkanMemoryManager*>(pUserData);
-                    void* result = nullptr;
-                    for (uSize it = 0; it < manager->cpu_currentNumberOfAllocations; it++)
-                    {
-                        if (manager->cpu_allocations[it].ptr == pOriginal)
-                        {
-                            deallocate(&manager->cpu_persistentAllocator, manager->cpu_allocations[it].ptr, manager->cpu_allocations[it].size);
-                            result = allocate(&manager->cpu_persistentAllocator, size);
-                            manager->cpu_allocations[it] =
-                            {
-                                .ptr = result,
-                                .size = size,
-                            };
-                            break;
-                        }
-                    }
-                    return result;
-                },
-            .pfnFree =
-                [](void* pUserData, void* pMemory)
-                {
-                    VulkanMemoryManager* manager = static_cast<VulkanMemoryManager*>(pUserData);
-                    for (uSize it = 0; it < manager->cpu_currentNumberOfAllocations; it++)
-                    {
-                        if (manager->cpu_allocations[it].ptr == pMemory)
-                        {
-                            deallocate(&manager->cpu_persistentAllocator, manager->cpu_allocations[it].ptr, manager->cpu_allocations[it].size);
-                            manager->cpu_allocations[it] = manager->cpu_allocations[manager->cpu_currentNumberOfAllocations - 1];
-                            manager->cpu_currentNumberOfAllocations -= 1;
-                            break;
-                        }
-                    }
-                },
-            .pfnInternalAllocation  = nullptr,
-            .pfnInternalFree        = nullptr
-        };
-        array_construct(&memoryManager->gpu_chunks, &memoryManager->cpu_persistentAllocator, VulkanMemoryManager::GPU_MAX_CHUNKS);
-        array_construct(&memoryManager->gpu_ledgers, &memoryManager->cpu_persistentAllocator, VulkanMemoryManager::GPU_LEDGER_SIZE_BYTES * VulkanMemoryManager::GPU_MAX_CHUNKS);
-        for (uSize it = 0; it < VulkanMemoryManager::GPU_MAX_CHUNKS; it++)
-        {
-            VulkanMemoryManager::GpuMemoryChunk* chunk = &memoryManager->gpu_chunks[it];
-            chunk->ledger = &memoryManager->gpu_ledgers[it * VulkanMemoryManager::GPU_LEDGER_SIZE_BYTES];
-        }
-    }
-
-    void vulkan_memory_manager_destroy(VulkanMemoryManager* memoryManager)
-    {
-        for (uSize it = 0; it < VulkanMemoryManager::GPU_MAX_CHUNKS; it++)
-        {
-            VulkanMemoryManager::GpuMemoryChunk* chunk = &memoryManager->gpu_chunks[it];
-            if (chunk->memory)
-            {
-                vkFreeMemory(memoryManager->device, chunk->memory, &memoryManager->cpu_allocationCallbacks);
-            }
-        }
-        array_destruct(&memoryManager->gpu_chunks);
-        array_destruct(&memoryManager->gpu_ledgers);
-    }
-
-    void vulkan_memory_manager_set_device(VulkanMemoryManager* memoryManager, VkDevice device)
-    {
-        memoryManager->device = device;
-    }
-
-    bool gpu_is_valid_memory(VulkanMemoryManager::Memory memory)
-    {
-        return memory.memory != VK_NULL_HANDLE;
-    }
-
-    VulkanMemoryManager::Memory gpu_allocate(VulkanMemoryManager* memoryManager, VulkanMemoryManager::GpuAllocationRequest request)
-    {
-        auto setInUse = [](VulkanMemoryManager::GpuMemoryChunk* chunk, uSize numBlocks, uSize startBlock)
-        {
-            for (uSize it = 0; it < numBlocks; it++)
-            {
-                uSize currentByte = (startBlock + it) / 8;
-                uSize currentBit = (startBlock + it) % 8;
-                u8* byte = &chunk->ledger[currentByte];
-                *byte |= (1 << currentBit);
-            }
-            chunk->usedMemoryBytes += numBlocks * VulkanMemoryManager::GPU_MEMORY_BLOCK_SIZE_BYTES;
-            al_vk_assert(chunk->usedMemoryBytes <= VulkanMemoryManager::GPU_CHUNK_SIZE_BYTES);
-        };
-        al_vk_assert(request.sizeBytes <= VulkanMemoryManager::GPU_CHUNK_SIZE_BYTES);
-        uSize requiredNumberOfBlocks = 1 + ((request.sizeBytes - 1) / VulkanMemoryManager::GPU_MEMORY_BLOCK_SIZE_BYTES);
-        // 1. Try to find memory in available chunks
-        for (uSize it = 0; it < VulkanMemoryManager::GPU_MAX_CHUNKS; it++)
-        {
-            VulkanMemoryManager::GpuMemoryChunk* chunk = &memoryManager->gpu_chunks[it];
-            if (!chunk->memory)
-            {
-                continue;
-            }
-            if (chunk->memoryTypeIndex != request.memoryTypeIndex)
-            {
-                continue;
-            }
-            if ((VulkanMemoryManager::GPU_CHUNK_SIZE_BYTES - chunk->usedMemoryBytes) < request.sizeBytes)
-            {
-                continue;
-            }
-            uSize inChunkOffset = memory_chunk_find_aligned_free_space(chunk, requiredNumberOfBlocks, request.alignment);
-            if (inChunkOffset == VulkanMemoryManager::GPU_LEDGER_SIZE_BYTES)
-            {
-                continue;
-            }
-            setInUse(chunk, requiredNumberOfBlocks, inChunkOffset);
-            return
-            {
-                .memory = chunk->memory,
-                .offsetBytes = inChunkOffset * VulkanMemoryManager::GPU_MEMORY_BLOCK_SIZE_BYTES,
-                .sizeBytes = requiredNumberOfBlocks * VulkanMemoryManager::GPU_MEMORY_BLOCK_SIZE_BYTES,
-            };
-        }
-        // 2. Try to allocate new chunk
-        for (uSize it = 0; it < VulkanMemoryManager::GPU_MAX_CHUNKS; it++)
-        {
-            VulkanMemoryManager::GpuMemoryChunk* chunk = &memoryManager->gpu_chunks[it];
-            if (chunk->memory)
-            {
-                continue;
-            }
-            // Allocating new chunk
-            {
-                VkMemoryAllocateInfo memoryAllocateInfo = { };
-                memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-                memoryAllocateInfo.allocationSize = VulkanMemoryManager::GPU_CHUNK_SIZE_BYTES;
-                memoryAllocateInfo.memoryTypeIndex = request.memoryTypeIndex;
-                al_vk_check(vkAllocateMemory(memoryManager->device, &memoryAllocateInfo, &memoryManager->cpu_allocationCallbacks, &chunk->memory));
-                chunk->memoryTypeIndex = request.memoryTypeIndex;
-                std::memset(chunk->ledger, 0, VulkanMemoryManager::GPU_LEDGER_SIZE_BYTES);
-            }
-            // Allocating memory in new chunk
-            uSize inChunkOffset = memory_chunk_find_aligned_free_space(chunk, requiredNumberOfBlocks, request.alignment);
-            al_vk_assert(inChunkOffset != VulkanMemoryManager::GPU_LEDGER_SIZE_BYTES);
-            setInUse(chunk, requiredNumberOfBlocks, inChunkOffset);
-            return
-            {
-                .memory = chunk->memory,
-                .offsetBytes = inChunkOffset * VulkanMemoryManager::GPU_MEMORY_BLOCK_SIZE_BYTES,
-                .sizeBytes = requiredNumberOfBlocks * VulkanMemoryManager::GPU_MEMORY_BLOCK_SIZE_BYTES,
-            };
-        }
-        al_vk_assert_fail("Out of memory");
-        return { };
-    }
-
-    void gpu_deallocate(VulkanMemoryManager* memoryManager, VulkanMemoryManager::Memory allocation)
-    {
-        auto setFree = [](VulkanMemoryManager::GpuMemoryChunk* chunk, uSize numBlocks, uSize startBlock)
-        {
-            for (uSize it = 0; it < numBlocks; it++)
-            {
-                uSize currentByte = (startBlock + it) / 8;
-                uSize currentBit = (startBlock + it) % 8;
-                u8* byte = &chunk->ledger[currentByte];
-                *byte &= ~(1 << currentBit);
-            }
-            chunk->usedMemoryBytes -= numBlocks * VulkanMemoryManager::GPU_MEMORY_BLOCK_SIZE_BYTES;
-            al_vk_assert(chunk->usedMemoryBytes <= VulkanMemoryManager::GPU_CHUNK_SIZE_BYTES);
-        };
-        for (uSize it = 0; it < VulkanMemoryManager::GPU_MAX_CHUNKS; it++)
-        {
-            VulkanMemoryManager::GpuMemoryChunk* chunk = &memoryManager->gpu_chunks[it];
-            if (chunk->memory != allocation.memory)
-            {
-                continue;
-            }
-            uSize startBlock = allocation.offsetBytes / VulkanMemoryManager::GPU_MEMORY_BLOCK_SIZE_BYTES;
-            uSize numBlocks = allocation.sizeBytes / VulkanMemoryManager::GPU_MEMORY_BLOCK_SIZE_BYTES;
-            setFree(chunk, numBlocks, startBlock);
-            if (chunk->usedMemoryBytes == 0)
-            {
-                // Chunk is empty, so we free it
-                vkFreeMemory(memoryManager->device, chunk->memory, &memoryManager->cpu_allocationCallbacks);
-                chunk->memory = VK_NULL_HANDLE;
-            }
-            break;
-        }
-    }
-
-    uSize memory_chunk_find_aligned_free_space(VulkanMemoryManager::GpuMemoryChunk* chunk, uSize requiredNumberOfBlocks, uSize alignment)
-    {
-        uSize freeCount = 0;
-        uSize startBlock = 0;
-        uSize currentBlock = 0;
-        for (uSize ledgerIt = 0; ledgerIt < VulkanMemoryManager::GPU_LEDGER_SIZE_BYTES; ledgerIt++)
-        {
-            u8 byte = chunk->ledger[ledgerIt];
-            if (byte == 255)
-            {
-                freeCount = 0;
-                currentBlock += 8;
-                continue;
-            }
-            for (uSize byteIt = 0; byteIt < 8; byteIt++)
-            {
-                if (byte & (1 << byteIt))
-                {
-                    freeCount = 0;
-                }
-                else
-                {
-                    if (freeCount == 0)
-                    {
-                        uSize currentBlockOffsetBytes = (ledgerIt * 8 + byteIt) * VulkanMemoryManager::GPU_MEMORY_BLOCK_SIZE_BYTES;
-                        bool isAlignedCorrectly = (currentBlockOffsetBytes % alignment) == 0;
-                        if (isAlignedCorrectly)
-                        {
-                            startBlock = currentBlock;
-                            freeCount += 1;
-                        }
-                    }
-                    else
-                    {
-                        freeCount += 1;
-                    }
-                }
-                currentBlock += 1;
-                if (freeCount == requiredNumberOfBlocks)
-                {
-                    goto block_found;
-                }
-            }
-        }
-        startBlock = VulkanMemoryManager::GPU_LEDGER_SIZE_BYTES;
-        block_found:
-        return startBlock;
-    }
-
     // ==================================================================================================================
     //
     //
@@ -328,7 +75,7 @@ namespace al
             .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
             .pEngineName        = EngineConfig::ENGINE_NAME,
             .engineVersion      = VK_MAKE_VERSION(1, 0, 0),
-            .apiVersion         = VK_API_VERSION_1_0
+            .apiVersion         = VK_API_VERSION_1_2
         };
         // @NOTE :  although we setuping debug messenger in the end of this function,
         //          created debug messenger will not be able to recieve information about
@@ -481,10 +228,12 @@ namespace al
         //
         Array<VkQueueFamilyProperties> familyProperties = utils::get_physical_device_queue_family_properties(gpu->physicalHandle, createInfo->frameAllocator);
         defer(array_destruct(&familyProperties));
-		StaticPointerWithSize<Tuple<bool, u32>, 3> queuesFamilyIndices;
-		queuesFamilyIndices[0] = utils::pick_graphics_queue(familyProperties);
-		queuesFamilyIndices[1] = utils::pick_present_queue(familyProperties, gpu->physicalHandle, createInfo->surface);
-		queuesFamilyIndices[2] = utils::pick_transfer_queue(familyProperties);
+		Tuple<bool, u32> queuesFamilyIndices[] =
+		{
+			utils::pick_graphics_queue(familyProperties),
+			utils::pick_present_queue(familyProperties, gpu->physicalHandle, createInfo->surface),
+			utils::pick_transfer_queue(familyProperties),
+		};
         Array<VkDeviceQueueCreateInfo> queueCreateInfos = utils::get_queue_create_infos(queuesFamilyIndices, createInfo->frameAllocator);
         defer(array_destruct(&queueCreateInfos));
         //
@@ -509,7 +258,7 @@ namespace al
         };
         al_vk_check(vkCreateDevice(gpu->physicalHandle, &logicalDeviceCreateInfo, createInfo->callbacks, &gpu->logicalHandle));
         //
-        // Create queues and get other stuff
+        // Create queues
         //
         for (auto it = create_iterator(&queueCreateInfos); !is_finished(&it); advance(&it))
         {
@@ -520,14 +269,49 @@ namespace al
             if (get<1>(queuesFamilyIndices[2]) == queue->queueFamilyIndex) queue->flags |= VulkanGpu::CommandQueue::TRANSFER;
             vkGetDeviceQueue(gpu->logicalHandle, queue->queueFamilyIndex, 0, &queue->handle);
         }
+        //
+        // Get device info
+        //
         bool hasStencil = utils::pick_depth_stencil_format(gpu->physicalHandle, &gpu->depthStencilFormat);
         if (hasStencil) gpu->flags |= VulkanGpu::HAS_STENCIL;
         vkGetPhysicalDeviceMemoryProperties(gpu->physicalHandle, &gpu->memoryProperties);
+        VkPhysicalDeviceVulkan12Properties deviceProperties_12{ .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_PROPERTIES, .pNext = nullptr };
+        VkPhysicalDeviceVulkan11Properties deviceProperties_11{ .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_PROPERTIES, .pNext = &deviceProperties_12};
+        VkPhysicalDeviceProperties2 physcialDeviceProperties2
+        {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
+            .pNext = &deviceProperties_11,
+            .properties = {},
+        };
+        vkGetPhysicalDeviceProperties2(gpu->physicalHandle, &physcialDeviceProperties2);
+        gpu->deviceProperties_10 = physcialDeviceProperties2.properties;
+        gpu->deviceProperties_11 = deviceProperties_11;
+        gpu->deviceProperties_12 = deviceProperties_12;
     }
 
     void vulkan_gpu_destroy(VulkanGpu* gpu, VkAllocationCallbacks* callbacks)
     {
         vkDestroyDevice(gpu->logicalHandle, callbacks);
+    }
+
+    VkSampleCountFlags vulkan_gpu_get_supported_framebuffer_multisample_types(VulkanGpu* gpu)
+    {
+        // Is this even correct ?
+        return  gpu->deviceProperties_10.limits.framebufferColorSampleCounts &
+                gpu->deviceProperties_10.limits.framebufferDepthSampleCounts &
+                gpu->deviceProperties_10.limits.framebufferStencilSampleCounts &
+                gpu->deviceProperties_10.limits.framebufferNoAttachmentsSampleCounts &
+                gpu->deviceProperties_12.framebufferIntegerColorSampleCounts;
+    }
+
+    VkSampleCountFlags vulkan_gpu_get_supported_image_multisample_types(VulkanGpu* gpu)
+    {
+        // Is this even correct ?
+        return  gpu->deviceProperties_10.limits.sampledImageColorSampleCounts &
+                gpu->deviceProperties_10.limits.sampledImageIntegerSampleCounts &
+                gpu->deviceProperties_10.limits.sampledImageDepthSampleCounts &
+                gpu->deviceProperties_10.limits.sampledImageStencilSampleCounts &
+                gpu->deviceProperties_10.limits.storageImageSampleCounts;
     }
 
     // ==================================================================================================================
@@ -538,7 +322,8 @@ namespace al
     //
     // ==================================================================================================================
 
-    void fill_swap_chain_sharing_mode(VkSharingMode* resultMode, u32* resultCount, PointerWithSize<u32> resultFamilyIndices, VulkanGpu* gpu)
+	template<uSize Size>
+    void fill_swap_chain_sharing_mode(VkSharingMode* resultMode, u32* resultCount, u32 (&resultFamilyIndices)[Size], VulkanGpu* gpu)
     {
         VulkanGpu::CommandQueue* graphicsQueue = get_command_queue(gpu, VulkanGpu::CommandQueue::GRAPHICS);
         VulkanGpu::CommandQueue* presentQueue = get_command_queue(gpu, VulkanGpu::CommandQueue::PRESENT);
@@ -570,7 +355,7 @@ namespace al
             {
                 imageCount = supportDetails.capabilities.maxImageCount;
             }
-            StaticPointerWithSize<u32, VulkanGpu::MAX_UNIQUE_COMMAND_QUEUES> queueFamiliesIndices = {};
+            u32 queueFamiliesIndices[VulkanGpu::MAX_UNIQUE_COMMAND_QUEUES] = {};
             VkSwapchainCreateInfoKHR swapChainCreateInfo
             {
                 .sType                  = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
@@ -585,14 +370,14 @@ namespace al
                 .imageUsage             = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
                 .imageSharingMode       = VK_SHARING_MODE_EXCLUSIVE,
                 .queueFamilyIndexCount  = 0,
-                .pQueueFamilyIndices    = queueFamiliesIndices.ptr,
+                .pQueueFamilyIndices    = queueFamiliesIndices,
                 .preTransform           = supportDetails.capabilities.currentTransform, // Allows to apply transform to images (rotate etc)
                 .compositeAlpha         = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
                 .presentMode            = presentMode,
                 .clipped                = VK_TRUE,
                 .oldSwapchain           = VK_NULL_HANDLE,
             };
-            fill_swap_chain_sharing_mode(&swapChainCreateInfo.imageSharingMode, &swapChainCreateInfo.queueFamilyIndexCount, { .ptr = queueFamiliesIndices.ptr, .size = queueFamiliesIndices.size }, createInfo->gpu);
+            fill_swap_chain_sharing_mode(&swapChainCreateInfo.imageSharingMode, &swapChainCreateInfo.queueFamilyIndexCount, queueFamiliesIndices, createInfo->gpu);
             al_vk_check(vkCreateSwapchainKHR(createInfo->gpu->logicalHandle, &swapChainCreateInfo, createInfo->callbacks, &swapChain->handle));
             swapChain->surfaceFormat = surfaceFormat;
             swapChain->extent = extent;

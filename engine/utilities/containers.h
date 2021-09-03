@@ -1,5 +1,7 @@
-#ifndef AL_ARRAY_VIEW_H
-#define AL_ARRAY_VIEW_H
+#ifndef AL_CONTAINERS_H
+#define AL_CONTAINERS_H
+
+#include <type_traits>
 
 #include "engine/types.h"
 #include "engine/memory/memory.h"
@@ -194,33 +196,6 @@ namespace al
     template<typename T> T* get(PointerWithSizeIterator<T> iterator) { return &(*iterator.storage)[iterator.index]; }
     template<typename T> uSize to_index(PointerWithSizeIterator<T> iterator) { return iterator.index; }
 
-    template<typename T, uSize Size>
-    struct StaticPointerWithSize
-    {
-        static constexpr uSize size = Size;
-        T ptr[Size];
-        T& operator [] (uSize index);
-    };
-
-    template<typename T, uSize Size>
-    T& StaticPointerWithSize<T, Size>::operator [] (uSize index)
-    {
-        return ptr[index];
-    }
-
-    template<typename T, uSize Size>
-    struct StaticPointerWithSizeIterator
-    {
-        StaticPointerWithSize<T, Size>* storage;
-        uSize index;
-    };
-
-    template<typename T, uSize Size> StaticPointerWithSizeIterator<T, Size> create_iterator(StaticPointerWithSize<T, Size>* storage) { return { storage, 0, }; }
-    template<typename T, uSize Size> void advance(StaticPointerWithSizeIterator<T, Size>* iterator) { iterator->index += 1; }
-    template<typename T, uSize Size> bool is_finished(StaticPointerWithSizeIterator<T, Size>* iterator) { return iterator->index >= iterator->storage->size; }
-    template<typename T, uSize Size> T* get(StaticPointerWithSizeIterator<T, Size> iterator) { return iterator.storage->ptr + iterator.index; }
-    template<typename T, uSize Size> uSize to_index(StaticPointerWithSizeIterator<T, Size> iterator) { return iterator.index; }
-
     //
     // Array
     //
@@ -268,18 +243,92 @@ namespace al
     template<typename T> T* get(ArrayIterator<T> iterator) { return &(*iterator.storage)[iterator.index]; }
     template<typename T> uSize to_index(ArrayIterator<T> iterator) { return iterator.index; }
 
+    //
+    // Dynamic Array
+    //
+
+    template<typename T>
+    struct DynamicArray
+    {
+        AllocatorBindings bindings;
+        T* memory;
+        uSize size;
+        uSize capacity;
+        T& operator [] (uSize index);
+    };
+
+    template<typename T>
+    void dynamic_array_construct(DynamicArray<T>* array, AllocatorBindings* bindings, uSize initialCapcity = 4)
+    {
+        array->bindings = *bindings;
+        array->size = 0;
+        array->capacity = initialCapcity;
+        array->memory = allocate<T>(bindings, initialCapcity);
+        std::memset(array->memory, 0, initialCapcity * sizeof(T));
+    }
+
+    template<typename T>
+    void dynamic_array_destruct(DynamicArray<T>* array)
+    {
+        deallocate<T>(&array->bindings, array->memory, array->capacity);
+    }
+
+    template<typename T>
+    T* dynamic_array_add(DynamicArray<T>* array)
+    {
+        if (array->size == array->capacity)
+        {
+            const uSize newCapacity = array->capacity * 2;
+            T* newMemory = allocate<T>(&array->bindings, newCapacity);
+            std::memcpy(newMemory, array->memory, sizeof(T) * array->capacity);
+            std::memset(newMemory + array->capacity, 0, (newCapacity - array->capacity) * sizeof(T));
+            array->capacity = newCapacity;
+        }
+        return &(*array)[array->size++];
+    }
+
+    template<typename T>
+    void dynamic_array_remove(DynamicArray<T>* array, uSize index)
+    {
+        if (index != (array->size - 1))
+        {
+            std::memcpy(&(*array)[index], &(*array)[array->size - 1], sizeof(T));
+        }
+        std::memset((*array)[array->size - 1], 0, sizeof(T));
+        array->size -= 1;
+    }
+
+    template<typename T>
+    T& DynamicArray<T>::operator [] (uSize index)
+    {
+        return memory[index];
+    }
+
+    template<typename T>
+    struct DynamicArrayIterator
+    {
+        DynamicArray<T>* storage;
+        uSize index;
+    };
+
+    template<typename T> DynamicArrayIterator<T> create_iterator(DynamicArray<T>* storage) { return { storage, 0, }; }
+    template<typename T> void advance(DynamicArrayIterator<T>* iterator) { iterator->index += 1; }
+    template<typename T> bool is_finished(DynamicArrayIterator<T>* iterator) { return iterator->index >= iterator->storage->size; }
+    template<typename T> T* get(DynamicArrayIterator<T> iterator) { return &(*iterator.storage)[iterator.index]; }
+    template<typename T> uSize to_index(DynamicArrayIterator<T> iterator) { return iterator.index; }
+
     template<typename T, uSize Size>
-    struct DefaultArrayIterator
+    struct CArrayIterator
     {
         T* storage;
         uSize index;
     };
 
-    template<typename T, uSize Size> DefaultArrayIterator<T, Size> create_iterator(T (*storage)[Size]) { return { *storage, 0, }; }
-    template<typename T, uSize Size> void advance(DefaultArrayIterator<T, Size>* iterator) { iterator->index += 1; }
-    template<typename T, uSize Size> bool is_finished(DefaultArrayIterator<T, Size>* iterator) { return iterator->index >= Size; }
-    template<typename T, uSize Size> T* get(DefaultArrayIterator<T, Size> iterator) { return &iterator.storage[iterator.index]; }
-    template<typename T, uSize Size> uSize to_index(DefaultArrayIterator<T, Size> iterator) { return iterator.index; }
+    template<typename T, uSize Size> CArrayIterator<T, Size> create_iterator(T (*storage)[Size]) { return { *storage, 0, }; }
+    template<typename T, uSize Size> void advance(CArrayIterator<T, Size>* iterator) { iterator->index += 1; }
+    template<typename T, uSize Size> bool is_finished(CArrayIterator<T, Size>* iterator) { return iterator->index >= Size; }
+    template<typename T, uSize Size> T* get(CArrayIterator<T, Size> iterator) { return &iterator.storage[iterator.index]; }
+    template<typename T, uSize Size> uSize to_index(CArrayIterator<T, Size> iterator) { return iterator.index; }
 }
 
 #endif

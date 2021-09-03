@@ -23,7 +23,7 @@ namespace al
             .sType              = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
             .pNext              = nullptr,
             .flags              = 0,
-            .renderPass         = pass->renderPass,
+            .renderPass         = pass->handle,
             .attachmentCount    = u32(attachmentViews.size),
             .pAttachments       = attachmentViews.memory,
             .width              = 20,

@@ -4,6 +4,7 @@
 #include "render_program_vulkan.h"
 #include "texture_vulkan.h"
 #include "render_pass_vulkan.h"
+#include "render_pipeline_vulkan.h"
 #include "framebuffer_vulkan.h"
 #include "render_pipeline_vulkan.h"
 
@@ -23,16 +24,16 @@ namespace al
             .texture_destroy                    = vulkan_texture_destroy,
             .render_pass_create                 = vulkan_render_pass_create,
             .render_pass_destroy                = vulkan_render_pass_destroy,
+            .render_pipeline_graphics_create    = vulkan_render_pipeline_graphics_create,
+            .render_pipeline_destroy            = vulkan_render_pipeline_destroy,
             .framebuffer_create                 = vulkan_framebuffer_create,
             .framebuffer_destroy                = vulkan_framebuffer_destroy,
-            // .stage_graphics_create              = vulkan_render_stage_graphics_create,
-            // .stage_destroy                      = vulkan_render_stage_destroy,
-            .command_buffer_create              = nullptr,
-            .command_buffer_destroy             = nullptr,
-            .command_buffer_begin               = nullptr,
-            .command_buffer_submit              = nullptr,
+            // .command_buffer_create              = nullptr,
+            // .command_buffer_destroy             = nullptr,
+            // .command_buffer_begin               = nullptr,
+            // .command_buffer_submit              = nullptr,
             // .cmd_bind_stage                     = nullptr,
-            .cmd_draw                           = nullptr,
+            // .cmd_draw                           = nullptr,
         };
     }
 }

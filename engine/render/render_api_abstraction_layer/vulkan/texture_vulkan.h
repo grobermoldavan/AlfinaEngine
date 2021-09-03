@@ -23,6 +23,7 @@ namespace al
         FlagsT flags;
         VkFormat format;
         VkImageLayout currentLayout;
+        VkSampler defaultSampler; // todo
     };
 
     Texture* vulkan_texture_create(TextureCreateInfo* createInfo);

@@ -38,9 +38,7 @@ namespace al
         #define al_for_each_set_bit(mask, it) for (u32 it = 0; it < (sizeof(mask) * 8); it++) if (al_is_bit_set(mask, it))
         #define al_for_each_bit(mask, it) for (u32 it = 0; it < (sizeof(mask) * 8); it++)
 
-        using BitMask = u32;
-
-        auto countBits = [](BitMask mask) -> u32
+        auto countBits = [](RenderPassAttachmentRefBitMask mask) -> u32
         {
             u32 count = 0;
             al_for_each_set_bit(mask, it) count += 1;
@@ -52,12 +50,13 @@ namespace al
 
         const bool isStencilSupported = device->gpu.flags & VulkanGpu::HAS_STENCIL;
         const bool hasDepthStencilAttachment = createInfo->depthStencilAttachment != nullptr;
+        const VkSampleCountFlags supprotedAttachmentSampleCounts = vulkan_gpu_get_supported_framebuffer_multisample_types(&device->gpu);
 
         Array<VkAttachmentDescription> renderPassAttachmentDescriptions;
         array_construct(&renderPassAttachmentDescriptions, &device->memoryManager.cpu_frameAllocator, createInfo->colorAttachments.size + (hasDepthStencilAttachment ? 1 : 0));
         defer(array_destruct(&renderPassAttachmentDescriptions));
 
-        al_vk_assert(renderPassAttachmentDescriptions.size <= 32);
+        al_vk_assert(renderPassAttachmentDescriptions.size <= RenderPassCreateInfo::MAX_ATTACHMENTS);
 
         //
         // Attachments
@@ -69,7 +68,7 @@ namespace al
             {
                 .flags          = 0,
                 .format         = device->gpu.depthStencilFormat,
-                .samples        = VK_SAMPLE_COUNT_1_BIT,
+                .samples        = utils::pick_sample_count(utils::to_vk_sample_count(createInfo->depthStencilAttachment->samples), supprotedAttachmentSampleCounts),
                 .loadOp         = utils::to_vk_load_op(createInfo->depthStencilAttachment->loadOp),
                 .storeOp        = utils::to_vk_store_op(createInfo->depthStencilAttachment->storeOp),
                 .stencilLoadOp  = isStencilSupported ? utils::to_vk_load_op(createInfo->depthStencilAttachment->loadOp) : VK_ATTACHMENT_LOAD_OP_DONT_CARE,
@@ -91,7 +90,7 @@ namespace al
                 {
                     .flags          = 0,
                     .format         = isSwapChainImage ? device->swapChain.surfaceFormat.format : utils::to_vk_format(get(it)->format),
-                    .samples        = VK_SAMPLE_COUNT_1_BIT,
+                    .samples        = utils::pick_sample_count(utils::to_vk_sample_count(get(it)->samples), supprotedAttachmentSampleCounts),
                     .loadOp         = utils::to_vk_load_op(get(it)->loadOp),
                     .storeOp        = utils::to_vk_store_op(get(it)->storeOp),
                     .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
@@ -124,43 +123,52 @@ namespace al
         defer(array_destruct(&subpassDescriptions));
 
         // globalUsedAttachmentsMask & 1 << attachmentIndex == 1 if attachment was already used in the render pass
-        BitMask globalUsedAttachmentsMask = 0;
+        RenderPassAttachmentRefBitMask globalUsedAttachmentsMask = 0;
         
         for (al_iterator(it, createInfo->subpasses))
         {
             RenderPassCreateInfo::Subpass* subpassCreateInfo = get(it);
             SubpassIntermediateData* subpassIntermediateData = &subpassIntermediateDatas[to_index(it)];
-            const u32 colorRefsSize = countBits(subpassCreateInfo->colorRefs);
-            const u32 inputRefsSize = countBits(subpassCreateInfo->inputRefs);
-            const u32 resolveRefsSize = colorRefsSize;
+            const u32 colorRefsSize = subpassCreateInfo->colorRefs.size;
+            const u32 inputRefsSize = subpassCreateInfo->inputRefs.size;
+            const u32 resolveRefsSize = subpassCreateInfo->resolveRefs.size;
             if (colorRefsSize) array_construct(&subpassIntermediateData->colorAttachmentRefs, &device->memoryManager.cpu_frameAllocator, colorRefsSize);
             if (inputRefsSize) array_construct(&subpassIntermediateData->inputAttachmentRefs, &device->memoryManager.cpu_frameAllocator, inputRefsSize);
             if (resolveRefsSize) array_construct(&subpassIntermediateData->resolveAttachmentRefs, &device->memoryManager.cpu_frameAllocator, resolveRefsSize);
             // localUsedAttachmentsMask & 1 << attachmentIndex == 1 if attachment was already used in the subpass
-            BitMask localUsedAttachmentsMask = 0;
+            RenderPassAttachmentRefBitMask localUsedAttachmentsMask = 0;
             //
             // Fill color, input and resolve attachments
             //
             // References layouts will be filled later
             uSize refCounter = 0;
-            al_for_each_set_bit(subpassCreateInfo->colorRefs, refIt)
+            for (al_iterator(refIt, subpassCreateInfo->colorRefs))
             {
-                subpassIntermediateData->colorAttachmentRefs[refCounter] = { refIt, VK_IMAGE_LAYOUT_UNDEFINED };
-                subpassIntermediateData->resolveAttachmentRefs[refCounter] =
-                {
-                    al_is_bit_set(subpassCreateInfo->resolveRefs, refIt) ? refIt : VK_ATTACHMENT_UNUSED,
-                    VK_IMAGE_LAYOUT_UNDEFINED
-                };
-                globalUsedAttachmentsMask |= BitMask(1) << refIt;
-                localUsedAttachmentsMask |= BitMask(1) << refIt;
+                u32 ref = *get(refIt);
+                subpassIntermediateData->colorAttachmentRefs[refCounter] = { ref, VK_IMAGE_LAYOUT_UNDEFINED };
+                globalUsedAttachmentsMask |= RenderPassAttachmentRefBitMask(1) << ref;
+                localUsedAttachmentsMask |= RenderPassAttachmentRefBitMask(1) << ref;
                 refCounter += 1;
             }
             refCounter = 0;
-            al_for_each_set_bit(subpassCreateInfo->inputRefs, refIt)
+            for (al_iterator(refIt, subpassCreateInfo->inputRefs))
             {
-                subpassIntermediateData->inputAttachmentRefs[refCounter] = { refIt, VK_IMAGE_LAYOUT_UNDEFINED };
-                globalUsedAttachmentsMask |= BitMask(1) << refIt;
-                localUsedAttachmentsMask |= BitMask(1) << refIt;
+                u32 ref = *get(refIt);
+                subpassIntermediateData->inputAttachmentRefs[refCounter] = { ref, VK_IMAGE_LAYOUT_UNDEFINED };
+                globalUsedAttachmentsMask |= RenderPassAttachmentRefBitMask(1) << ref;
+                localUsedAttachmentsMask |= RenderPassAttachmentRefBitMask(1) << ref;
+                refCounter += 1;
+            }
+            refCounter = 0;
+            for (al_iterator(refIt, subpassCreateInfo->resolveRefs))
+            {
+                u32 ref = *get(refIt) == RenderPassCreateInfo::UNUSED_ATTACHMENT ? VK_ATTACHMENT_UNUSED : *get(refIt);
+                subpassIntermediateData->resolveAttachmentRefs[refCounter] = { ref, VK_IMAGE_LAYOUT_UNDEFINED };
+                if (ref != VK_ATTACHMENT_UNUSED)
+                {
+                    globalUsedAttachmentsMask |= RenderPassAttachmentRefBitMask(1) << ref;
+                    localUsedAttachmentsMask |= RenderPassAttachmentRefBitMask(1) << ref;
+                }
                 refCounter += 1;
             }
             //
@@ -175,8 +183,8 @@ namespace al
                 case RenderPassCreateInfo::DepthOp::READ_WRITE:
                 {
                     subpassIntermediateData->depthStencilReference = { u32(renderPassAttachmentDescriptions.size) - 1, VK_IMAGE_LAYOUT_UNDEFINED };
-                    globalUsedAttachmentsMask |= BitMask(1) << (renderPassAttachmentDescriptions.size - 1);
-                    localUsedAttachmentsMask |= BitMask(1) << (renderPassAttachmentDescriptions.size - 1);
+                    globalUsedAttachmentsMask |= RenderPassAttachmentRefBitMask(1) << (renderPassAttachmentDescriptions.size - 1);
+                    localUsedAttachmentsMask |= RenderPassAttachmentRefBitMask(1) << (renderPassAttachmentDescriptions.size - 1);
                 } break;
                 case RenderPassCreateInfo::DepthOp::READ:
                 {
@@ -187,15 +195,15 @@ namespace al
                             ? VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
                             : VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL
                     };
-                    globalUsedAttachmentsMask |= BitMask(1) << (renderPassAttachmentDescriptions.size - 1);
-                    localUsedAttachmentsMask |= BitMask(1) << (renderPassAttachmentDescriptions.size - 1);
+                    globalUsedAttachmentsMask |= RenderPassAttachmentRefBitMask(1) << (renderPassAttachmentDescriptions.size - 1);
+                    localUsedAttachmentsMask |= RenderPassAttachmentRefBitMask(1) << (renderPassAttachmentDescriptions.size - 1);
                 } break;
             }
             //
             // Fill preserve info
             //
             u32 preserveRefsSize = 0;
-            BitMask preserveRefsMask = 0;
+            RenderPassAttachmentRefBitMask preserveRefsMask = 0;
             for (al_iterator(attachmentIt, renderPassAttachmentDescriptions))
             {
                 u32 attachmentIndex = u32(to_index(attachmentIt));
@@ -203,7 +211,7 @@ namespace al
                 if (al_is_bit_set(globalUsedAttachmentsMask, attachmentIndex) && !al_is_bit_set(localUsedAttachmentsMask, attachmentIndex))
                 {
                     preserveRefsSize += 1;
-                    preserveRefsMask |= BitMask(1) << attachmentIndex;
+                    preserveRefsMask |= RenderPassAttachmentRefBitMask(1) << attachmentIndex;
                 }
             }
             if (preserveRefsSize) array_construct(&subpassIntermediateData->preserveAttachmentRefs, &device->memoryManager.cpu_frameAllocator, preserveRefsSize);
@@ -240,17 +248,17 @@ namespace al
         //
 
         // Each bit represents subpass dependency of some kind
-        BitMask externalColorDependencies = 0; // If subpass uses color or resolve from external subpass
-        BitMask externalDepthDependencies = 0; // If subpass uses depth from external subpass
-        BitMask externalInputDependencies = 0; // If subpass uses input from external subpass
+        RenderPassAttachmentRefBitMask externalColorDependencies = 0; // If subpass uses color or resolve from external subpass
+        RenderPassAttachmentRefBitMask externalDepthDependencies = 0; // If subpass uses depth from external subpass
+        RenderPassAttachmentRefBitMask externalInputDependencies = 0; // If subpass uses input from external subpass
 
-        BitMask selfColorDependencies = 0; // If subpass has same attachment as input and color attachment
-        BitMask selfDepthDependencies = 0; // If subpass has same attachment as input and depth attachment
+        RenderPassAttachmentRefBitMask selfColorDependencies = 0; // If subpass has same attachment as input and color attachment
+        RenderPassAttachmentRefBitMask selfDepthDependencies = 0; // If subpass has same attachment as input and depth attachment
 
-        BitMask inputReadDependencies = 0; // If subpass uses attachment as input
-        BitMask colorReadWriteDependencies = 0; // If subpass uses attachment as color or resolve
-        BitMask depthStencilWriteDependencies = 0; // If subpass uses attachment as depth read
-        BitMask depthStencilReadDependencies = 0; // If subpass uses attachment as depth write
+        RenderPassAttachmentRefBitMask inputReadDependencies = 0; // If subpass uses attachment as input
+        RenderPassAttachmentRefBitMask colorReadWriteDependencies = 0; // If subpass uses attachment as color or resolve
+        RenderPassAttachmentRefBitMask depthStencilWriteDependencies = 0; // If subpass uses attachment as depth read
+        RenderPassAttachmentRefBitMask depthStencilReadDependencies = 0; // If subpass uses attachment as depth write
 
         for (al_iterator(attachmentIt, renderPassAttachmentDescriptions))
         {
@@ -260,7 +268,7 @@ namespace al
             VkImageLayout currentLayout = attachment->initialLayout;
             for (al_iterator(subpassIt, subpassIntermediateDatas))
             {
-                const BitMask subpassBitMask = BitMask(1) << to_index(subpassIt);
+                const RenderPassAttachmentRefBitMask subpassBitMask = RenderPassAttachmentRefBitMask(1) << to_index(subpassIt);
                 SubpassIntermediateData* subpass = get(subpassIt);
                 VkAttachmentReference* color    = vulkan_find_attachment_reference(subpass->colorAttachmentRefs, to_index(attachmentIt));
                 VkAttachmentReference* input    = vulkan_find_attachment_reference(subpass->inputAttachmentRefs, to_index(attachmentIt));
@@ -346,8 +354,8 @@ namespace al
             attachment->finalLayout = currentLayout;
         }
 
-        const BitMask allExternalDependencies = externalColorDependencies | externalInputDependencies | externalDepthDependencies;
-        const BitMask allSelfDependencies = selfColorDependencies | selfDepthDependencies;
+        const RenderPassAttachmentRefBitMask allExternalDependencies = externalColorDependencies | externalInputDependencies | externalDepthDependencies;
+        const RenderPassAttachmentRefBitMask allSelfDependencies = selfColorDependencies | selfDepthDependencies;
         const uSize numberOfSubpassDependencies = countBits(allExternalDependencies) + countBits(allSelfDependencies) + subpassIntermediateDatas.size - 1;
 
         Array<VkSubpassDependency> subpassDependencies;
@@ -449,6 +457,10 @@ namespace al
             subpassDependencies[subpassDependencyIt++] = dependency;
         }
 
+        //
+        // Finally creating render pass
+        //
+
         VkRenderPassCreateInfo renderPassInfo
         {
             .sType              = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
@@ -461,8 +473,31 @@ namespace al
             .dependencyCount    = numberOfSubpassDependencies ? u32(subpassDependencies.size) : 0,
             .pDependencies      = numberOfSubpassDependencies ? subpassDependencies.memory : nullptr,
         };
-        al_vk_check(vkCreateRenderPass(device->gpu.logicalHandle, &renderPassInfo, &device->memoryManager.cpu_allocationCallbacks, &pass->renderPass));
+        al_vk_check(vkCreateRenderPass(device->gpu.logicalHandle, &renderPassInfo, &device->memoryManager.cpu_allocationCallbacks, &pass->handle));
         pass->device = device;
+
+        //
+        // Fill subpass and attachment infos
+        //
+
+        array_construct(&pass->subpassInfos, &device->memoryManager.cpu_persistentAllocator, createInfo->subpasses.size);
+        for (al_iterator(it, createInfo->subpasses))
+        {
+            VulkanSubpassInfo* subpassInfo = &pass->subpassInfos[to_index(it)];
+            for (al_iterator(refIt, get(it)->inputRefs)) subpassInfo->inputAttachmentRefs |= u32(1) << *get(refIt);
+            for (al_iterator(refIt, get(it)->colorRefs)) subpassInfo->colorAttachmentRefs |= u32(1) << *get(refIt);
+        }
+
+        array_construct(&pass->attachmentInfos, &device->memoryManager.cpu_persistentAllocator, renderPassAttachmentDescriptions.size);
+        for (al_iterator(it, renderPassAttachmentDescriptions))
+        {
+            pass->attachmentInfos[to_index(it)] =
+            {
+                .initialLayout = get(it)->initialLayout,
+                .finalLayout = get(it)->finalLayout,
+            };
+        }
+
         return pass;
 
         #undef al_for_each_bit
@@ -473,6 +508,8 @@ namespace al
     void vulkan_render_pass_destroy(RenderPass* _pass)
     {
         RenderPassVulkan* pass = (RenderPassVulkan*)_pass;
-        vkDestroyRenderPass(pass->device->gpu.logicalHandle, pass->renderPass, &pass->device->memoryManager.cpu_allocationCallbacks);
+        vkDestroyRenderPass(pass->device->gpu.logicalHandle, pass->handle, &pass->device->memoryManager.cpu_allocationCallbacks);
+        array_destruct(&pass->subpassInfos);
+        array_destruct(&pass->attachmentInfos);
     }
 }

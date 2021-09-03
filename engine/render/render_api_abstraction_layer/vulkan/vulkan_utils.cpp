@@ -225,7 +225,7 @@ namespace al::utils
     }
 
     template<uSize Size>
-    Array<VkDeviceQueueCreateInfo> get_queue_create_infos(StaticPointerWithSize<Tuple<bool, u32>, Size> queues, AllocatorBindings* bindings)
+    Array<VkDeviceQueueCreateInfo> get_queue_create_infos(Tuple<bool, u32> (&queues)[Size], AllocatorBindings* bindings)
     {
         // @NOTE :  this is possible that queue family might support more than one of the required features,
         //          so we have to remove duplicates from queueFamiliesInfo and create VkDeviceQueueCreateInfos
@@ -254,9 +254,9 @@ namespace al::utils
                 (*targetArray)[targetArray->size - 1] = familyIndex;
             }
         };
-        for (uSize it = 0; it < Size; it++)
+        for (al_iterator(it, queues))
         {
-            updateUniqueIndicesArray(&uniqueQueueIndices, get<1>(queues[it]));
+            updateUniqueIndicesArray(&uniqueQueueIndices, get<1>(*get(it)));
         }
         Array<VkDeviceQueueCreateInfo> result;
         array_construct(&result, bindings, uniqueQueueIndices.size);
@@ -483,5 +483,274 @@ namespace al::utils
         }
         al_vk_assert_fail("Unsupported FramebufferAttachmentStoreOp");
         return VkAttachmentStoreOp(0);
+    }
+
+    VkPolygonMode to_vk_polygon_mode(PipelinePoligonMode mode)
+    {
+        switch (mode)
+        {
+            case PipelinePoligonMode::FILL: return VK_POLYGON_MODE_FILL;
+            case PipelinePoligonMode::LINE: return VK_POLYGON_MODE_LINE;
+            case PipelinePoligonMode::POINT: return VK_POLYGON_MODE_POINT;
+        }
+        al_vk_assert_fail("Unsupported PipelinePoligonMode");
+        return VkPolygonMode(0);
+    }
+
+    VkCullModeFlags to_vk_cull_mode(PipelineCullMode mode)
+    {
+        switch (mode)
+        {
+            case PipelineCullMode::NONE: return VK_CULL_MODE_NONE;
+            case PipelineCullMode::FRONT: return VK_CULL_MODE_FRONT_BIT;
+            case PipelineCullMode::BACK: return VK_CULL_MODE_BACK_BIT;
+            case PipelineCullMode::FRONT_BACK: return VK_CULL_MODE_FRONT_AND_BACK;
+        }
+        al_vk_assert_fail("Unsupported PipelineCullMode");
+        return VkCullModeFlags(0);
+    }
+
+    VkFrontFace to_vk_front_face(PipelineFrontFace frontFace)
+    {
+        switch (frontFace)
+        {
+            case PipelineFrontFace::CLOCKWISE: return VK_FRONT_FACE_CLOCKWISE;
+            case PipelineFrontFace::COUNTER_CLOCKWISE: return VK_FRONT_FACE_COUNTER_CLOCKWISE;
+        }
+        al_vk_assert_fail("Unsupported PipelineFrontFace");
+        return VkFrontFace(0);
+    }
+    
+    VkSampleCountFlagBits to_vk_sample_count(MultisamplingType multisample)
+    {
+        switch (multisample)
+        {
+            case MultisamplingType::SAMPLE_1: return VK_SAMPLE_COUNT_1_BIT;
+            case MultisamplingType::SAMPLE_2: return VK_SAMPLE_COUNT_2_BIT;
+            case MultisamplingType::SAMPLE_4: return VK_SAMPLE_COUNT_4_BIT;
+            case MultisamplingType::SAMPLE_8: return VK_SAMPLE_COUNT_8_BIT;
+        }
+        al_vk_assert_fail("Unsupported MultisamplingType");
+        return VkSampleCountFlagBits(0);
+    }
+
+    VkSampleCountFlagBits pick_sample_count(VkSampleCountFlags desired, VkSampleCountFlags supported)
+    {
+        if (supported & desired) return VkSampleCountFlagBits(desired);
+        for (VkSampleCountFlags it = sizeof(VkSampleCountFlags) * 8 - 1; it >= 0; it++)
+        {
+            if (((supported >> it) & 1) && it < desired)
+            {
+                return VkSampleCountFlagBits(it);
+            }
+        }
+        al_vk_assert_fail("Unable to pick sample count");
+        return VkSampleCountFlagBits(0);
+    }
+
+    VkStencilOp to_vk_stencil_op(StencilOp op)
+    {
+        switch (op)
+        {
+            case StencilOp::KEEP:                   return VK_STENCIL_OP_KEEP;
+            case StencilOp::ZERO:                   return VK_STENCIL_OP_ZERO;
+            case StencilOp::REPLACE:                return VK_STENCIL_OP_REPLACE;
+            case StencilOp::INCREMENT_AND_CLAMP:    return VK_STENCIL_OP_INCREMENT_AND_CLAMP;
+            case StencilOp::DECREMENT_AND_CLAMP:    return VK_STENCIL_OP_DECREMENT_AND_CLAMP;
+            case StencilOp::INVERT:                 return VK_STENCIL_OP_INVERT;
+            case StencilOp::INCREMENT_AND_WRAP:     return VK_STENCIL_OP_INCREMENT_AND_WRAP;
+            case StencilOp::DECREMENT_AND_WRAP:     return VK_STENCIL_OP_DECREMENT_AND_WRAP;
+        }
+        al_vk_assert_fail("Unsupported StencilOp");
+        return VkStencilOp(0);
+    }
+
+    VkCompareOp to_vk_compare_op(CompareOp op)
+    {
+        switch (op)
+        {
+            case CompareOp::NEVER:              return VK_COMPARE_OP_NEVER;
+            case CompareOp::LESS:               return VK_COMPARE_OP_LESS;
+            case CompareOp::EQUAL:              return VK_COMPARE_OP_EQUAL;
+            case CompareOp::LESS_OR_EQUAL:      return VK_COMPARE_OP_LESS_OR_EQUAL;
+            case CompareOp::GREATER:            return VK_COMPARE_OP_GREATER;
+            case CompareOp::NOT_EQUAL:          return VK_COMPARE_OP_NOT_EQUAL;
+            case CompareOp::GREATER_OR_EQUAL:   return VK_COMPARE_OP_GREATER_OR_EQUAL;
+            case CompareOp::ALWAYS:             return VK_COMPARE_OP_ALWAYS;
+        }
+        al_vk_assert_fail("Unsupported CompareOp");
+        return VkCompareOp(0);
+    }
+
+    VkBool32 to_vk_bool(bool value)
+    {
+        return value ? VK_TRUE : VK_FALSE;
+    }
+
+    VkDescriptorType to_vk_descriptor_type(SpirvReflection::Uniform::Type type)
+    {
+        switch(type)
+        {
+            case SpirvReflection::Uniform::Sampler: return VK_DESCRIPTOR_TYPE_SAMPLER;
+            case SpirvReflection::Uniform::SampledImage: return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+            case SpirvReflection::Uniform::StorageImage: return VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+            case SpirvReflection::Uniform::CombinedImageSampler: return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            case SpirvReflection::Uniform::UniformTexelBuffer: return VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER;
+            case SpirvReflection::Uniform::StorageTexelBuffer: return VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER;
+            case SpirvReflection::Uniform::UniformBuffer: return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            case SpirvReflection::Uniform::StorageBuffer: return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            case SpirvReflection::Uniform::InputAttachment: return VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+            case SpirvReflection::Uniform::AccelerationStructure: return VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+        }
+        return VkDescriptorType(0);
+    }
+
+    VkShaderStageFlags to_vk_stage_flags(ProgramStageFlags stages)
+    {
+        return
+            VkShaderStageFlags(stages & u32(ProgramStage::Vertex)   ? VK_SHADER_STAGE_VERTEX_BIT    : 0) |
+            VkShaderStageFlags(stages & u32(ProgramStage::Fragment) ? VK_SHADER_STAGE_FRAGMENT_BIT  : 0) |
+            VkShaderStageFlags(stages & u32(ProgramStage::Compute)  ? VK_SHADER_STAGE_COMPUTE_BIT   : 0);
+    }
+
+    VkPipelineShaderStageCreateInfo shader_stage_create_info(VkShaderStageFlagBits stage, VkShaderModule module, const char* pName)
+    {
+        return
+        {
+            .sType                  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+            .pNext                  = nullptr,
+            .flags                  = 0,
+            .stage                  = stage,
+            .module                 = module,
+            .pName                  = pName,
+            .pSpecializationInfo    = nullptr,
+        };
+    }
+
+    VkPipelineVertexInputStateCreateInfo vertex_input_state_create_info(u32 bindingsCount, const VkVertexInputBindingDescription* bindingDescs, u32 attrCount, const VkVertexInputAttributeDescription* attrDescs)
+    {
+        return
+        {
+            .sType                              = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+            .pNext                              = nullptr,
+            .flags                              = 0,
+            .vertexBindingDescriptionCount      = bindingsCount,
+            .pVertexBindingDescriptions         = bindingDescs,
+            .vertexAttributeDescriptionCount    = attrCount,
+            .pVertexAttributeDescriptions       = attrDescs,
+        };
+    }
+
+    VkPipelineInputAssemblyStateCreateInfo input_assembly_state_create_info(VkPrimitiveTopology topology, VkBool32 primitiveRestartEnable)
+    {
+        return
+        {
+            .sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+            .pNext                  = nullptr,
+            .flags                  = 0,
+            .topology               = topology,
+            .primitiveRestartEnable = primitiveRestartEnable,
+        };
+    }
+
+    ViewportScissor default_viewport_scissor(u32 width, u32 height)
+    {
+        return
+        {
+            {
+                .x          = 0.0f,
+                .y          = 0.0f,
+                .width      = (float)width,
+                .height     = (float)height,
+                .minDepth   = 0.0f,
+                .maxDepth   = 1.0f,
+            },
+            {
+                .offset = { 0, 0 },
+                .extent = { width, height },
+            }
+        };
+    }
+
+    VkPipelineViewportStateCreateInfo viewport_state_create_info(VkViewport* viewport, VkRect2D* scissor)
+    {
+        return
+        {
+            .sType          = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+            .pNext          = nullptr,
+            .flags          = 0,
+            .viewportCount  = 1,
+            .pViewports     = viewport,
+            .scissorCount   = 1,
+            .pScissors      = scissor,
+        };
+    }
+
+    VkPipelineRasterizationStateCreateInfo rasterization_state_create_info(VkPolygonMode polygonMode, VkCullModeFlags cullMode, VkFrontFace frontFace)
+    {
+        return
+        {
+            .sType                      = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+            .pNext                      = nullptr,
+            .flags                      = 0,
+            .depthClampEnable           = VK_FALSE,
+            .rasterizerDiscardEnable    = VK_FALSE,
+            .polygonMode                = polygonMode,
+            .cullMode                   = cullMode,
+            .frontFace                  = frontFace,
+            .depthBiasEnable            = VK_FALSE,
+            .depthBiasConstantFactor    = 0.0f,
+            .depthBiasClamp             = 0.0f,
+            .depthBiasSlopeFactor       = 0.0f,
+            .lineWidth                  = 1.0f,
+        };
+    }
+
+    VkPipelineMultisampleStateCreateInfo multisample_state_create_info(VkSampleCountFlagBits resterizationSamples)
+    {
+        return
+        {
+            .sType                  = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+            .pNext                  = nullptr,
+            .flags                  = 0,
+            .rasterizationSamples   = resterizationSamples,
+            .sampleShadingEnable    = VK_FALSE,
+            .minSampleShading       = 1.0f,
+            .pSampleMask            = nullptr,
+            .alphaToCoverageEnable  = VK_FALSE,
+            .alphaToOneEnable       = VK_FALSE,
+        };
+    }
+
+    VkPipelineColorBlendStateCreateInfo color_blending_create_info(PointerWithSize<VkPipelineColorBlendAttachmentState> colorBlendAttachmentStates)
+    {
+        return
+        {
+            .sType              = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+            .pNext              = nullptr,
+            .flags              = 0,
+            .logicOpEnable      = VK_FALSE,
+            .logicOp            = VK_LOGIC_OP_COPY, // optional if logicOpEnable == VK_FALSE
+            .attachmentCount    = u32(colorBlendAttachmentStates.size),
+            .pAttachments       = colorBlendAttachmentStates.ptr,
+            .blendConstants     = { 0.0f, 0.0f, 0.0f, 0.0f }, // optional, because color blending is disabled in colorBlendAttachments
+        };
+    }
+
+    VkPipelineDynamicStateCreateInfo dynamic_state_default_create_info()
+    {
+        static VkDynamicState dynamicStates[] =
+        {
+            VK_DYNAMIC_STATE_VIEWPORT,
+            VK_DYNAMIC_STATE_SCISSOR
+        };
+        return
+        {
+            .sType              = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+            .pNext              = nullptr,
+            .flags              = 0,
+            .dynamicStateCount  = array_size(dynamicStates),
+            .pDynamicStates     = dynamicStates,
+        };
     }
 }

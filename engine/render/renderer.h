@@ -23,13 +23,12 @@ namespace al
         RenderProgram* vs;
         RenderProgram* fs;
         RenderPass* renderPass;
+        RenderPipeline* renderPipeline;
+
         Array<Texture*> swapChainTextures;
         Array<Framebuffer*> swapChainFramebuffers;
-        // FramebufferDescription* fbDescription;
-        // RenderStage* stage;
-        // Array<Framebuffer*> stageFramebuffers;
 
-        RenderCommandBuffer* commandBuffer;
+        // RenderCommandBuffer* commandBuffer;
     };
 
     void renderer_construct      (Renderer* renderer, RendererInitData* initData);

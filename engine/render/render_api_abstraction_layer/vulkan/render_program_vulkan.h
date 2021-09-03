@@ -11,14 +11,22 @@ namespace al
 
     struct RenderProgramVulkan : RenderProgram
     {
-        static constexpr uSize REFLECTION_BUFFER_SIZE_BYTES = 1024;
         SpirvReflection reflection;
         RenderDeviceVulkan* device;
         VkShaderModule handle;
     };
 
+    struct VulkanCombinedProgramInfo
+    {
+        Array<VkDescriptorSetLayoutCreateInfo> descriptorSetLayoutCreateInfos;
+        Array<VkDescriptorSetLayoutBinding> descriptorSetLayoutBindings;
+    };
+
     RenderProgram* vulkan_render_program_create(RenderProgramCreateInfo* createInfo);
     void vulkan_render_program_destroy(RenderProgram* program);
+
+    VulkanCombinedProgramInfo vulkan_combined_program_info_create(PointerWithSize<RenderProgramVulkan*> programs, AllocatorBindings* persistentAllocator);
+    void vulkan_combined_program_info_destroy(VulkanCombinedProgramInfo* combinedInfo);
 }
 
 #endif
