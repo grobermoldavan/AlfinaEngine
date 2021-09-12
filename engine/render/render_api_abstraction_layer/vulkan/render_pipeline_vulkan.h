@@ -7,6 +7,7 @@
 namespace al
 {
     struct RenderDeviceVulkan;
+    struct RenderPassVulkan;
 
     struct VulkanDescriptorSetLayout
     {
@@ -34,6 +35,7 @@ namespace al
         VkPipelineLayout layoutHandle;
         VkPipeline handle;
         VkPipelineBindPoint bindPoint;
+        RenderPassVulkan* renderPass;
         RenderDeviceVulkan* device;
     };
 

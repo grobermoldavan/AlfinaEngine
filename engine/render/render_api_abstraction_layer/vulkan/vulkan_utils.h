@@ -48,6 +48,8 @@ namespace al::utils
     template<uSize Size>
     Array<VkDeviceQueueCreateInfo> get_queue_create_infos(Tuple<bool, u32> (&queues)[Size], AllocatorBindings* bindings);
 
+    VkCommandPoolCreateInfo command_pool_create_info(u32 queueFamilyIndex, VkCommandPoolCreateFlags flags);
+
     bool pick_depth_stencil_format(VkPhysicalDevice physicalDevice, VkFormat* result);
     Array<VkPhysicalDevice> get_available_physical_devices(VkInstance instance, AllocatorBindings* bindings);
     Array<VkQueueFamilyProperties> get_physical_device_queue_family_properties(VkPhysicalDevice physicalDevice, AllocatorBindings* bindings);
@@ -87,6 +89,9 @@ namespace al::utils
     VkPipelineMultisampleStateCreateInfo multisample_state_create_info(VkSampleCountFlagBits resterizationSamples = VK_SAMPLE_COUNT_1_BIT);
     VkPipelineColorBlendStateCreateInfo color_blending_create_info(PointerWithSize<VkPipelineColorBlendAttachmentState> colorBlendAttachmentStates);
     VkPipelineDynamicStateCreateInfo dynamic_state_default_create_info();
+
+    VkAccessFlags image_layout_to_access_flags(VkImageLayout layout);
+    VkPipelineStageFlags image_layout_to_pipeline_stage_flags(VkImageLayout layout);
 }
 
 #endif

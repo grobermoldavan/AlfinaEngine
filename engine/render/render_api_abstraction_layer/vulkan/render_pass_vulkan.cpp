@@ -495,7 +495,28 @@ namespace al
             {
                 .initialLayout = get(it)->initialLayout,
                 .finalLayout = get(it)->finalLayout,
+                .format = get(it)->format,
             };
+        }
+
+        array_construct(&pass->clearValues, &device->memoryManager.cpu_persistentAllocator, renderPassAttachmentDescriptions.size);
+        for (al_iterator(it, renderPassAttachmentDescriptions))
+        {
+            const bool isColorFormat = [](VkFormat format)
+            {
+                if (format == VK_FORMAT_D16_UNORM ||
+                    format == VK_FORMAT_D32_SFLOAT ||
+                    format == VK_FORMAT_D16_UNORM_S8_UINT ||
+                    format == VK_FORMAT_D24_UNORM_S8_UINT ||
+                    format == VK_FORMAT_D32_SFLOAT_S8_UINT)
+                {
+                    return false;
+                }
+                return true;
+            } (get(it)->format);
+            pass->clearValues[to_index(it)] = isColorFormat 
+                ? VkClearValue{ .color = { 1, 0, 1, 1, } } 
+                : VkClearValue{ .depthStencil = { 0, 0 } };
         }
 
         return pass;

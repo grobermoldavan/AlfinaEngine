@@ -20,6 +20,7 @@ namespace al
     {
         VkImageLayout initialLayout;
         VkImageLayout finalLayout;
+        VkFormat format;
     };
 
     struct RenderPassVulkan : RenderPass
@@ -28,6 +29,7 @@ namespace al
         VkRenderPass handle;
         Array<VulkanSubpassInfo> subpassInfos;
         Array<VulkanRenderPassAttachmentInfo> attachmentInfos;
+        Array<VkClearValue> clearValues;
     };
 
     RenderPass* vulkan_render_pass_create(RenderPassCreateInfo* createInfo);

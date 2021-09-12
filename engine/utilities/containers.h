@@ -6,7 +6,7 @@
 #include "engine/types.h"
 #include "engine/memory/memory.h"
 
-#define al_iterator(itName, container) auto itName = create_iterator(&container); !is_finished(&itName); advance(&itName)
+#define al_iterator(itName, container) auto itName = create_iterator(&(container)); !is_finished(&itName); advance(&itName)
 
 namespace al
 {
@@ -268,9 +268,18 @@ namespace al
     }
 
     template<typename T>
-    void dynamic_array_destruct(DynamicArray<T>* array)
+    void dynamic_array_free(DynamicArray<T>* array, void (*destructor)(T* obj, void* userData) = nullptr, void* userData = nullptr)
     {
+        if (destructor) for (al_iterator(it, *array)) destructor(get(it), userData);
+        array->size = 0;
+    }
+
+    template<typename T>
+    void dynamic_array_destruct(DynamicArray<T>* array, void (*destructor)(T* obj, void* userData) = nullptr, void* userData = nullptr)
+    {
+        dynamic_array_free(array, destructor, userData);
         deallocate<T>(&array->bindings, array->memory, array->capacity);
+        std::memset(array, 0, sizeof(DynamicArray<T>));
     }
 
     template<typename T>
@@ -284,7 +293,7 @@ namespace al
             std::memset(newMemory + array->capacity, 0, (newCapacity - array->capacity) * sizeof(T));
             array->capacity = newCapacity;
         }
-        return &(*array)[array->size++];
+        return &array->memory[array->size++];
     }
 
     template<typename T>

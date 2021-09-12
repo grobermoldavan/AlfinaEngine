@@ -199,13 +199,13 @@ namespace al
                 .flags                  = 0,
                 .depthTestEnable        = createInfo->depthTestState ? utils::to_vk_bool(createInfo->depthTestState->isTestEnabled) : VK_FALSE,
                 .depthWriteEnable       = createInfo->depthTestState ? utils::to_vk_bool(createInfo->depthTestState->isWriteEnabled) : VK_FALSE,
-                .depthCompareOp         = createInfo->depthTestState ? utils::to_vk_compare_op(createInfo->depthTestState->compareOp) : VK_COMPARE_OP_NEVER,
+                .depthCompareOp         = createInfo->depthTestState ? utils::to_vk_compare_op(createInfo->depthTestState->compareOp) : VK_COMPARE_OP_ALWAYS,
                 .depthBoundsTestEnable  = createInfo->depthTestState ? utils::to_vk_bool(createInfo->depthTestState->isBoundsTestEnabled) : VK_FALSE,
                 .stencilTestEnable      = utils::to_vk_bool(isStencilSupported && ((createInfo->frontStencilOpState != nullptr) || (createInfo->backStencilOpState != nullptr))),
                 .front                  = frontStencilOpState,
                 .back                   = backStencilOpState,
                 .minDepthBounds         = createInfo->depthTestState ? createInfo->depthTestState->minDepthBounds : 0.0f,
-                .maxDepthBounds         = createInfo->depthTestState ? createInfo->depthTestState->maxDepthBounds : 0.0f,
+                .maxDepthBounds         = createInfo->depthTestState ? createInfo->depthTestState->maxDepthBounds : 1.0f,
             };
             VkPipelineColorBlendAttachmentState colorBlendAttachments[RenderPassCreateInfo::MAX_ATTACHMENTS] = { /* COLOR BLENDING IS UNSUPPORTED */ };
             auto colorBlending = utils::color_blending_create_info({ colorBlendAttachments, count_bits(subpassInfo->colorAttachmentRefs) });
@@ -234,6 +234,8 @@ namespace al
             };
             al_vk_check(vkCreateGraphicsPipelines(device->gpu.logicalHandle, VK_NULL_HANDLE, 1, &pipelineCreateInfo, &device->memoryManager.cpu_allocationCallbacks, &pipeline->handle));
         }
+        pipeline->bindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        pipeline->renderPass = renderPass;
         pipeline->device = device;
 
         return pipeline;

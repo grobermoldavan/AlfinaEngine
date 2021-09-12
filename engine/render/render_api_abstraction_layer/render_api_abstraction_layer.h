@@ -11,7 +11,7 @@
 #include "base/render_pipeline.h"
 #include "base/texture.h"
 #include "base/framebuffer.h"
-// #include "base/render_command_buffer.h"
+#include "base/command_buffer.h"
 
 #include "vulkan/vulkan_base.h"
 #include "vulkan/vulkan_utils.h"
@@ -23,6 +23,7 @@
 #include "vulkan/render_pipeline_vulkan.h"
 #include "vulkan/texture_vulkan.h"
 #include "vulkan/framebuffer_vulkan.h"
+#include "vulkan/command_buffer_vulkan.h"
 #include "vulkan/render_api_vtable_vulkan.h"
 
 namespace al

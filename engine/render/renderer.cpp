@@ -17,7 +17,7 @@ namespace al
             renderer->device = renderer->vt.device_create(&deviceCreateInfo);
         }
         {
-            PlatformFile vertexShader = platform_file_load(&initData->frameAllocator, platform_path("assets", "shaders", "simple.vert.spv"), PlatformFileLoadMode::READ);
+            PlatformFile vertexShader = platform_file_load(&initData->frameAllocator, platform_path("assets", "shaders", "triangle.vert.spv"), PlatformFileLoadMode::READ);
             defer(platform_file_unload(&initData->frameAllocator, vertexShader));
             RenderProgramCreateInfo programCreateInfo
             {
@@ -28,7 +28,7 @@ namespace al
             renderer->vs = renderer->vt.program_create(&programCreateInfo);
         }
         {
-            PlatformFile fragmentShader = platform_file_load(&initData->frameAllocator, platform_path("assets", "shaders", "simple.frag.spv"), PlatformFileLoadMode::READ);
+            PlatformFile fragmentShader = platform_file_load(&initData->frameAllocator, platform_path("assets", "shaders", "triangle.frag.spv"), PlatformFileLoadMode::READ);
             defer(platform_file_unload(&initData->frameAllocator, fragmentShader));
             RenderProgramCreateInfo programCreateInfo
             {
@@ -74,7 +74,7 @@ namespace al
                 .depthTestState         = nullptr,
                 .subpassIndex           = 0,
                 .poligonMode            = PipelinePoligonMode::FILL,
-                .cullMode               = PipelineCullMode::BACK,
+                .cullMode               = PipelineCullMode::NONE,
                 .frontFace              = PipelineFrontFace::CLOCKWISE,
                 .multisamplingType      = MultisamplingType::SAMPLE_1,
             };
@@ -102,13 +102,11 @@ namespace al
                 *get(it) = renderer->vt.framebuffer_create(&framebufferCreateInfo);
             }
         }
-        // {
-            
-        // }
     }
 
     void renderer_destruct(Renderer* renderer)
     {
+        renderer->vt.device_wait(renderer->device);
         for (al_iterator(it, renderer->swapChainFramebuffers)) { renderer->vt.framebuffer_destroy(*get(it)); }
         for (al_iterator(it, renderer->swapChainTextures)) { renderer->vt.texture_destroy(*get(it)); }
         array_destruct(&renderer->swapChainFramebuffers);
@@ -120,8 +118,32 @@ namespace al
         renderer->vt.device_destroy(renderer->device);
     }
 
+    void vulkan_test(RenderDevice* device, RenderPipeline* pipeline);
+
     void renderer_render(Renderer* renderer)
     {
+        renderer->vt.begin_frame(renderer->device);
+        {
+            CommandBufferRequestInfo commandBufferRequest { renderer->device, CommandBufferUsage::GRAPHICS };
+            CommandBuffer* commandBuffer = renderer->vt.command_buffer_request(&commandBufferRequest);
+            const uSize swapChainIndex = renderer->vt.get_active_swap_chain_texture_index(renderer->device);
+            CommandBindPipelineInfo bindInfo
+            {
+                .pipeline = renderer->renderPipeline,
+                .framebuffer = renderer->swapChainFramebuffers[swapChainIndex],
+            };
+            renderer->vt.command_bind_pipeline(commandBuffer, &bindInfo);
+            CommandDrawInfo drawInfo
+            {
+                .vertexCount = 3,
+            };
+            renderer->vt.command_draw(commandBuffer, &drawInfo);
+            renderer->vt.command_buffer_submit(commandBuffer);
+        }
+        renderer->vt.end_frame(renderer->device);
+
+        static uSize count = 0;
+        printf("%zx\n", count++);
     }
 
     void renderer_handle_resize(Renderer* renderer)

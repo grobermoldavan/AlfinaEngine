@@ -23,4 +23,5 @@ namespace al
 #include "vulkan/render_pipeline_vulkan.cpp"
 #include "vulkan/texture_vulkan.cpp"
 #include "vulkan/framebuffer_vulkan.cpp"
+#include "vulkan/command_buffer_vulkan.cpp"
 #include "vulkan/render_api_vtable_vulkan.cpp"

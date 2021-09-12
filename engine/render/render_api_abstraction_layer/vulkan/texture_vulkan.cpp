@@ -15,11 +15,11 @@ namespace al
     {
         TextureVulkan* texture = (TextureVulkan*)_texture;
         RenderDeviceVulkan* device = texture->device;
-        defer(deallocate<TextureVulkan>(&device->memoryManager.cpu_persistentAllocator, texture));
         if (texture->flags & TextureVulkan::SWAP_CHAIN_TEXTURE)
         {
             // Swap chain textures are destroyed by device
             return;
         }
+        deallocate<TextureVulkan>(&device->memoryManager.cpu_persistentAllocator, texture);
     }
 }

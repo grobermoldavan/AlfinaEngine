@@ -27,8 +27,6 @@ namespace al
 
         Array<Texture*> swapChainTextures;
         Array<Framebuffer*> swapChainFramebuffers;
-
-        // RenderCommandBuffer* commandBuffer;
     };
 
     void renderer_construct      (Renderer* renderer, RendererInitData* initData);

@@ -79,6 +79,13 @@ namespace al
         ALWAYS,
     };
 
+    enum struct CommandBufferUsage : u8
+    {
+        GRAPHICS,
+        COMPUTE,
+        TRANSFER,
+    };
+
     enum struct ProgramStage : u32
     {
         Vertex   = u32(1) << 0,

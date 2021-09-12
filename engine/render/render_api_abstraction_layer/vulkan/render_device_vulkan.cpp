@@ -2,6 +2,7 @@
 #include "render_device_vulkan.h"
 #include "vulkan_utils.h"
 #include "texture_vulkan.h"
+#include "command_buffer_vulkan.h"
 
 namespace al
 {
@@ -260,7 +261,7 @@ namespace al
         //
         // Create queues
         //
-        for (auto it = create_iterator(&queueCreateInfos); !is_finished(&it); advance(&it))
+        for (al_iterator(it, queueCreateInfos))
         {
             VulkanGpu::CommandQueue* queue = &gpu->commandQueues[to_index(it)];
             queue->queueFamilyIndex = get(it)->queueFamilyIndex;
@@ -268,6 +269,8 @@ namespace al
             if (get<1>(queuesFamilyIndices[1]) == queue->queueFamilyIndex) queue->flags |= VulkanGpu::CommandQueue::PRESENT;
             if (get<1>(queuesFamilyIndices[2]) == queue->queueFamilyIndex) queue->flags |= VulkanGpu::CommandQueue::TRANSFER;
             vkGetDeviceQueue(gpu->logicalHandle, queue->queueFamilyIndex, 0, &queue->handle);
+            VkCommandPoolCreateInfo poolCreateInfo = utils::command_pool_create_info(queue->queueFamilyIndex, VK_COMMAND_POOL_CREATE_TRANSIENT_BIT);
+            al_vk_check(vkCreateCommandPool(gpu->logicalHandle, &poolCreateInfo, createInfo->callbacks, &queue->commandPoolHandle));
         }
         //
         // Get device info
@@ -291,6 +294,11 @@ namespace al
 
     void vulkan_gpu_destroy(VulkanGpu* gpu, VkAllocationCallbacks* callbacks)
     {
+        for (al_iterator(it, gpu->commandQueues))
+        {
+            if (get(it)->handle == VK_NULL_HANDLE) break;
+            vkDestroyCommandPool(gpu->logicalHandle, get(it)->commandPoolHandle, callbacks);
+        }
         vkDestroyDevice(gpu->logicalHandle, callbacks);
     }
 
@@ -426,6 +434,41 @@ namespace al
                 };
             }
         }
+        {
+            array_construct(&swapChain->textures, createInfo->persistentAllocator, swapChain->images.size);
+            for (al_iterator(it, swapChain->textures))
+            {
+                TextureVulkan* tex = get(it);
+                *tex =
+                {
+                    .subresourceRange   =
+                    {
+                        .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+                        .baseMipLevel   = 0,
+                        .levelCount     = VK_REMAINING_MIP_LEVELS,
+                        .baseArrayLayer = 0,
+                        .layerCount     = VK_REMAINING_ARRAY_LAYERS,
+                    },
+                    .extent             = { swapChain->extent.width, swapChain->extent.height, 1 },
+                    .device             = nullptr, // TODO : pass device
+                    // TODO : pass device
+                    // TODO : pass device
+                    // TODO : pass device
+                    // TODO : pass device
+                    // TODO : pass device
+                    // TODO : pass device
+                    // TODO : pass device
+                    // TODO : pass device
+                    // TODO : pass device
+
+                    .image              = swapChain->images[to_index(it)].handle,
+                    .imageView          = swapChain->images[to_index(it)].view,
+                    .flags              = TextureVulkan::SWAP_CHAIN_TEXTURE,
+                    .format             = swapChain->surfaceFormat.format,
+                    .currentLayout      = VK_IMAGE_LAYOUT_UNDEFINED,
+                };
+            }
+        }
     }
 
     void vulkan_swap_chain_destroy(VulkanSwapChain* swapChain, VkDevice device, VkAllocationCallbacks* callbacks)
@@ -436,6 +479,89 @@ namespace al
         }
         array_destruct(&swapChain->images);
         vkDestroySwapchainKHR(device, swapChain->handle, callbacks);
+    }
+
+    // ==================================================================================================================
+    //
+    //
+    // In flight data
+    //
+    //
+    // ==================================================================================================================
+
+    void vulkan_in_flight_data_construct(VulkanInFlightData* data, VulkanInFlightDataCreateInfo* createInfo)
+    {
+        VkDevice device = createInfo->gpu->logicalHandle;
+        VkSemaphoreCreateInfo semaphoreCreateInfo
+        {
+            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0,
+        };
+        for (al_iterator(it, data->inFlightData))
+        {
+            al_vk_check(vkCreateSemaphore(device, &semaphoreCreateInfo, createInfo->allocationCallbacks, &get(it)->imageAvailableSemaphore));
+            dynamic_array_construct(&get(it)->commandBuffers, createInfo->persistenAllocator);
+        }
+        array_construct(&data->swapChainImageToInFlightFrameMap, createInfo->persistenAllocator, createInfo->swapChain->images.size);
+        for (al_iterator(it, data->swapChainImageToInFlightFrameMap))
+        {
+            *get(it) = VulkanInFlightData::UNUSED_IN_FLIGHT_DATA_REF;
+        }
+        data->activeFrameInFlightIndex = 0;
+        data->activeSwapChainImageIndex = 0;
+    }
+
+    void vulkan_in_flight_data_destroy(VulkanInFlightData* data, VkDevice device, VkAllocationCallbacks* callbacks, AllocatorBindings* persistenAllocator)
+    {
+        for (al_iterator(it, data->inFlightData))
+        {
+            VulkanInFlightData::PerImageInFlightData* perImageData = get(it);
+            vkDestroySemaphore(device, perImageData->imageAvailableSemaphore, callbacks);
+            // <CommandBufferVulkan*> is hack - msvc for some reason can't compile this function call without explicit template argument
+            dynamic_array_destruct<CommandBufferVulkan*>(&perImageData->commandBuffers, [](CommandBufferVulkan** buf, void* userData)
+            {
+                vulkan_command_buffer_destroy(*buf);
+            });
+        }
+        array_destruct(&data->swapChainImageToInFlightFrameMap);
+    }
+
+    void vulkan_in_flight_data_advance_frame(VulkanInFlightData* data, VkDevice device, VulkanSwapChain* swapChain)
+    {
+        /*
+            1. Advance in flight index
+            2. Wait until previous command buffers of this frame finish execution
+            3. Acquire next image and set the image semaphore to wait for
+            4. If this image is already used by another in flight frame, wait for it's execution fence too
+            5. Save in flight frame reference to tha map
+        */
+        data->activeFrameInFlightIndex = (data->activeFrameInFlightIndex + 1) % VulkanInFlightData::NUM_IMAGES_IN_FLIGHT;
+        DynamicArray<CommandBufferVulkan*>* activeFrameCommandBuffers = &data->inFlightData[data->activeFrameInFlightIndex].commandBuffers;
+        if (activeFrameCommandBuffers->size)
+        {
+            vkWaitForFences(device, 1, &(*activeFrameCommandBuffers)[activeFrameCommandBuffers->size - 1]->executionFence, VK_TRUE, UINT64_MAX);
+        }
+        al_vk_check(vkAcquireNextImageKHR(device, swapChain->handle, UINT64_MAX, data->inFlightData[data->activeFrameInFlightIndex].imageAvailableSemaphore, VK_NULL_HANDLE, &data->activeSwapChainImageIndex));
+        const u32 inFlightFrameReferencedBySwapChainImage = data->swapChainImageToInFlightFrameMap[data->activeSwapChainImageIndex];
+        if (inFlightFrameReferencedBySwapChainImage != VulkanInFlightData::UNUSED_IN_FLIGHT_DATA_REF)
+        {
+            DynamicArray<CommandBufferVulkan*>* referencedCommandBuffers = &data->inFlightData[inFlightFrameReferencedBySwapChainImage].commandBuffers;
+            if (referencedCommandBuffers->size)
+            {
+                vkWaitForFences(device, 1, &(*referencedCommandBuffers)[referencedCommandBuffers->size - 1]->executionFence, VK_TRUE, UINT64_MAX);
+            }
+        }
+        data->swapChainImageToInFlightFrameMap[data->activeSwapChainImageIndex] = data->activeFrameInFlightIndex;
+        dynamic_array_free<CommandBufferVulkan*>(activeFrameCommandBuffers, [](CommandBufferVulkan** buf, void* userData)
+        {
+            vulkan_command_buffer_destroy(*buf);
+        });
+    }
+
+    VulkanInFlightData::PerImageInFlightData* vulkan_in_flight_data_get_current(VulkanInFlightData* data)
+    {
+        return &data->inFlightData[data->activeFrameInFlightIndex];
     }
 
     // ==================================================================================================================
@@ -495,6 +621,14 @@ namespace al
             .windowHeight           = platform_window_get_current_height(createInfo->window),
         };
         vulkan_swap_chain_construct(&device->swapChain, &swapChainCreateInfo);
+        VulkanInFlightDataCreateInfo inFlightDataCreateInfo
+        {
+            .gpu                    = &device->gpu,
+            .swapChain              = &device->swapChain,
+            .allocationCallbacks    = &device->memoryManager.cpu_allocationCallbacks,
+            .persistenAllocator     = &device->memoryManager.cpu_persistentAllocator,
+        };
+        vulkan_in_flight_data_construct(&device->inFlightData, &inFlightDataCreateInfo);
 
         return device;
     }
@@ -502,11 +636,18 @@ namespace al
     void vulkan_device_destroy(RenderDevice* _device)
     {
         RenderDeviceVulkan* device = (RenderDeviceVulkan*)_device;
+        vulkan_in_flight_data_destroy(&device->inFlightData, device->gpu.logicalHandle, &device->memoryManager.cpu_allocationCallbacks, &device->memoryManager.cpu_persistentAllocator);
         vulkan_swap_chain_destroy(&device->swapChain, device->gpu.logicalHandle, &device->memoryManager.cpu_allocationCallbacks);
         vulkan_memory_manager_destroy(&device->memoryManager);
         vulkan_gpu_destroy(&device->gpu, &device->memoryManager.cpu_allocationCallbacks);
         vulkan_surface_destroy(device->surface, device->instance, &device->memoryManager.cpu_allocationCallbacks);
         vulkan_instance_destroy(device->instance, &device->memoryManager.cpu_allocationCallbacks, device->debugMessenger);
+    }
+
+    void vulkan_device_wait(RenderDevice* _device)
+    {
+        RenderDeviceVulkan* device = (RenderDeviceVulkan*)_device;
+        vkDeviceWaitIdle(device->gpu.logicalHandle);
     }
 
     uSize vulkan_get_swap_chain_textures_num(RenderDevice* _device)
@@ -518,27 +659,52 @@ namespace al
     Texture* vulkan_get_swap_chain_texture(RenderDevice* _device, uSize index)
     {
         RenderDeviceVulkan* device = (RenderDeviceVulkan*)_device;
-        VulkanSwapChain::Image* image = &device->swapChain.images[index];
-        TextureVulkan* tex = allocate<TextureVulkan>(&device->memoryManager.cpu_persistentAllocator);
-        al_vk_memset(tex, 0, sizeof(TextureVulkan));
-        *tex =
+        return &device->swapChain.textures[index];
+    }
+
+    uSize vulkan_get_active_swap_chain_texture_index(RenderDevice* _device)
+    {
+        RenderDeviceVulkan* device = (RenderDeviceVulkan*)_device;
+        return device->inFlightData.activeSwapChainImageIndex;
+    }
+
+    void vulkan_begin_frame(RenderDevice* _device)
+    {
+        RenderDeviceVulkan* device = (RenderDeviceVulkan*)_device;
+        al_vk_assert_msg(!(device->flags & RenderDeviceVulkan::Flags::IS_IN_RENDER_FRAME), "Can't call begin_frame twice");
+        vulkan_in_flight_data_advance_frame(&device->inFlightData, device->gpu.logicalHandle, &device->swapChain);
+        device->flags &= ~RenderDeviceVulkan::Flags::HAS_SUBMITTED_BUFFERS;
+    }
+
+    void vulkan_end_frame(RenderDevice* _device)
+    {
+        RenderDeviceVulkan* device = (RenderDeviceVulkan*)_device;
+        VulkanInFlightData::PerImageInFlightData* currentInFlightData = vulkan_in_flight_data_get_current(&device->inFlightData);
+        al_vk_assert_msg(device->flags & RenderDeviceVulkan::Flags::HAS_SUBMITTED_BUFFERS, "You must submit some commands between being_frame and end_frame");
+        
+        CommandBufferRequestInfo requestInfo { device, CommandBufferUsage::TRANSFER };
+        CommandBufferVulkan* commandBuffer = (CommandBufferVulkan*)vulkan_command_buffer_request(&requestInfo);
+        TextureVulkan* swapChainTexture = &device->swapChain.textures[device->inFlightData.activeSwapChainImageIndex];
+        vulkan_command_buffer_transition_image_layout(commandBuffer, swapChainTexture, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        vulkan_command_buffer_submit(commandBuffer);
+
+        VkSwapchainKHR swapChains[] = { device->swapChain.handle, };
+        VkSemaphore presentWaitSemaphores[] =
         {
-            .subresourceRange   =
-            {
-                .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-                .baseMipLevel   = 0,
-                .levelCount     = VK_REMAINING_MIP_LEVELS,
-                .baseArrayLayer = 0,
-                .layerCount     = VK_REMAINING_ARRAY_LAYERS,
-            },
-            .extent             = { device->swapChain.extent.width, device->swapChain.extent.height, 1 },
-            .device             = device,
-            .image              = image->handle,
-            .imageView          = image->view,
-            .flags              = TextureVulkan::SWAP_CHAIN_TEXTURE,
-            .format             = device->swapChain.surfaceFormat.format,
-            .currentLayout      = VK_IMAGE_LAYOUT_UNDEFINED,
+            currentInFlightData->commandBuffers[currentInFlightData->commandBuffers.size - 1]->executionFinishedSemaphore,
+            currentInFlightData->imageAvailableSemaphore,
         };
-        return tex;
+        VkPresentInfoKHR presentInfo
+        {
+            .sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+            .pNext              = nullptr,
+            .waitSemaphoreCount = array_size(presentWaitSemaphores),
+            .pWaitSemaphores    = presentWaitSemaphores,
+            .swapchainCount     = array_size(swapChains),
+            .pSwapchains        = swapChains,
+            .pImageIndices      = &device->inFlightData.activeSwapChainImageIndex,
+            .pResults           = nullptr,
+        };
+        al_vk_check(vkQueuePresentKHR(get_command_queue(&device->gpu, VulkanGpu::CommandQueue::PRESENT)->handle, &presentInfo));
     }
 }
