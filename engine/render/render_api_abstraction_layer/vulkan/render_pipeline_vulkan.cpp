@@ -208,6 +208,7 @@ namespace al
                 .maxDepthBounds         = createInfo->depthTestState ? createInfo->depthTestState->maxDepthBounds : 1.0f,
             };
             VkPipelineColorBlendAttachmentState colorBlendAttachments[RenderPassCreateInfo::MAX_ATTACHMENTS] = { /* COLOR BLENDING IS UNSUPPORTED */ };
+            for (al_iterator(it, colorBlendAttachments)) get(it)->colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
             auto colorBlending = utils::color_blending_create_info({ colorBlendAttachments, count_bits(subpassInfo->colorAttachmentRefs) });
             auto dynamicState = utils::dynamic_state_default_create_info();
             VkGraphicsPipelineCreateInfo pipelineCreateInfo

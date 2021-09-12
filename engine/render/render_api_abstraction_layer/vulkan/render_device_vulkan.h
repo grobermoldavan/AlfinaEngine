@@ -183,8 +183,6 @@ namespace al
     uSize vulkan_get_active_swap_chain_texture_index(RenderDevice* device);
     void vulkan_begin_frame(RenderDevice* device);
     void vulkan_end_frame(RenderDevice* device);
-
-    void vulkan_test(RenderDevice* device, RenderPipeline* pipeline);
 }
 
 #endif

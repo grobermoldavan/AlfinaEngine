@@ -17,7 +17,7 @@ namespace al
             renderer->device = renderer->vt.device_create(&deviceCreateInfo);
         }
         {
-            PlatformFile vertexShader = platform_file_load(&initData->frameAllocator, platform_path("assets", "shaders", "triangle.vert.spv"), PlatformFileLoadMode::READ);
+            PlatformFile vertexShader = platform_file_load(&initData->frameAllocator, platform_path("assets", "shaders", "simple.vert.spv"), PlatformFileLoadMode::READ);
             defer(platform_file_unload(&initData->frameAllocator, vertexShader));
             RenderProgramCreateInfo programCreateInfo
             {
@@ -28,7 +28,7 @@ namespace al
             renderer->vs = renderer->vt.program_create(&programCreateInfo);
         }
         {
-            PlatformFile fragmentShader = platform_file_load(&initData->frameAllocator, platform_path("assets", "shaders", "triangle.frag.spv"), PlatformFileLoadMode::READ);
+            PlatformFile fragmentShader = platform_file_load(&initData->frameAllocator, platform_path("assets", "shaders", "simple.frag.spv"), PlatformFileLoadMode::READ);
             defer(platform_file_unload(&initData->frameAllocator, fragmentShader));
             RenderProgramCreateInfo programCreateInfo
             {
