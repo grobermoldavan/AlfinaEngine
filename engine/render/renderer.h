@@ -19,20 +19,12 @@ namespace al
     {
         RenderApiVtable vt;
         RenderDevice* device;
-
-        RenderProgram* vs;
-        RenderProgram* fs;
-        RenderPass* renderPass;
-        RenderPipeline* renderPipeline;
-
-        Array<Texture*> swapChainTextures;
-        Array<Framebuffer*> swapChainFramebuffers;
     };
 
-    void renderer_construct      (Renderer* renderer, RendererInitData* initData);
-    void renderer_destroy        (Renderer* renderer);
-    void renderer_render         (Renderer* renderer);
-    void renderer_handle_resize  (Renderer* renderer);
+    void renderer_default_construct      (Renderer* renderer, RendererInitData* initData);
+    void renderer_default_destroy        (Renderer* renderer);
+    void renderer_default_render         (Renderer* renderer);
+    void renderer_default_handle_resize  (Renderer* renderer);
 }
 
 #endif

@@ -13,9 +13,9 @@ namespace al
     void application_run(Application<Bindings>* application, CommandLineArgs args)
     {
         application_default_create(application, args);
-        if constexpr (AL_HAS_CHECK(Bindings, create))
+        if constexpr (AL_HAS_CHECK(Bindings, application_create))
         {
-            application->bindings.create(application, args);
+            application->bindings.application_create((typename Bindings::ApplicationType*)application, args);
         }
 #if TEST_TIMINGS
         // Test code for timing ====================================
@@ -35,25 +35,25 @@ namespace al
             // =========================================================
 #endif
             application_default_update(application);
-            if constexpr (AL_HAS_CHECK(Bindings, update))
+            if constexpr (AL_HAS_CHECK(Bindings, application_update))
             {
-                application->bindings.update(application);
+                application->bindings.application_update((typename Bindings::ApplicationType*)application);
             }
             if (!platform_window_is_minimized(&application->window))
             {
-                application_default_render(application);
-                if constexpr (AL_HAS_CHECK(Bindings, render))
+                renderer_default_render(&application->renderer);
+                if constexpr (AL_HAS_CHECK(Bindings, renderer_render))
                 {
-                    application->bindings.render(application);
+                    application->bindings.renderer_render((typename Bindings::ApplicationType*)application);
                 }
             }
             stack_alloactor_reset(&application->frameAllocator);
         }
-        application_default_destroy(application);
-        if constexpr (AL_HAS_CHECK(Bindings, destroy))
+        if constexpr (AL_HAS_CHECK(Bindings, application_destroy))
         {
-            application->bindings.destroy(application);
+            application->bindings.application_destroy((typename Bindings::ApplicationType*)application);
         }
+        application_default_destroy(application);
     }
 
     template<typename Bindings>
@@ -68,7 +68,8 @@ namespace al
                 .isResizable = false,
                 .width = 1024,
                 .height = 768
-            }
+            },
+            .renderApi = RenderApi::VULKAN,
         };
     }
 
@@ -78,7 +79,7 @@ namespace al
         ApplicationCreationData creationData;
         if constexpr (AL_HAS_CHECK(Bindings, get_creation_data))
         {
-            creationData = application->bindings.get_creation_data(application);
+            creationData = application->bindings.get_creation_data((typename Bindings::ApplicationType*)application);
         }
         else
         {
@@ -94,10 +95,10 @@ namespace al
         construct(&application->frameAllocator, EngineConfig::FRAME_ALLOCATOR_MEMORY_SIZE, &systemAllocatorBindings);
         platform_window_construct(&application->window, creationData.windowInitData);
         platform_window_set_resize_callback(&application->window, [application](){
-            renderer_handle_resize(&application->renderer);
+            renderer_default_handle_resize(&application->renderer);
             if constexpr (AL_HAS_CHECK(Bindings, handle_window_resize))
             {
-                application->bindings.handle_window_resize(application);
+                application->bindings.handle_window_resize((typename Bindings::ApplicationType*)application);
             }
         });
         platform_input_construct(&application->input);
@@ -106,15 +107,23 @@ namespace al
             .persistentAllocator    = get_allocator_bindings(&application->pool),
             .frameAllocator         = get_allocator_bindings(&application->frameAllocator),
             .window                 = &application->window,
-            .renderApi              = RenderApi::VULKAN,
+            .renderApi              = creationData.renderApi,
         };
-        renderer_construct(&application->renderer, &rendererInitData);
+        renderer_default_construct(&application->renderer, &rendererInitData);
+        if constexpr (AL_HAS_CHECK(Bindings, renderer_construct))
+        {
+            application->bindings.renderer_construct((typename Bindings::ApplicationType*)application);
+        }
     }
 
     template<typename Bindings>
     void application_default_destroy(Application<Bindings>* application)
     {
-        renderer_destruct(&application->renderer);
+        if constexpr (AL_HAS_CHECK(Bindings, renderer_destroy))
+        {
+            application->bindings.renderer_destroy((typename Bindings::ApplicationType*)application);
+        }
+        renderer_default_destroy(&application->renderer);
         platform_input_destruct(&application->input);
         platform_window_destruct(&application->window);
         destruct(&application->pool);
@@ -130,17 +139,11 @@ namespace al
     }
 
     template<typename Bindings>
-    void application_default_render(Application<Bindings>* application)
-    {
-        renderer_render(&application->renderer);
-    }
-
-    template<typename Bindings>
     bool application_should_quit(Application<Bindings>* application)
     {
         if constexpr (AL_HAS_CHECK(Bindings, should_quit))
         {
-            return application->bindings.should_quit(application);
+            return application->bindings.should_quit((typename Bindings::ApplicationType*)application);
         }
         else
         {

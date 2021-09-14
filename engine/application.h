@@ -8,10 +8,12 @@
 
 namespace al
 {
-    AL_HAS_CHECK_DECLARATION(create);
-    AL_HAS_CHECK_DECLARATION(destroy);
-    AL_HAS_CHECK_DECLARATION(update);
-    AL_HAS_CHECK_DECLARATION(render);
+    AL_HAS_CHECK_DECLARATION(application_create);
+    AL_HAS_CHECK_DECLARATION(application_destroy);
+    AL_HAS_CHECK_DECLARATION(application_update);
+    AL_HAS_CHECK_DECLARATION(renderer_construct);
+    AL_HAS_CHECK_DECLARATION(renderer_destroy);
+    AL_HAS_CHECK_DECLARATION(renderer_render);
     AL_HAS_CHECK_DECLARATION(should_quit);
     AL_HAS_CHECK_DECLARATION(handle_window_resize);
     AL_HAS_CHECK_DECLARATION(get_creation_data);
@@ -38,6 +40,7 @@ namespace al
     struct ApplicationCreationData
     {
         PlatformWindowInitData windowInitData;
+        RenderApi renderApi;
     };
 
     template<typename Bindings> void application_run(Application<Bindings>* application, CommandLineArgs args);
