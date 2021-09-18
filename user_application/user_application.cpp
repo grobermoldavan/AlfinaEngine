@@ -33,24 +33,36 @@ void user_renderer_construct(UserApplication* application)
     AllocatorBindings frameAllocator = get_allocator_bindings(&application->frameAllocator);
     AllocatorBindings persistentAllocator = get_allocator_bindings(&application->pool);
     {
-        PlatformFile vertexShader = platform_file_load(&frameAllocator, platform_path("assets", "shaders", "simple.vert.spv"), PlatformFileLoadMode::READ);
-        defer(platform_file_unload(&frameAllocator, vertexShader));
+        PlatformFile vertexShader;
+        unwrap(platform_file_load(&vertexShader, platform_path("assets", "shaders", "simple.vert.spv"), PlatformFileMode::READ));
+        PlatformFileContent shaderBytecode = platform_file_read(&vertexShader, &frameAllocator);
+        defer
+        (
+            platform_file_free_content(&shaderBytecode);
+            platform_file_unload(&vertexShader);
+        );
         RenderProgramCreateInfo programCreateInfo
         {
             .device = renderer->device,
-            .bytecode = (u32*)vertexShader.memory,
-            .codeSizeBytes = vertexShader.sizeBytes,
+            .bytecode = (u32*)shaderBytecode.memory,
+            .codeSizeBytes = shaderBytecode.sizeBytes,
         };
         application->vs = renderer->vt.program_create(&programCreateInfo);
     }
     {
-        PlatformFile fragmentShader = platform_file_load(&frameAllocator, platform_path("assets", "shaders", "simple.frag.spv"), PlatformFileLoadMode::READ);
-        defer(platform_file_unload(&frameAllocator, fragmentShader));
+        PlatformFile fragmentShader;
+        unwrap(platform_file_load(&fragmentShader, platform_path("assets", "shaders", "simple.frag.spv"), PlatformFileMode::READ));
+        PlatformFileContent shaderBytecode = platform_file_read(&fragmentShader, &frameAllocator);
+        defer
+        (
+            platform_file_free_content(&shaderBytecode);
+            platform_file_unload(&fragmentShader);
+        );
         RenderProgramCreateInfo programCreateInfo
         {
             .device = renderer->device,
-            .bytecode = (u32*)fragmentShader.memory,
-            .codeSizeBytes = fragmentShader.sizeBytes,
+            .bytecode = (u32*)shaderBytecode.memory,
+            .codeSizeBytes = shaderBytecode.sizeBytes,
         };
         application->fs = renderer->vt.program_create(&programCreateInfo);
     }
@@ -160,9 +172,6 @@ void user_renderer_render(UserApplication* application)
         renderer->vt.command_buffer_submit(commandBuffer);
     }
     renderer->vt.end_frame(renderer->device);
-
-    static uSize count = 0;
-    printf("%zx\n", count++);
 }
 
 int main(int argc, char* argv[])

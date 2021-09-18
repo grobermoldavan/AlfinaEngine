@@ -1,8 +1,8 @@
 #ifndef AL_PLATFORM_INPUT_WIN32_H
 #define AL_PLATFORM_INPUT_WIN32_H
 
-#include "engine/platform/win32/platform_win32_backend.h"
-#include "engine/platform/platform_input.h"
+#include "platform_win32_backend.h"
+#include "../platform_input.h"
 #include "engine/types.h"
 
 namespace al

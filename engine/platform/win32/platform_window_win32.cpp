@@ -1,7 +1,7 @@
 
 #include <cstring>
 
-#include "engine/platform/win32/platform_window_win32.h"
+#include "platform_window_win32.h"
 
 namespace al
 {
