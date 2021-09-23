@@ -15,6 +15,12 @@ namespace al
             if (value & (T(1) << it)) result += 1;
         return result;
     };
+
+    template<typename To, typename From>
+    inline To bit_cast(From value)
+    {
+        return *((To*)(&value));
+    }
 }
 
 #endif

@@ -6,7 +6,7 @@
 #include "engine/types.h"
 #include "engine/memory/memory.h"
 
-#define al_iterator(itName, container) auto itName = create_iterator(&(container)); !is_finished(&itName); advance(&itName)
+#define al_iterator(itName, container) auto itName = ::al::create_iterator(&(container)); !::al::is_finished(&itName); ::al::advance(&itName)
 
 namespace al
 {
@@ -270,7 +270,7 @@ namespace al
     template<typename T>
     void dynamic_array_free(DynamicArray<T>* array, void (*destructor)(T* obj, void* userData) = nullptr, void* userData = nullptr)
     {
-        if (destructor) for (al_iterator(it, *array)) destructor(get(it), userData);
+        if (destructor) for (uSize it = 0; it < array->size; it++) destructor(&array->memory[it], userData);
         array->size = 0;
     }
 

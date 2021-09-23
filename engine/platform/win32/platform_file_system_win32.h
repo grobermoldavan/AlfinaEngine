@@ -11,7 +11,8 @@ namespace al
     {
         using FlagsT = u64;
         struct Flags { enum : FlagsT {
-            STD_IO,
+            STD_IO      = FlagsT(1) << 0,
+            IS_LOADED   = FlagsT(1) << 1,
         }; };
         HANDLE handle;
         PlatformFileMode mode;

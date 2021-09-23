@@ -7,4 +7,9 @@ namespace al
     {
         return ::GetThreadId(::GetCurrentThread());
     }
+
+    void platform_thread_yield()
+    {
+        ::SwitchToThread();
+    }
 }

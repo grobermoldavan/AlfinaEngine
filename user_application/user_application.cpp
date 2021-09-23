@@ -1,28 +1,27 @@
 
 #include "user_application.h"
 
-#include <cstdio>
-
 void user_create(UserApplication* application, al::CommandLineArgs args)
 {
-    std::fprintf(stdout, "User create function\n");
+    unwrap(al::logger_log(&application->logger, al::LogSeverety::_MESSAGE, "User create function"));
 }
 
 void user_destroy(UserApplication* application)
 {
-    std::fprintf(stdout, "User destroy function\n");
+    unwrap(al::logger_log(&application->logger, al::LogSeverety::_MESSAGE, "User destroy function"));
 }
 
 void user_update(UserApplication* application)
 {
-    
+    static al::uSize frame = 0;
+    unwrap(al::logger_log(&application->logger, al::LogSeverety::_MESSAGE, "Frame %lld", frame++));
 }
 
 void user_handle_window_resize(UserApplication* application)
 {
     al::u32 width = al::platform_window_get_current_width(&application->window);
     al::u32 height = al::platform_window_get_current_height(&application->window);
-    std::fprintf(stdout, "User window resized function : %d %d\n", width, height);
+    unwrap(al::logger_log(&application->logger, al::LogSeverety::_MESSAGE, "User window resized function : %d %d\n", width, height));
 }
 
 void user_renderer_construct(UserApplication* application)

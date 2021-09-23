@@ -23,5 +23,6 @@
 #include "thread_local_storage.h"
 #include "allocations_tracker.h"
 #include "bits.h"
+#include "thread_safe_queue.h"
 
 #endif

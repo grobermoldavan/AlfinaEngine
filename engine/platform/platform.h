@@ -6,6 +6,7 @@
 #include "engine/platform/platform_file_system_config.h"
 #include "engine/platform/platform_file_system.h"
 #include "engine/platform/platform_threads.h"
+#include "platform_atomics.h"
 
 #ifdef _WIN32
 #   include "engine/platform/win32/platform_input_win32.h"

@@ -1,6 +1,8 @@
 
 #include "platform_file_system_win32.h"
 
+#include <assert.h>
+
 namespace al
 {
     [[nodiscard]] Result<void> platform_file_get_std_out(PlatformFile* file)
@@ -57,14 +59,16 @@ namespace al
         );
 
         dbg (if (file->handle == INVALID_HANDLE_VALUE) return err<void>("Can't load file - os call failed."));
+        file->flags = PlatformFile::Flags::IS_LOADED;
         return ok();
     }
 
     Result<void> platform_file_unload(PlatformFile* file)
     {
-        dbg (if (!file)                                      return err<void>("Can't unload file - file is a nullptr."));
-        dbg (if (file->handle == INVALID_HANDLE_VALUE)       return err<void>("Can't unload file - file handle is invalid."));
-        dbg (if (file->flags & PlatformFile::Flags::STD_IO)  return err<void>("Can't unload file - it is an std io handle."));
+        dbg (if (!file)                                         return err<void>("Can't unload file - file is a nullptr."));
+        dbg (if (file->handle == INVALID_HANDLE_VALUE)          return err<void>("Can't unload file - file handle is invalid."));
+        dbg (if (file->flags & PlatformFile::Flags::STD_IO)     return err<void>("Can't unload file - it is an std io handle."));
+        dbg (if (file->flags & PlatformFile::Flags::IS_LOADED)  return err<void>("Can't unload file - it is not loaded."));
 
         ::CloseHandle(file->handle);
 

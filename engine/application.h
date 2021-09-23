@@ -31,9 +31,14 @@ namespace al
         PoolAllocator   pool;
         StackAllocator  frameAllocator;
 
+        AllocatorBindings stackBindings;
+        AllocatorBindings poolBindings;
+        AllocatorBindings frameBindings;
+
         PlatformWindow  window;
         PlatformInput   input;
         Renderer        renderer;
+        Logger          logger;
         Bindings        bindings;
     };
 

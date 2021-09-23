@@ -8,6 +8,7 @@ namespace al
     using PlatformThreadId = u64;
 
     PlatformThreadId platform_get_current_thread_id();
+    void platform_thread_yield();
 }
 
 #endif

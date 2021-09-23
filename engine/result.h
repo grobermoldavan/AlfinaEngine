@@ -6,6 +6,8 @@ namespace al
 #ifdef AL_DEBUG
 
 #define dbg(cmd) cmd
+#define is_ok(arg) ::al::is_ok_impl(arg)
+#define unwrap(arg) ::al::unwrap_impl(arg)
 
     template<typename T>
     struct Result
@@ -45,20 +47,20 @@ namespace al
     }
 
     template<typename T>
-    inline bool is_ok(const Result<T>& result)
+    inline bool is_ok_impl(const Result<T>& result)
     {
         return result.error == nullptr;
     }
 
     template<typename T>
-    inline T unwrap(const Result<T>& result)
+    inline T unwrap_impl(const Result<T>& result)
     {
         // @TODO : assert if !is_ok
         return result.value;
     }
 
     template<>
-    inline void unwrap(const Result<void>& result)
+    inline void unwrap_impl(const Result<void>& result)
     {
         // @TODO : assert if !is_ok
     }
@@ -66,11 +68,14 @@ namespace al
     template<typename T>
     Result<T>::operator T()
     {
-        return unwrap(*this);
+        return unwrap_impl(*this);
     }
+    
 #else // !defined(AL_DEBUG)
 
 #define dbg(cmd)
+#define is_ok(arg) true
+#define unwrap(arg) arg
 
     template<typename T>
     using Result = T;
@@ -95,9 +100,6 @@ namespace al
     inline Result<void> err(const char* msg)
     {
     }
-
-#define is_ok(arg) true
-#define unwrap(arg) arg
 
 #endif // ifdef AL_DEBUG
 }

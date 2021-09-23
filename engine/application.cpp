@@ -2,11 +2,6 @@
 #include "engine/application.h"
 #include "engine/utilities/utilities.h"
 
-#define TEST_TIMINGS 0
-#if TEST_TIMINGS
-#   include <chrono>
-#endif
-
 namespace al
 {
     template<typename Bindings>
@@ -17,23 +12,8 @@ namespace al
         {
             application->bindings.application_create((typename Bindings::ApplicationType*)application, args);
         }
-#if TEST_TIMINGS
-        // Test code for timing ====================================
-        using ClockT = std::chrono::steady_clock;
-        using DtDuration = std::chrono::duration<float>;
-        auto previousTime = ClockT::now();
-        // =========================================================
-#endif
         while(!application_should_quit(application))
         {
-#if TEST_TIMINGS
-            // Test code for timing ====================================
-            auto currentTime = ClockT::now();
-            auto dt = std::chrono::duration_cast<DtDuration>(currentTime - previousTime).count();
-            previousTime = currentTime;
-            printf("%f\n", 1.0f / dt);
-            // =========================================================
-#endif
             application_default_update(application);
             if constexpr (AL_HAS_CHECK(Bindings, application_update))
             {
@@ -47,6 +27,7 @@ namespace al
                     application->bindings.renderer_render((typename Bindings::ApplicationType*)application);
                 }
             }
+            logger_flush(&application->logger);
             stack_alloactor_reset(&application->frameAllocator);
         }
         if constexpr (AL_HAS_CHECK(Bindings, application_destroy))
@@ -85,6 +66,7 @@ namespace al
         {
             creationData = application_default_get_creation_data(application);
         }
+
         AllocatorBindings systemAllocatorBindings = get_system_allocator_bindings();
         construct(&application->stack, EngineConfig::STACK_ALLOCATOR_MEMORY_SIZE, &systemAllocatorBindings);
         constexpr PoolAllocatorBucketDescription bucketDescriptions[EngineConfig::POOL_ALLOCATOR_MAX_BUCKETS] = 
@@ -93,6 +75,19 @@ namespace al
         };
         construct(&application->pool, bucketDescriptions, &systemAllocatorBindings);
         construct(&application->frameAllocator, EngineConfig::FRAME_ALLOCATOR_MEMORY_SIZE, &systemAllocatorBindings);
+        application->stackBindings = get_allocator_bindings(&application->stack);
+        application->poolBindings = get_allocator_bindings(&application->pool);
+        application->frameBindings = get_allocator_bindings(&application->frameAllocator);
+
+        PlatformFile stdOut;
+        unwrap(platform_file_get_std_out(&stdOut));
+        LoggerCreateInfo loggerCreateInfo
+        {
+            .persistentAllocator = application->poolBindings,
+            .outputFiles = { &stdOut, 1 },
+        };
+        logger_construct(&application->logger, &loggerCreateInfo);
+
         platform_window_construct(&application->window, creationData.windowInitData);
         platform_window_set_resize_callback(&application->window, [application](){
             renderer_default_handle_resize(&application->renderer);
@@ -102,6 +97,7 @@ namespace al
             }
         });
         platform_input_construct(&application->input);
+
         RendererInitData rendererInitData
         {
             .persistentAllocator    = get_allocator_bindings(&application->pool),
@@ -126,6 +122,7 @@ namespace al
         renderer_default_destroy(&application->renderer);
         platform_input_destruct(&application->input);
         platform_window_destruct(&application->window);
+        logger_destroy(&application->logger);
         destruct(&application->pool);
         destruct(&application->stack);
         destruct(&application->frameAllocator);

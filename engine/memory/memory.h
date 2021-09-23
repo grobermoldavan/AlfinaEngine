@@ -4,6 +4,7 @@
 #include <cassert>
 #include <cstdlib>
 
+#include "allocator_bindings.h"
 #include "engine/types.h"
 #include "engine/config.h"
 
@@ -21,17 +22,6 @@
 
 namespace al
 {
-    // ===============================================================================================
-    // Allocator bindings data
-    // ===============================================================================================
-
-    struct AllocatorBindings
-    {
-        void* (*allocate)(void* allocator, uSize memorySizeBytes, uSize alignmentBytes);
-        void (*deallocate)(void* allocator, void* ptr, uSize memorySizeBytes);
-        void* allocator;
-    };
-
     // ===============================================================================================
     // Stack allocator data
     // ===============================================================================================
