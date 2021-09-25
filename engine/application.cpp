@@ -88,6 +88,12 @@ namespace al
         };
         logger_construct(&application->logger, &loggerCreateInfo);
 
+        application->globals =
+        {
+            .logger = &application->logger,
+        };
+        thread_local_globals_register(&application->globals);
+
         platform_window_construct(&application->window, creationData.windowInitData);
         platform_window_set_resize_callback(&application->window, [application](){
             renderer_default_handle_resize(&application->renderer);

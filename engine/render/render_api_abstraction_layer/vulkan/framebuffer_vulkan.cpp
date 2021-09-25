@@ -14,11 +14,11 @@ namespace al
         //
         // Validation
         //
-        al_vk_assert(pass->attachmentInfos.size == createInfo->attachments.size);
+        al_assert(pass->attachmentInfos.size == createInfo->attachments.size);
         for (al_iterator(it, createInfo->attachments))
         {
             TextureVulkan* texture = (TextureVulkan*)*get(it);
-            al_vk_assert(texture->format == pass->attachmentInfos[to_index(it)].format);
+            al_assert(texture->format == pass->attachmentInfos[to_index(it)].format);
         }
         //
         // Temp data

@@ -458,7 +458,7 @@ namespace al::utils
             case VK_FORMAT_R8G8B8A8_SRGB: return TextureFormat::RGBA_8;
             case VK_FORMAT_R32G32B32A32_SFLOAT: return TextureFormat::RGBA_32F;
         }
-        al_vk_assert_fail("Unsupported VkFormat");
+        al_assert_fail("Unsupported VkFormat");
         return TextureFormat(0);
     }
 
@@ -469,7 +469,7 @@ namespace al::utils
             case TextureFormat::RGBA_8: return VK_FORMAT_R8G8B8A8_SRGB;
             case TextureFormat::RGBA_32F: return VK_FORMAT_R32G32B32A32_SFLOAT;
         }
-        al_vk_assert_fail("Unsupported TextureFormat");
+        al_assert_fail("Unsupported TextureFormat");
         return VkFormat(0);
     }
 
@@ -481,7 +481,7 @@ namespace al::utils
             case AttachmentLoadOp::LOAD: return VK_ATTACHMENT_LOAD_OP_LOAD;
             case AttachmentLoadOp::NOTHING: return VK_ATTACHMENT_LOAD_OP_DONT_CARE;
         }
-        al_vk_assert_fail("Unsupported FramebufferAttachmentLoadOp");
+        al_assert_fail("Unsupported FramebufferAttachmentLoadOp");
         return VkAttachmentLoadOp(0);
     }
 
@@ -492,7 +492,7 @@ namespace al::utils
             case AttachmentStoreOp::STORE: return VK_ATTACHMENT_STORE_OP_STORE;
             case AttachmentStoreOp::NOTHING: return VK_ATTACHMENT_STORE_OP_DONT_CARE;
         }
-        al_vk_assert_fail("Unsupported FramebufferAttachmentStoreOp");
+        al_assert_fail("Unsupported FramebufferAttachmentStoreOp");
         return VkAttachmentStoreOp(0);
     }
 
@@ -504,7 +504,7 @@ namespace al::utils
             case PipelinePoligonMode::LINE: return VK_POLYGON_MODE_LINE;
             case PipelinePoligonMode::POINT: return VK_POLYGON_MODE_POINT;
         }
-        al_vk_assert_fail("Unsupported PipelinePoligonMode");
+        al_assert_fail("Unsupported PipelinePoligonMode");
         return VkPolygonMode(0);
     }
 
@@ -517,7 +517,7 @@ namespace al::utils
             case PipelineCullMode::BACK: return VK_CULL_MODE_BACK_BIT;
             case PipelineCullMode::FRONT_BACK: return VK_CULL_MODE_FRONT_AND_BACK;
         }
-        al_vk_assert_fail("Unsupported PipelineCullMode");
+        al_assert_fail("Unsupported PipelineCullMode");
         return VkCullModeFlags(0);
     }
 
@@ -528,7 +528,7 @@ namespace al::utils
             case PipelineFrontFace::CLOCKWISE: return VK_FRONT_FACE_CLOCKWISE;
             case PipelineFrontFace::COUNTER_CLOCKWISE: return VK_FRONT_FACE_COUNTER_CLOCKWISE;
         }
-        al_vk_assert_fail("Unsupported PipelineFrontFace");
+        al_assert_fail("Unsupported PipelineFrontFace");
         return VkFrontFace(0);
     }
     
@@ -541,7 +541,7 @@ namespace al::utils
             case MultisamplingType::SAMPLE_4: return VK_SAMPLE_COUNT_4_BIT;
             case MultisamplingType::SAMPLE_8: return VK_SAMPLE_COUNT_8_BIT;
         }
-        al_vk_assert_fail("Unsupported MultisamplingType");
+        al_assert_fail("Unsupported MultisamplingType");
         return VkSampleCountFlagBits(0);
     }
 
@@ -555,7 +555,7 @@ namespace al::utils
                 return VkSampleCountFlagBits(it);
             }
         }
-        al_vk_assert_fail("Unable to pick sample count");
+        al_assert_fail("Unable to pick sample count");
         return VkSampleCountFlagBits(0);
     }
 
@@ -572,7 +572,7 @@ namespace al::utils
             case StencilOp::INCREMENT_AND_WRAP:     return VK_STENCIL_OP_INCREMENT_AND_WRAP;
             case StencilOp::DECREMENT_AND_WRAP:     return VK_STENCIL_OP_DECREMENT_AND_WRAP;
         }
-        al_vk_assert_fail("Unsupported StencilOp");
+        al_assert_fail("Unsupported StencilOp");
         return VkStencilOp(0);
     }
 
@@ -589,7 +589,7 @@ namespace al::utils
             case CompareOp::GREATER_OR_EQUAL:   return VK_COMPARE_OP_GREATER_OR_EQUAL;
             case CompareOp::ALWAYS:             return VK_COMPARE_OP_ALWAYS;
         }
-        al_vk_assert_fail("Unsupported CompareOp");
+        al_assert_fail("Unsupported CompareOp");
         return VkCompareOp(0);
     }
 
@@ -779,7 +779,7 @@ namespace al::utils
             case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:              return VK_ACCESS_TRANSFER_WRITE_BIT;
             case VK_IMAGE_LAYOUT_PREINITIALIZED:                    return VK_ACCESS_MEMORY_WRITE_BIT;
             case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR:                   return VK_ACCESS_MEMORY_WRITE_BIT | VK_ACCESS_MEMORY_READ_BIT;
-            default: al_vk_assert_fail("Unsupported VkImageLayout");
+            default: al_assert_fail("Unsupported VkImageLayout");
         }
         return VkAccessFlags(0);
     }
@@ -795,7 +795,7 @@ namespace al::utils
             case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:  return VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
             case VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL:          return VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
             case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR:                   return VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT; // is this correct ?
-            default: al_vk_assert_fail("Unsupported VkImageLayout to VkPipelineStageFlags conversion");
+            default: al_assert_fail("Unsupported VkImageLayout to VkPipelineStageFlags conversion");
         }
         return VkPipelineStageFlags(0);
     }

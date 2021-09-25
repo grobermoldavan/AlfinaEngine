@@ -2,7 +2,7 @@
 #define AL_PLATFORM_ATOMICS_H
 
 #include "engine/types.h"
-#include "engine/result.h"
+#include "engine/result/result.h"
 #include "engine/utilities/bits.h"
 
 namespace al

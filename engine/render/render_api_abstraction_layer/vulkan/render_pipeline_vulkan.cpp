@@ -47,10 +47,10 @@ namespace al
             for (al_iterator(it, inputs)) if (!(get(it)->flags & SpirvReflection::ShaderIO::Flags::IsBuiltIn)) return true;
             return false;
         }(vertexProgram);
-        al_vk_assert_msg(!hasVertexInput, "Vertex shader inputs are not supported");
-        al_vk_assert_msg(vertexProgram->reflection.pushConstant == nullptr, "Push constants are not supported");
-        al_vk_assert_msg(fragmentProgram->reflection.pushConstant == nullptr, "Push constants are not supported");
-        al_vk_assert_msg(createInfo->subpassIndex < renderPass->subpassInfos.size, "Incorrect pipeline subpass index");
+        al_assert_msg(!hasVertexInput, "Vertex shader inputs are not supported");
+        al_assert_msg(vertexProgram->reflection.pushConstant == nullptr, "Push constants are not supported");
+        al_assert_msg(fragmentProgram->reflection.pushConstant == nullptr, "Push constants are not supported");
+        al_assert_msg(createInfo->subpassIndex < renderPass->subpassInfos.size, "Incorrect pipeline subpass index");
         //
         // Check that fragment shader subpass inputs and outputs match render pass settings
         //
@@ -63,7 +63,7 @@ namespace al
                 if (uniform->type == SpirvReflection::Uniform::InputAttachment)
                     shaderSubpassInputAttachmentMask |= RenderPassAttachmentRefBitMask(1) << uniform->inputAttachmentIndex;
             }
-            al_vk_assert_msg(shaderSubpassInputAttachmentMask == subpassInfo->inputAttachmentRefs, "Mismatch between fragment shader subpass inputs and render pass input attachments");
+            al_assert_msg(shaderSubpassInputAttachmentMask == subpassInfo->inputAttachmentRefs, "Mismatch between fragment shader subpass inputs and render pass input attachments");
             PointerWithSize<SpirvReflection::ShaderIO> fragmentOutputs{ fragmentProgram->reflection.shaderOutputs, fragmentProgram->reflection.shaderOutputCount };
             RenderPassAttachmentRefBitMask shaderColorAttachmentMask = 0;
             for (al_iterator(it, fragmentOutputs))
@@ -72,7 +72,7 @@ namespace al
                 if (output->flags & SpirvReflection::ShaderIO::IsBuiltIn) continue;
                 shaderColorAttachmentMask |= RenderPassAttachmentRefBitMask(1) << output->location;
             }
-            al_vk_assert_msg(shaderColorAttachmentMask == subpassInfo->colorAttachmentRefs, "Mismatch between fragment shader outputs and render pass color attachments");
+            al_assert_msg(shaderColorAttachmentMask == subpassInfo->colorAttachmentRefs, "Mismatch between fragment shader outputs and render pass color attachments");
         }
         //
         // Descriptor set layouts and pools
@@ -111,7 +111,7 @@ namespace al
                             case VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV:  return u32(1) << 13;
                             case VK_DESCRIPTOR_TYPE_MUTABLE_VALVE:              return u32(1) << 14;
                         };
-                        al_vk_assert("Unsupported VkDescriptorType");
+                        al_assert("Unsupported VkDescriptorType");
                         return 0;
                     }(layoutCreateInfo->pBindings[bindingIt].descriptorType);
                     if (!(descriptorTypeMask & flag))
@@ -252,7 +252,7 @@ namespace al
             for (al_iterator(poolIt, layout->pools))
             {
                 VulkanDescriptorSetLayout::Pool* pool = get(poolIt);
-                al_vk_assert_msg(pool->numAllocations == 0, "All descriptor sets must be destroyed before the pipeline");
+                al_assert_msg(pool->numAllocations == 0, "All descriptor sets must be destroyed before the pipeline");
                 vkDestroyDescriptorPool(device->gpu.logicalHandle, pool->handle, &device->memoryManager.cpu_allocationCallbacks);
             }
             dynamic_array_destruct(&layout->pools);

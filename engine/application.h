@@ -5,6 +5,7 @@
 #include "engine/platform/platform.h"
 #include "engine/render/renderer.h"
 #include "engine/utilities/utilities.h"
+#include "engine/thread_local_globals/thread_local_globals.h"
 
 namespace al
 {
@@ -40,6 +41,8 @@ namespace al
         Renderer        renderer;
         Logger          logger;
         Bindings        bindings;
+
+        ApplicationGlobals globals;
     };
 
     struct ApplicationCreationData

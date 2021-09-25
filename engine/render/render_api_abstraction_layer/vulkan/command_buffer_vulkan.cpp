@@ -15,7 +15,7 @@ namespace al
             case CommandBufferUsage::TRANSFER: return VulkanGpu::CommandQueue::TRANSFER;
             // case CommandBufferUsage::COMPUTE: return VulkanGpu::CommandQueue::COMPUTE;
         }
-        al_vk_assert_fail("Unsupported CommandBufferUsage");
+        al_assert_fail("Unsupported CommandBufferUsage");
         return VulkanGpu::CommandQueueFlags(0);
     };
 
@@ -70,7 +70,7 @@ namespace al
         CommandBufferVulkan* buffer = (CommandBufferVulkan*)(_buffer);
         RenderDeviceVulkan* device = buffer->device;
 
-        al_vk_assert_msg(buffer->flags & CommandBufferVulkan::Flags::HAS_SUBMITTED_COMMANDS, "Can't submit command buffer - no commands were provided");
+        al_assert_msg(buffer->flags & CommandBufferVulkan::Flags::HAS_SUBMITTED_COMMANDS, "Can't submit command buffer - no commands were provided");
 
         VulkanInFlightData::PerImageInFlightData* inFlightData = vulkan_in_flight_data_get_current(&device->inFlightData);
         const VulkanGpu::CommandQueueFlags queueFlags = vulkan_buffer_usage_to_queue_flags(buffer->usage);

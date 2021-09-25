@@ -3,25 +3,25 @@
 
 void user_create(UserApplication* application, al::CommandLineArgs args)
 {
-    unwrap(al::logger_log(&application->logger, al::LogSeverety::_MESSAGE, "User create function"));
+    al_log_message("User create function");
 }
 
 void user_destroy(UserApplication* application)
 {
-    unwrap(al::logger_log(&application->logger, al::LogSeverety::_MESSAGE, "User destroy function"));
+    al_log_message("User destroy function");
 }
 
 void user_update(UserApplication* application)
 {
     static al::uSize frame = 0;
-    unwrap(al::logger_log(&application->logger, al::LogSeverety::_MESSAGE, "Frame %lld", frame++));
+    al_log_message("Frame %lld", frame++);
 }
 
 void user_handle_window_resize(UserApplication* application)
 {
     al::u32 width = al::platform_window_get_current_width(&application->window);
     al::u32 height = al::platform_window_get_current_height(&application->window);
-    unwrap(al::logger_log(&application->logger, al::LogSeverety::_MESSAGE, "User window resized function : %d %d\n", width, height));
+    al_log_message("User window resized function : %d %d\n", width, height);
 }
 
 void user_renderer_construct(UserApplication* application)

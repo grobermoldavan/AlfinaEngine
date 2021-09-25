@@ -46,7 +46,7 @@ namespace al
                         break;
                     }
                 }
-                al_vk_assert_msg(isFound, "Required validation layer is not supported");
+                al_assert_msg(isFound, "Required validation layer is not supported");
             }
         }
         {
@@ -65,7 +65,7 @@ namespace al
                         break;
                     }
                 }
-                al_vk_assert_msg(isFound, "Required instance extension is not supported");
+                al_assert_msg(isFound, "Required instance extension is not supported");
             }
         }
         VkApplicationInfo applicationInfo
@@ -223,7 +223,7 @@ namespace al
         // Get physical device
         //
         gpu->physicalHandle = pick_physical_device(createInfo->instance, createInfo->surface, createInfo->frameAllocator);
-        al_vk_assert(gpu->physicalHandle != VK_NULL_HANDLE);
+        al_assert(gpu->physicalHandle != VK_NULL_HANDLE);
         //
         // Get command queue infos
         //
@@ -671,7 +671,7 @@ namespace al
     void vulkan_begin_frame(RenderDevice* _device)
     {
         RenderDeviceVulkan* device = (RenderDeviceVulkan*)_device;
-        al_vk_assert_msg(!(device->flags & RenderDeviceVulkan::Flags::IS_IN_RENDER_FRAME), "Can't call begin_frame twice");
+        al_assert_msg(!(device->flags & RenderDeviceVulkan::Flags::IS_IN_RENDER_FRAME), "Can't call begin_frame twice");
         vulkan_in_flight_data_advance_frame(&device->inFlightData, device->gpu.logicalHandle, &device->swapChain);
         device->flags &= ~RenderDeviceVulkan::Flags::HAS_SUBMITTED_BUFFERS;
     }
@@ -680,7 +680,7 @@ namespace al
     {
         RenderDeviceVulkan* device = (RenderDeviceVulkan*)_device;
         VulkanInFlightData::PerImageInFlightData* currentInFlightData = vulkan_in_flight_data_get_current(&device->inFlightData);
-        al_vk_assert_msg(device->flags & RenderDeviceVulkan::Flags::HAS_SUBMITTED_BUFFERS, "You must submit some commands between being_frame and end_frame");
+        al_assert_msg(device->flags & RenderDeviceVulkan::Flags::HAS_SUBMITTED_BUFFERS, "You must submit some commands between being_frame and end_frame");
         
         CommandBufferRequestInfo requestInfo { device, CommandBufferUsage::TRANSFER };
         CommandBufferVulkan* commandBuffer = (CommandBufferVulkan*)vulkan_command_buffer_request(&requestInfo);

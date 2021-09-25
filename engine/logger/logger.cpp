@@ -4,6 +4,7 @@
 #include "logger.h"
 #include "engine/types.h"
 #include "engine/memory/memory.h"
+#include "engine/thread_local_globals/thread_local_globals.h"
 
 namespace al
 {
@@ -99,5 +100,10 @@ namespace al
             }
         }
         return ok();
+    }
+
+    Logger* logger_access()
+    {
+        return thread_local_globals_access()->logger;
     }
 }

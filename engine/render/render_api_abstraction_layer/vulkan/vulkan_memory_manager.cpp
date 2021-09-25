@@ -15,7 +15,7 @@ namespace al
                 {
                     VulkanMemoryManager* manager = static_cast<VulkanMemoryManager*>(pUserData);
                     void* result = allocate(&manager->cpu_persistentAllocator, size);
-                    al_vk_assert(manager->cpu_currentNumberOfAllocations < VulkanMemoryManager::MAX_CPU_ALLOCATIONS);
+                    al_assert(manager->cpu_currentNumberOfAllocations < VulkanMemoryManager::MAX_CPU_ALLOCATIONS);
                     manager->cpu_allocations[manager->cpu_currentNumberOfAllocations++] =
                     {
                         .ptr = result,
@@ -107,9 +107,9 @@ namespace al
                 *byte |= (1 << currentBit);
             }
             chunk->usedMemoryBytes += numBlocks * VulkanMemoryManager::GPU_MEMORY_BLOCK_SIZE_BYTES;
-            al_vk_assert(chunk->usedMemoryBytes <= VulkanMemoryManager::GPU_CHUNK_SIZE_BYTES);
+            al_assert(chunk->usedMemoryBytes <= VulkanMemoryManager::GPU_CHUNK_SIZE_BYTES);
         };
-        al_vk_assert(request.sizeBytes <= VulkanMemoryManager::GPU_CHUNK_SIZE_BYTES);
+        al_assert(request.sizeBytes <= VulkanMemoryManager::GPU_CHUNK_SIZE_BYTES);
         uSize requiredNumberOfBlocks = 1 + ((request.sizeBytes - 1) / VulkanMemoryManager::GPU_MEMORY_BLOCK_SIZE_BYTES);
         // 1. Try to find memory in available chunks
         for (uSize it = 0; it < VulkanMemoryManager::GPU_MAX_CHUNKS; it++)
@@ -160,7 +160,7 @@ namespace al
             }
             // Allocating memory in new chunk
             uSize inChunkOffset = memory_chunk_find_aligned_free_space(chunk, requiredNumberOfBlocks, request.alignment);
-            al_vk_assert(inChunkOffset != VulkanMemoryManager::GPU_LEDGER_SIZE_BYTES);
+            al_assert(inChunkOffset != VulkanMemoryManager::GPU_LEDGER_SIZE_BYTES);
             setInUse(chunk, requiredNumberOfBlocks, inChunkOffset);
             return
             {
@@ -169,7 +169,7 @@ namespace al
                 .sizeBytes = requiredNumberOfBlocks * VulkanMemoryManager::GPU_MEMORY_BLOCK_SIZE_BYTES,
             };
         }
-        al_vk_assert_fail("Out of memory");
+        al_assert_fail("Out of memory");
         return { };
     }
 
@@ -185,7 +185,7 @@ namespace al
                 *byte &= ~(1 << currentBit);
             }
             chunk->usedMemoryBytes -= numBlocks * VulkanMemoryManager::GPU_MEMORY_BLOCK_SIZE_BYTES;
-            al_vk_assert(chunk->usedMemoryBytes <= VulkanMemoryManager::GPU_CHUNK_SIZE_BYTES);
+            al_assert(chunk->usedMemoryBytes <= VulkanMemoryManager::GPU_CHUNK_SIZE_BYTES);
         };
         for (uSize it = 0; it < VulkanMemoryManager::GPU_MAX_CHUNKS; it++)
         {

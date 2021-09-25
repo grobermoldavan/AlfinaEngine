@@ -56,7 +56,7 @@ namespace al
         array_construct(&renderPassAttachmentDescriptions, &device->memoryManager.cpu_frameAllocator, createInfo->colorAttachments.size + (hasDepthStencilAttachment ? 1 : 0));
         defer(array_destruct(&renderPassAttachmentDescriptions));
 
-        al_vk_assert(renderPassAttachmentDescriptions.size <= RenderPassCreateInfo::MAX_ATTACHMENTS);
+        al_assert(renderPassAttachmentDescriptions.size <= RenderPassCreateInfo::MAX_ATTACHMENTS);
 
         //
         // Attachments
@@ -81,7 +81,7 @@ namespace al
         {
             if (get(it)->format == TextureFormat::DEPTH_STENCIL)
             {
-                al_vk_assert_fail("todo");
+                al_assert_fail("todo");
             }
             else 
             {
@@ -280,8 +280,8 @@ namespace al
                 {
                     continue;
                 }
-                if (color) al_vk_assert(!depth);
-                if (depth) al_vk_assert(!color);
+                if (color) al_assert(!depth);
+                if (depth) al_assert(!color);
                 if (color)
                 {
                     if (currentLayout != VK_IMAGE_LAYOUT_GENERAL) currentLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
@@ -303,7 +303,7 @@ namespace al
                 if (depth)
                 {
                     RenderPassCreateInfo::DepthOp depthOp = createInfo->subpasses[to_index(subpassIt)].depthOp;
-                    al_vk_assert(depthOp != RenderPassCreateInfo::DepthOp::NOTHING);
+                    al_assert(depthOp != RenderPassCreateInfo::DepthOp::NOTHING);
                     if (depthOp == RenderPassCreateInfo::DepthOp::READ_WRITE)
                     {
                         if (currentLayout != VK_IMAGE_LAYOUT_GENERAL)
@@ -416,8 +416,8 @@ namespace al
         for (u32 it = 1; it < subpassIntermediateDatas.size; it++)
         {
             // Each subpass must (?) write at least to color or depth attachment
-            al_vk_assert(al_is_bit_set(colorReadWriteDependencies, it) || al_is_bit_set(depthStencilWriteDependencies, it));
-            al_vk_assert(al_is_bit_set(colorReadWriteDependencies, it - 1) || al_is_bit_set(depthStencilWriteDependencies, it - 1));
+            al_assert(al_is_bit_set(colorReadWriteDependencies, it) || al_is_bit_set(depthStencilWriteDependencies, it));
+            al_assert(al_is_bit_set(colorReadWriteDependencies, it - 1) || al_is_bit_set(depthStencilWriteDependencies, it - 1));
             VkSubpassDependency dependency = {};
             dependency.srcSubpass = it - 1;
             dependency.dstSubpass = it;

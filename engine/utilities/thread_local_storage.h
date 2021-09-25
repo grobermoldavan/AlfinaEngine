@@ -6,42 +6,36 @@
 #include "engine/types.h"
 #include "engine/memory/memory.h"
 #include "engine/platform/platform_threads.h" // Can't just include platform.h because of circular dependencies. Sad!
+#include "engine/platform/platform_atomics.h"
 
 namespace al
 {
-    template<typename T>
+    template<typename T, uSize Capacity>
     struct ThreadLocalStorage
     {
-        static constexpr uSize DEFAULT_CAPACITY = 8;
-        AllocatorBindings bindings;
+        T memory[Capacity];
+        PlatformThreadId threadIds[Capacity];
+        Atomic<uSize> size;
         void (*storageItemConstructor)(T*);
-        PlatformThreadId* threadIds;
-        T* memory;
-        uSize size;
-        uSize capacity;
     };
 
-    template<typename T>
-    void tls_construct(ThreadLocalStorage<T>* storage, AllocatorBindings* bindings, void (*storageItemConstructor)(T*) = nullptr)
+    template<typename T, uSize Capacity>
+    void tls_construct(ThreadLocalStorage<T, Capacity>* storage, void (*storageItemConstructor)(T*) = nullptr)
     {
-        storage->bindings = *bindings;
         storage->storageItemConstructor = storageItemConstructor;
-        storage->capacity = ThreadLocalStorage<T>::DEFAULT_CAPACITY;
         storage->size = 0;
-        storage->memory = allocate<T>(bindings, storage->capacity);
-        std::memset(storage->memory, 0, storage->capacity * sizeof(T));
-        storage->threadIds = allocate<PlatformThreadId>(bindings, storage->capacity);
+        std::memset(storage->memory, 0, Capacity * sizeof(T));
+        std::memset(storage->threadIds, 0, Capacity * sizeof(PlatformThreadId));
     }
 
-    template<typename T>
-    void tls_destroy(ThreadLocalStorage<T>* storage)
+    template<typename T, uSize Capacity>
+    void tls_destroy(ThreadLocalStorage<T, Capacity>* storage)
     {
-        deallocate<T>(&storage->bindings, storage->memory, storage->capacity);
-        deallocate<PlatformThreadId>(&storage->bindings, storage->threadIds, storage->capacity);
+        
     }
 
-    template<typename T>
-    T* tls_access(ThreadLocalStorage<T>* storage)
+    template<typename T, uSize Capacity>
+    T* tls_access(ThreadLocalStorage<T, Capacity>* storage)
     {
         PlatformThreadId currentThreadId = platform_get_current_thread_id();
         for (uSize it = 0; it < storage->size; it++)
@@ -51,23 +45,18 @@ namespace al
                 return &storage->memory[it];
             }
         }
-        if (storage->size == storage->capacity)
+        if (storage->size == Capacity)
         {
-            uSize newCapacity = storage->capacity * 2;
-            T* newMemory = allocate<T>(&storage->bindings, newCapacity);
-            PlatformThreadId* newThreadIds = allocate<PlatformThreadId>(&storage->bindings, newCapacity);
-            std::memcpy(newThreadIds, storage->threadIds, storage->capacity * sizeof(PlatformThreadId));
-            std::memcpy(newMemory, storage->memory, storage->capacity * sizeof(T));
-            std::memset(newMemory + storage->capacity, 0, (newCapacity - storage->capacity) * sizeof(T));
-            deallocate<T>(&storage->bindings, storage->memory, storage->capacity);
-            deallocate<PlatformThreadId>(&storage->bindings, storage->threadIds, storage->capacity);
-            storage->capacity = newCapacity;
-            storage->memory = newMemory;
-            storage->threadIds = newThreadIds;
+            return nullptr;
         }
-        uSize newPosition = storage->size++;
-        storage->threadIds[newPosition] = currentThreadId;
-        T* tlsItem = &storage->memory[newPosition];
+        uSize expected = storage->size;
+        uSize newSize = storage->size + 1;
+        while (!platform_atomic_64_bit_cas(&storage->size, &expected, newSize, MemoryOrder::ACQUIRE_RELEASE))
+        {
+            newSize = expected + 1;
+        }
+        storage->threadIds[newSize - 1] = currentThreadId;
+        T* tlsItem = &storage->memory[newSize - 1];
         if (storage->storageItemConstructor) storage->storageItemConstructor(tlsItem);
         return tlsItem;
     }

@@ -75,7 +75,7 @@ namespace al
         for (al_iterator(bindingsIt, usedBindings))
         {
             const BitMask bindingMask = *get(bindingsIt);
-            al_vk_assert_msg(!isEmptyMaskFound || !bindingMask, "@TODO : support empty descriptor sets");
+            al_assert_msg(!isEmptyMaskFound || !bindingMask, "@TODO : support empty descriptor sets");
             isEmptyMaskFound = isEmptyMaskFound || !bindingMask;
         }
         //
@@ -132,7 +132,7 @@ namespace al
                 {
                     case SpirvReflection::Vertex: return VK_SHADER_STAGE_VERTEX_BIT;
                     case SpirvReflection::Fragment: return VK_SHADER_STAGE_FRAGMENT_BIT;
-                    default: al_vk_assert_fail("Unsupported SpirvReflection::ShaderType");
+                    default: al_assert_fail("Unsupported SpirvReflection::ShaderType");
                 }
                 return VkShaderStageFlags(0);
             }(program->reflection.shaderType);
@@ -154,7 +154,7 @@ namespace al
                         case SpirvReflection::Uniform::StorageBuffer: return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
                         case SpirvReflection::Uniform::InputAttachment: return VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
                         case SpirvReflection::Uniform::AccelerationStructure: return VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR; // ?
-                        default: al_vk_assert_fail("Unsupported SpirvReflection::Uniform::Type");
+                        default: al_assert_fail("Unsupported SpirvReflection::Uniform::Type");
                     }
                     return VkDescriptorType(0);
                 }(uniform->type);
@@ -176,7 +176,7 @@ namespace al
                     : 1;
                 if (binding->binding != ~u32(0)) 
                 {
-                    al_vk_assert_msg
+                    al_assert_msg
                     (
                         binding->descriptorType == uniformDescriptorType &&
                         binding->descriptorCount == descriptorCount,
