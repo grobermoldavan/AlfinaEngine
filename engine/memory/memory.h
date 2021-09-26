@@ -1,16 +1,16 @@
 #ifndef AL_MEMORY_H
 #define AL_MEMORY_H
 
-#include <cassert>
 #include <cstdlib>
 
 #include "allocator_bindings.h"
 #include "engine/types.h"
 #include "engine/config.h"
+#include "engine/debug/assert.h"
 
-#define al_align alignas(EngineConfig::DEFAULT_MEMORY_ALIGNMENT)
-#define al_check_alignment(alignment)   assert(((alignment - 1) & alignment) == 0 && "Alignment must be a power of two"); \
-                                        assert(alignment <= EngineConfig::MAX_MEMORY_ALIGNMENT && "Requested alignment is too big - consider updating EngineConfig::MAX_MEMORY_ALIGNMENT value")
+#define al_align                        alignas(EngineConfig::DEFAULT_MEMORY_ALIGNMENT)
+#define al_check_alignment(alignment)   al_assert_msg(((alignment - 1) & alignment) == 0, "Alignment must be a power of two"); \
+                                        al_assert_msg(alignment <= EngineConfig::MAX_MEMORY_ALIGNMENT, "Requested alignment is too big - consider updating EngineConfig::MAX_MEMORY_ALIGNMENT value")
 
 #ifdef _MSC_VER
 #   define al_aligned_system_malloc(size, alignment) _aligned_malloc(size, alignment)

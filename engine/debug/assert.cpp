@@ -1,7 +1,7 @@
 
 #include "assert.h"
-#include "engine/result/result.h"
-#include "engine/logger/logger.h"
+#include "result.h"
+#include "logger.h"
 
 #ifdef _WIN32
 #   define al_debug_break __debugbreak

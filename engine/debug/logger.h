@@ -1,10 +1,9 @@
 #ifndef AL_LOGGER_H
 #define AL_LOGGER_H
 
-#include "engine/memory/allocator_bindings.h"
+#include "result.h"
 #include "engine/utilities/thread_safe_queue.h"
 #include "engine/platform/platform.h"
-#include "engine/result/result.h"
 
 // @NOTE : can't use "unwrap" macro here for some reason
 #ifdef AL_DEBUG
@@ -38,17 +37,17 @@ namespace al
     struct Logger
     {
         static constexpr uSize MESSAGE_QUEUE_SIZE = 2048;
-        Array<PlatformFile> outputs;
+        static constexpr uSize MAX_OUTPUTS_NUM = 8;
+
+        PlatformFile outputs[MAX_OUTPUTS_NUM];
+        ThreadSafeQueue<LogMessage>::Cell queueCells[MESSAGE_QUEUE_SIZE];
         ThreadSafeQueue<LogMessage> messageQueue;
-        AllocatorBindings persistentAllocator;
-        ThreadSafeQueue<LogMessage>::Cell* queueCells;
         Atomic<bool> isWritingToOuptuts;
     };
 
     struct LoggerCreateInfo
     {
-        AllocatorBindings persistentAllocator;
-        PointerWithSize<PlatformFile> outputFiles;
+        PlatformFile outputs[Logger::MAX_OUTPUTS_NUM];
     };
 
     void logger_construct(Logger* logger, LoggerCreateInfo* createInfo);

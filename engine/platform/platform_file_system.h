@@ -4,7 +4,7 @@
 #include "engine/config.h"
 #include "engine/types.h"
 #include "engine/memory/memory.h"
-#include "engine/result/result.h"
+#include "engine/debug/result.h"
 
 namespace al
 {
@@ -36,6 +36,7 @@ namespace al
     [[nodiscard]] Result<void>                  platform_file_get_std_out   (PlatformFile* file);
     [[nodiscard]] Result<void>                  platform_file_load          (PlatformFile* file, const PlatformFilePath& path, PlatformFileMode loadMode);
                   Result<void>                  platform_file_unload        (PlatformFile* file);
+    [[nodiscard]] Result<bool>                  platform_file_is_valid      (PlatformFile* file);
 
     [[nodiscard]] Result<PlatformFileContent>   platform_file_read          (PlatformFile* file, AllocatorBindings* allocator);
                   Result<void>                  platform_file_free_content  (PlatformFileContent* content);

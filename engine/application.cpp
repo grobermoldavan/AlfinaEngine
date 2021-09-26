@@ -8,31 +8,27 @@ namespace al
     void application_run(Application<Bindings>* application, CommandLineArgs args)
     {
         application_default_create(application, args);
-        if constexpr (AL_HAS_CHECK(Bindings, application_create))
+        if constexpr (AL_HAS_CHECK(Bindings, subsystems))
         {
-            application->bindings.application_create((typename Bindings::ApplicationType*)application, args);
+            for_each_subsystem<SubsystemActionConstruct>(&application->bindings.subsystems, (typename Bindings::ApplicationType*)application);
         }
         while(!application_should_quit(application))
         {
             application_default_update(application);
-            if constexpr (AL_HAS_CHECK(Bindings, application_update))
-            {
-                application->bindings.application_update((typename Bindings::ApplicationType*)application);
-            }
             if (!platform_window_is_minimized(&application->window))
             {
                 renderer_default_render(&application->renderer);
-                if constexpr (AL_HAS_CHECK(Bindings, renderer_render))
-                {
-                    application->bindings.renderer_render((typename Bindings::ApplicationType*)application);
-                }
             }
-            logger_flush(&application->logger);
+            if constexpr (AL_HAS_CHECK(Bindings, subsystems))
+            {
+                for_each_subsystem<SubsystemActionUpdate>(&application->bindings.subsystems, (typename Bindings::ApplicationType*)application);
+            }
+            logger_flush(application->logger);
             stack_alloactor_reset(&application->frameAllocator);
         }
-        if constexpr (AL_HAS_CHECK(Bindings, application_destroy))
+        if constexpr (AL_HAS_CHECK(Bindings, subsystems))
         {
-            application->bindings.application_destroy((typename Bindings::ApplicationType*)application);
+            for_each_subsystem_reversed<SubsystemActionDestroy>(&application->bindings.subsystems, (typename Bindings::ApplicationType*)application);
         }
         application_default_destroy(application);
     }
@@ -79,27 +75,23 @@ namespace al
         application->poolBindings = get_allocator_bindings(&application->pool);
         application->frameBindings = get_allocator_bindings(&application->frameAllocator);
 
-        PlatformFile stdOut;
-        unwrap(platform_file_get_std_out(&stdOut));
-        LoggerCreateInfo loggerCreateInfo
-        {
-            .persistentAllocator = application->poolBindings,
-            .outputFiles = { &stdOut, 1 },
-        };
-        logger_construct(&application->logger, &loggerCreateInfo);
+        LoggerCreateInfo loggerCreateInfo { };
+        unwrap(platform_file_get_std_out(&loggerCreateInfo.outputs[0]));
+        application->logger = allocate<Logger>(&application->poolBindings);
+        logger_construct(application->logger, &loggerCreateInfo);
 
         application->globals =
         {
-            .logger = &application->logger,
+            .logger = application->logger,
         };
         thread_local_globals_register(&application->globals);
 
         platform_window_construct(&application->window, creationData.windowInitData);
         platform_window_set_resize_callback(&application->window, [application](){
             renderer_default_handle_resize(&application->renderer);
-            if constexpr (AL_HAS_CHECK(Bindings, handle_window_resize))
+            if constexpr (AL_HAS_CHECK(Bindings, subsystems))
             {
-                application->bindings.handle_window_resize((typename Bindings::ApplicationType*)application);
+                for_each_subsystem<SubsystemActionResize>(&application->bindings.subsystems, (typename Bindings::ApplicationType*)application);
             }
         });
         platform_input_construct(&application->input);
@@ -112,23 +104,16 @@ namespace al
             .renderApi              = creationData.renderApi,
         };
         renderer_default_construct(&application->renderer, &rendererInitData);
-        if constexpr (AL_HAS_CHECK(Bindings, renderer_construct))
-        {
-            application->bindings.renderer_construct((typename Bindings::ApplicationType*)application);
-        }
     }
 
     template<typename Bindings>
     void application_default_destroy(Application<Bindings>* application)
     {
-        if constexpr (AL_HAS_CHECK(Bindings, renderer_destroy))
-        {
-            application->bindings.renderer_destroy((typename Bindings::ApplicationType*)application);
-        }
         renderer_default_destroy(&application->renderer);
         platform_input_destruct(&application->input);
         platform_window_destruct(&application->window);
-        logger_destroy(&application->logger);
+        logger_destroy(application->logger);
+        deallocate(&application->poolBindings, application->logger);
         destruct(&application->pool);
         destruct(&application->stack);
         destruct(&application->frameAllocator);

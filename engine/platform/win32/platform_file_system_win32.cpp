@@ -75,6 +75,12 @@ namespace al
         return ok();
     }
 
+    [[nodiscard]] Result<bool> platform_file_is_valid(PlatformFile* file)
+    {
+        dbg (if (!file) return err<bool>("Can't check if file is valid - file is a nullptr."));
+        return ok<bool>(file->handle != NULL && file->handle != INVALID_HANDLE_VALUE);
+    }
+
     [[nodiscard]] Result<PlatformFileContent> platform_file_read(PlatformFile* file, AllocatorBindings* allocator)
     {
         dbg (if (!file)                                  return err<PlatformFileContent>("Can't read file - file is a nullptr."));

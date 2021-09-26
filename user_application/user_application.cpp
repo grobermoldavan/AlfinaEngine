@@ -1,31 +1,31 @@
 
 #include "user_application.h"
 
-void user_create(UserApplication* application, al::CommandLineArgs args)
+void construct(UserApplicationSubsystem* subsystem, UserApplication* application)
 {
-    al_log_message("User create function");
+    al_log_message("Application subsystem construct");
+    subsystem->frameCounter = 0;
 }
 
-void user_destroy(UserApplication* application)
+void destroy(UserApplicationSubsystem* subsystem, UserApplication* application)
 {
-    al_log_message("User destroy function");
+    al_log_message("Application subsystem destroy");
 }
 
-void user_update(UserApplication* application)
+void update(UserApplicationSubsystem* subsystem, UserApplication* application)
 {
-    static al::uSize frame = 0;
-    al_log_message("Frame %lld", frame++);
+    al_log_message("Application subsystem update %lld", subsystem->frameCounter++);
 }
 
-void user_handle_window_resize(UserApplication* application)
+void resize(UserApplicationSubsystem* subsystem, UserApplication* application)
 {
-    al::u32 width = al::platform_window_get_current_width(&application->window);
-    al::u32 height = al::platform_window_get_current_height(&application->window);
-    al_log_message("User window resized function : %d %d\n", width, height);
+    al_log_message("Application subsystem resize");
 }
 
-void user_renderer_construct(UserApplication* application)
+void construct(UserRenderSubsystem* subsystem, UserApplication* application)
 {
+    al_log_message("Render subsystem construct");
+
     using namespace al;
     Renderer* renderer = &application->renderer;
 
@@ -46,7 +46,7 @@ void user_renderer_construct(UserApplication* application)
             .bytecode = (u32*)shaderBytecode.memory,
             .codeSizeBytes = shaderBytecode.sizeBytes,
         };
-        application->vs = renderer->vt.program_create(&programCreateInfo);
+        subsystem->vs = renderer->vt.program_create(&programCreateInfo);
     }
     {
         PlatformFile fragmentShader;
@@ -63,7 +63,7 @@ void user_renderer_construct(UserApplication* application)
             .bytecode = (u32*)shaderBytecode.memory,
             .codeSizeBytes = shaderBytecode.sizeBytes,
         };
-        application->fs = renderer->vt.program_create(&programCreateInfo);
+        subsystem->fs = renderer->vt.program_create(&programCreateInfo);
     }
     {
         u32 subpassColorRefs[] = { 0 };
@@ -87,15 +87,15 @@ void user_renderer_construct(UserApplication* application)
             .depthStencilAttachment = nullptr,
             .device                 = renderer->device,
         };
-        application->renderPass = renderer->vt.render_pass_create(&renderPassCreateInfo);
+        subsystem->renderPass = renderer->vt.render_pass_create(&renderPassCreateInfo);
     }
     {
         GraphicsRenderPipelineCreateInfo pipelineCreateInfo
         {
             .device                 = renderer->device,
-            .pass                   = application->renderPass,
-            .vertexProgram          = application->vs,
-            .fragmentProgram        = application->fs,
+            .pass                   = subsystem->renderPass,
+            .vertexProgram          = subsystem->vs,
+            .fragmentProgram        = subsystem->fs,
             .frontStencilOpState    = nullptr,
             .backStencilOpState     = nullptr,
             .depthTestState         = nullptr,
@@ -105,25 +105,25 @@ void user_renderer_construct(UserApplication* application)
             .frontFace              = PipelineFrontFace::CLOCKWISE,
             .multisamplingType      = MultisamplingType::SAMPLE_1,
         };
-        application->renderPipeline = renderer->vt.render_pipeline_graphics_create(&pipelineCreateInfo);
+        subsystem->renderPipeline = renderer->vt.render_pipeline_graphics_create(&pipelineCreateInfo);
     }
     {
         uSize numSwapChainTextures = renderer->vt.get_swap_chain_textures_num(renderer->device);
-        array_construct(&application->swapChainTextures, &persistentAllocator, numSwapChainTextures);
-        for (al_iterator(it, application->swapChainTextures))
+        array_construct(&subsystem->swapChainTextures, &persistentAllocator, numSwapChainTextures);
+        for (al_iterator(it, subsystem->swapChainTextures))
         {
             *get(it) = renderer->vt.get_swap_chain_texture(renderer->device, to_index(it));
         }
     }
     {
-        array_construct(&application->swapChainFramebuffers, &persistentAllocator, application->swapChainTextures.size);
-        for (al_iterator(it, application->swapChainFramebuffers))
+        array_construct(&subsystem->swapChainFramebuffers, &persistentAllocator, subsystem->swapChainTextures.size);
+        for (al_iterator(it, subsystem->swapChainFramebuffers))
         {
-            Texture* attachments[] = { application->swapChainTextures[to_index(it)] };
+            Texture* attachments[] = { subsystem->swapChainTextures[to_index(it)] };
             FramebufferCreateInfo framebufferCreateInfo
             {
                 .attachments    = { attachments, array_size(attachments) },
-                .pass           = application->renderPass,
+                .pass           = subsystem->renderPass,
                 .device         = renderer->device,
             };
             *get(it) = renderer->vt.framebuffer_create(&framebufferCreateInfo);
@@ -131,23 +131,25 @@ void user_renderer_construct(UserApplication* application)
     }
 }
 
-void user_renderer_destroy(UserApplication* application)
+void destroy(UserRenderSubsystem* subsystem, UserApplication* application)
 {
+    al_log_message("Render subsystem destroy");
+
     using namespace al;
     Renderer* renderer = &application->renderer;
 
     renderer->vt.device_wait(renderer->device);
-    for (al_iterator(it, application->swapChainFramebuffers)) { renderer->vt.framebuffer_destroy(*get(it)); }
-    for (al_iterator(it, application->swapChainTextures)) { renderer->vt.texture_destroy(*get(it)); }
-    array_destruct(&application->swapChainFramebuffers);
-    array_destruct(&application->swapChainTextures);
-    renderer->vt.render_pipeline_destroy(application->renderPipeline);
-    renderer->vt.render_pass_destroy(application->renderPass);
-    renderer->vt.program_destroy(application->vs);
-    renderer->vt.program_destroy(application->fs);
+    for (al_iterator(it, subsystem->swapChainFramebuffers)) { renderer->vt.framebuffer_destroy(*get(it)); }
+    for (al_iterator(it, subsystem->swapChainTextures)) { renderer->vt.texture_destroy(*get(it)); }
+    array_destruct(&subsystem->swapChainFramebuffers);
+    array_destruct(&subsystem->swapChainTextures);
+    renderer->vt.render_pipeline_destroy(subsystem->renderPipeline);
+    renderer->vt.render_pass_destroy(subsystem->renderPass);
+    renderer->vt.program_destroy(subsystem->vs);
+    renderer->vt.program_destroy(subsystem->fs);
 }
 
-void user_renderer_render(UserApplication* application)
+void update(UserRenderSubsystem* subsystem, UserApplication* application)
 {
     using namespace al;
     Renderer* renderer = &application->renderer;
@@ -159,8 +161,8 @@ void user_renderer_render(UserApplication* application)
         const uSize swapChainIndex = renderer->vt.get_active_swap_chain_texture_index(renderer->device);
         CommandBindPipelineInfo bindInfo
         {
-            .pipeline = application->renderPipeline,
-            .framebuffer = application->swapChainFramebuffers[swapChainIndex],
+            .pipeline = subsystem->renderPipeline,
+            .framebuffer = subsystem->swapChainFramebuffers[swapChainIndex],
         };
         renderer->vt.command_bind_pipeline(commandBuffer, &bindInfo);
         CommandDrawInfo drawInfo
@@ -171,6 +173,11 @@ void user_renderer_render(UserApplication* application)
         renderer->vt.command_buffer_submit(commandBuffer);
     }
     renderer->vt.end_frame(renderer->device);
+}
+
+void resize(UserRenderSubsystem* subsystem, UserApplication* application)
+{
+    al_log_message("Render subsystem resize");
 }
 
 int main(int argc, char* argv[])

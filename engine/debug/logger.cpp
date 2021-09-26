@@ -1,9 +1,9 @@
 
 #include <cstdio>
+#include <cstring>
 
 #include "logger.h"
 #include "engine/types.h"
-#include "engine/memory/memory.h"
 #include "engine/thread_local_globals/thread_local_globals.h"
 
 namespace al
@@ -29,6 +29,7 @@ namespace al
             uSize strLength = std::snprintf(fullFormattedLog, MAX_LOG_LENGTH, FMT, SEVERETY_STR[(u8)message.severety], message.text);
             for (al_iterator(it, logger->outputs))
             {
+                if (!platform_file_is_valid(get(it))) break;
                 unwrap(platform_file_write(get(it), fullFormattedLog, strLength));
             }
         }
@@ -36,17 +37,14 @@ namespace al
 
     void logger_construct(Logger* logger, LoggerCreateInfo* createInfo)
     {
-        logger->persistentAllocator = createInfo->persistentAllocator;
-
-        array_construct(&logger->outputs, &createInfo->persistentAllocator, createInfo->outputFiles.size);
-        for (al_iterator(it, logger->outputs))
+        std::memset(&logger->outputs, 0, sizeof(logger->outputs));
+        for (al_iterator(it, createInfo->outputs))
         {
-            *get(it) = createInfo->outputFiles[to_index(it)];
+            if (!platform_file_is_valid(get(it))) break;
+            logger->outputs[to_index(it)] = *get(it);
         }
-
-        logger->queueCells = allocate<ThreadSafeQueue<LogMessage>::Cell>(&createInfo->persistentAllocator, Logger::MESSAGE_QUEUE_SIZE);
+        std::memset(&logger->queueCells, 0, sizeof(logger->queueCells));
         thread_safe_queue_construct(&logger->messageQueue, logger->queueCells, Logger::MESSAGE_QUEUE_SIZE);
-
         platform_atomic_64_bit_store(&logger->isWritingToOuptuts, false, MemoryOrder::RELAXED);
     }
 
@@ -55,10 +53,9 @@ namespace al
         logger_write_all_messages(logger);
         for (al_iterator(it, logger->outputs))
         {
+            if (!platform_file_is_valid(get(it))) break;
             platform_file_unload(get(it));
         }
-        array_destruct(&logger->outputs);
-        deallocate<ThreadSafeQueue<LogMessage>::Cell>(&logger->persistentAllocator, logger->queueCells);
     }
 
     bool logger_flush(Logger* logger)

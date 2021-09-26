@@ -12,7 +12,7 @@
 #include <cstring>
 
 #include "engine/types.h"
-#include "engine/assert/assert.h"
+#include "engine/debug/assert.h"
 #include "engine/memory/memory.h"
 #include "engine/utilities/utilities.h"
 #include "engine/platform/platform.h"

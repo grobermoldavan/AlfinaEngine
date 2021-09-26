@@ -1,5 +1,6 @@
 
 #include "result.h"
+#include "assert.h"
 
 namespace al
 {
@@ -37,14 +38,14 @@ namespace al
     template<typename T>
     inline T unwrap_impl(const Result<T>& result)
     {
-        // @TODO : assert if !is_ok
+        al_assert_msg(is_ok(result), result.error);
         return result.value;
     }
 
     template<>
     inline void unwrap_impl(const Result<void>& result)
     {
-        // @TODO : assert if !is_ok
+        al_assert_msg(is_ok(result), result.error);
     }
 
     template<typename T>

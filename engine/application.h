@@ -9,15 +9,9 @@
 
 namespace al
 {
-    AL_HAS_CHECK_DECLARATION(application_create);
-    AL_HAS_CHECK_DECLARATION(application_destroy);
-    AL_HAS_CHECK_DECLARATION(application_update);
-    AL_HAS_CHECK_DECLARATION(renderer_construct);
-    AL_HAS_CHECK_DECLARATION(renderer_destroy);
-    AL_HAS_CHECK_DECLARATION(renderer_render);
     AL_HAS_CHECK_DECLARATION(should_quit);
-    AL_HAS_CHECK_DECLARATION(handle_window_resize);
     AL_HAS_CHECK_DECLARATION(get_creation_data);
+    AL_HAS_CHECK_DECLARATION(subsystems);
 
     struct CommandLineArgs
     {
@@ -36,13 +30,13 @@ namespace al
         AllocatorBindings poolBindings;
         AllocatorBindings frameBindings;
 
-        PlatformWindow  window;
-        PlatformInput   input;
-        Renderer        renderer;
-        Logger          logger;
-        Bindings        bindings;
+        PlatformWindow      window;
+        PlatformInput       input;
+        Renderer            renderer;
+        Logger*             logger;
+        ApplicationGlobals  globals;
 
-        ApplicationGlobals globals;
+        Bindings bindings;
     };
 
     struct ApplicationCreationData

@@ -2,7 +2,7 @@
 #define AL_PLATFORM_ATOMICS_H
 
 #include "engine/types.h"
-#include "engine/result/result.h"
+#include "engine/debug/result.h"
 #include "engine/utilities/bits.h"
 
 namespace al
@@ -24,12 +24,12 @@ namespace al
     template<typename T>
     struct Atomic;
 
-    template<typename T> Result<T> platform_atomic_64_bit_increment  (Atomic<T>* atomic);
-    template<typename T> Result<T> platform_atomic_64_bit_decrement  (Atomic<T>* atomic);
-    template<typename T> Result<T> platform_atomic_64_bit_add        (Atomic<T>* atomic, T other);
-    template<typename T> Result<T> platform_atomic_64_bit_load       (Atomic<T>* atomic, MemoryOrder memoryOrder);
-    template<typename T> Result<T> platform_atomic_64_bit_store      (Atomic<T>* atomic, T newValue, MemoryOrder memoryOrder);
-    template<typename T> Result<bool> platform_atomic_64_bit_cas     (Atomic<T>* atomic, T* expected, T newValue, MemoryOrder memoryOrder);
+    template<typename T> Result<T>      platform_atomic_64_bit_increment(Atomic<T>* atomic);
+    template<typename T> Result<T>      platform_atomic_64_bit_decrement(Atomic<T>* atomic);
+    template<typename T> Result<T>      platform_atomic_64_bit_add      (Atomic<T>* atomic, T other);
+    template<typename T> Result<T>      platform_atomic_64_bit_load     (Atomic<T>* atomic, MemoryOrder memoryOrder);
+    template<typename T> Result<T>      platform_atomic_64_bit_store    (Atomic<T>* atomic, T newValue, MemoryOrder memoryOrder);
+    template<typename T> Result<bool>   platform_atomic_64_bit_cas      (Atomic<T>* atomic, T* expected, T newValue, MemoryOrder memoryOrder);
 
     template<size_less_64 T>
     struct Atomic<T>
